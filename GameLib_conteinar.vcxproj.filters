@@ -1,0 +1,231 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="ソース ファイル">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="ヘッダー ファイル">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="リソース ファイル">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\Thread">
+      <UniqueIdentifier>{ccb20fdf-e58b-483f-8223-1b992c7f3577}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\Memory">
+      <UniqueIdentifier>{5b9942ee-ea40-4c61-bbcf-f7064260a650}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\ECS">
+      <UniqueIdentifier>{421f980f-9580-4d86-a5df-351dc6e0c18b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\Systems">
+      <UniqueIdentifier>{9e630b80-cdfb-46bd-9a63-8dfd1f2dbce7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ソース ファイル\Thread">
+      <UniqueIdentifier>{6543b539-2776-4ffc-96c6-412d46a38bf5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ソース ファイル\Memory">
+      <UniqueIdentifier>{b3fc74f2-f48d-4bd4-a74b-b8714f838f1e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ソース ファイル\Physics">
+      <UniqueIdentifier>{cb449942-60ee-46fc-a1ed-2e7423c0a51c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\Physics">
+      <UniqueIdentifier>{9d0e03df-c997-4c89-9540-d0ffc8382308}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\Events">
+      <UniqueIdentifier>{00915ed6-a51d-4a62-a6b1-2eecddb7866f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\Graphics">
+      <UniqueIdentifier>{ea305e54-c071-46a8-8eed-cbf6ceb92888}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\Core">
+      <UniqueIdentifier>{dab60e72-f636-43f9-a421-4e06866ab59f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ソース ファイル\Core">
+      <UniqueIdentifier>{88914608-9bca-4a11-b6f1-762ad5c5e5e5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ソース ファイル\Graphic">
+      <UniqueIdentifier>{8875531e-245c-4c19-9a38-340b29245c11}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Source\main.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Threading\JobSystem.cpp">
+      <Filter>ソース ファイル\Thread</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Threading\ThreadPool.cpp">
+      <Filter>ソース ファイル\Thread</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Physics\SpatialHashGrid.cpp">
+      <Filter>ソース ファイル\Physics</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\StackAllocator.cpp">
+      <Filter>ソース ファイル\Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\InputSystem.cpp">
+      <Filter>ソース ファイル\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\Profiler.cpp">
+      <Filter>ソース ファイル\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Graphics\DX11Renderer.cpp">
+      <Filter>ソース ファイル\Graphic</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Graphics\SimpleWindow.cpp">
+      <Filter>ソース ファイル\Graphic</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Graphics\Shader.cpp">
+      <Filter>ソース ファイル\Graphic</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Graphics\Texture.cpp">
+      <Filter>ソース ファイル\Graphic</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\Logger.cpp">
+      <Filter>ソース ファイル\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\FileManager.cpp">
+      <Filter>ソース ファイル\Core</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Source\Threading\LockFreeQueue.h">
+      <Filter>ヘッダー ファイル\Thread</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Threading\ThreadPool.h">
+      <Filter>ヘッダー ファイル\Thread</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Threading\JobSystem.h">
+      <Filter>ヘッダー ファイル\Thread</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\MemoryUtils.h">
+      <Filter>ヘッダー ファイル\Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\StackAllocator.h">
+      <Filter>ヘッダー ファイル\Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\StackResource.h">
+      <Filter>ヘッダー ファイル\Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\MemoryResource.h">
+      <Filter>ヘッダー ファイル\Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\ECS\Registry.h">
+      <Filter>ヘッダー ファイル\ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\ECS\SparseSet.h">
+      <Filter>ヘッダー ファイル\ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\ECS\View.h">
+      <Filter>ヘッダー ファイル\ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\ECS\Components.h">
+      <Filter>ヘッダー ファイル\ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\ECS\Entity.h">
+      <Filter>ヘッダー ファイル\ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\SimdSystem.h">
+      <Filter>ヘッダー ファイル\Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Physics\SpatialHashGrid.h">
+      <Filter>ヘッダー ファイル\Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Physics\CollisionComponents.h">
+      <Filter>ヘッダー ファイル\Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Physics\CollisionSystem.h">
+      <Filter>ヘッダー ファイル\Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Events\EventChannel.h">
+      <Filter>ヘッダー ファイル\Events</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Events\Events.h">
+      <Filter>ヘッダー ファイル\Events</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Events\EventBus.h">
+      <Filter>ヘッダー ファイル\Events</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\SimpleWindow.h">
+      <Filter>ヘッダー ファイル\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\RenderSystem.h">
+      <Filter>ヘッダー ファイル\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\DynamicArray.h">
+      <Filter>ヘッダー ファイル\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\ObjectPool.h">
+      <Filter>ヘッダー ファイル\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\TypeInfo.h">
+      <Filter>ヘッダー ファイル\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\InputSystem.h">
+      <Filter>ヘッダー ファイル\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\InteractionSystem.h">
+      <Filter>ヘッダー ファイル\Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\Profiler.h">
+      <Filter>ヘッダー ファイル\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\BoidAgent.h">
+      <Filter>ヘッダー ファイル\Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\BoidSystems.h">
+      <Filter>ヘッダー ファイル\Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\GameConfig.h">
+      <Filter>ヘッダー ファイル\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\GameContext.h">
+      <Filter>ヘッダー ファイル\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\GridBulidSystem.h">
+      <Filter>ヘッダー ファイル\Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\DoubleStackAllocator.h">
+      <Filter>ヘッダー ファイル\Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\DX11Renderer.h">
+      <Filter>ヘッダー ファイル\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\ConstantBuffer.h">
+      <Filter>ヘッダー ファイル\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\Shader.h">
+      <Filter>ヘッダー ファイル\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\GraphicsType.h">
+      <Filter>ヘッダー ファイル\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\Texture.h">
+      <Filter>ヘッダー ファイル\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\HashMap.h">
+      <Filter>ヘッダー ファイル\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\Logger.h">
+      <Filter>ヘッダー ファイル\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\FileManager.h">
+      <Filter>ヘッダー ファイル\Core</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="Source\Shaders\Particle.hlsl" />
+  </ItemGroup>
+</Project>
