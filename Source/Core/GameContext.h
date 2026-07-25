@@ -5,17 +5,21 @@
 #include "../ECS/Registry.h"
 #include "../Events/EventBus.h"
 #include "../Graphics/SimpleWindow.h"
+#include "../Graphics/DX11Renderer.h"
+#include "../Graphics/Texture.h"
 #include "../Physics/SpatialHashGrid.h"
 #include "InputSystem.h"
 #include "DoubleStackAllocator.h"
 #include "FileManager.h"
 
+namespace GLFD::Scene { class SceneManager; }
+
 namespace GLFD {
-  // ‘SƒVƒXƒeƒ€‚ª‹¤—L‚·‚×‚«uƒQ[ƒ€‚Ì¢ŠEvƒf[ƒ^
+  // ï¿½Sï¿½Vï¿½Xï¿½eï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Lï¿½ï¿½ï¿½×‚ï¿½ï¿½uï¿½Qï¿½[ï¿½ï¿½ï¿½Ìï¿½ï¿½Eï¿½vï¿½fï¿½[ï¿½^
   struct GameContext {
-    // ‰i‘±“I‚ÈƒŠƒ\[ƒX
+    // ï¿½iï¿½ï¿½ï¿½Iï¿½Èƒï¿½ï¿½\ï¿½[ï¿½X
     Memory::StackResource*    globalResource;
-    // ƒtƒŒ[ƒ€‚²‚Æ‚ÌƒŠƒ\[ƒX
+    // ï¿½tï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½Æ‚Ìƒï¿½ï¿½\ï¿½[ï¿½X
     Memory::StackResource*    frameResource;
 
     Thread::JobSystem*        jobSystem;
@@ -30,5 +34,10 @@ namespace GLFD {
     Core::FileManager* fileManager;
 
     float dt;
+
+    Graphics::DX11Renderer*   renderer;
+    Graphics::Texture*        texture;
+    float                     totalTime;
+    Scene::SceneManager*      sceneManager;
   };
 }

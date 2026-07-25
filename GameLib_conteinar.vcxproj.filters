@@ -96,6 +96,12 @@
     <ClCompile Include="Source\Core\FileManager.cpp">
       <Filter>ソース ファイル\Core</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Scene\SceneManager.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Game\BoidDemoScene.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Threading\LockFreeQueue.h">
@@ -221,11 +227,22 @@
     <ClInclude Include="Source\Core\FileManager.h">
       <Filter>ヘッダー ファイル\Core</Filter>
     </ClInclude>
+<<<<<<< HEAD
     <ClInclude Include="Source\Graphics\ShaderManager.h">
       <Filter>ヘッダー ファイル\Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Source\Core\HashMap.h">
       <Filter>ヘッダー ファイル\Core</Filter>
+=======
+    <ClInclude Include="Source\Scene\IScene.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Scene\SceneManager.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\BoidDemoScene.h">
+      <Filter>ヘッダー ファイル</Filter>
+>>>>>>> cd53855f4c1a1e841a99ff225af558df1f9307ce
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
