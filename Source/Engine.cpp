@@ -18,7 +18,9 @@
 
 #include "Graphics/SimpleWindow.h"
 #include "Graphics/DX11Renderer.h"
-#include "Graphics/Texture.h"
+
+#include "Resource/ResourceManager.h"
+#include "Resource/TextureLoader.h"
 
 #include "Scene/SceneManager.h"
 #include "Game/BoidDemoScene.h"
@@ -34,6 +36,9 @@ namespace {
 namespace GLFD {
   GameEngine::GameEngine() = default;
   GameEngine::~GameEngine() {
+    if (m_resourceManager) {
+      m_resourceManager->ReleaseAll();
+    }
     LOG_INFO("=== Engine Shutdown ===");
     Core::Logger::Get().Shutdown();
   }
@@ -65,14 +70,9 @@ namespace GLFD {
     }
     LOG_INFO("=== DX11 Initialize Success ===");
 
-    m_texture = std::make_unique<Graphics::Texture>();
-
-    if (!m_texture->Load(m_renderer->GetDevice(), "Resource/particle.png")) {
-      std::cerr << "Texture Load Failed!" << std::endl;
-      LOG_ERROR("Texture Load Failed!");
-      m_isRunning = false;
-      return;
-    }
+    m_resourceManager = std::make_unique<Resource::ResourceManager>();
+    m_resourceManager->RegisterLoader<Graphics::Texture>(
+        std::make_unique<Resource::TextureLoader>());
 
     m_sceneManager = std::make_unique<Scene::SceneManager>(m_stackResource.get());
 
@@ -88,10 +88,17 @@ namespace GLFD {
         m_fileManager.get(),
         0.0f,
         m_renderer.get(),
-        m_texture.get(),
         0.0f,
-        m_sceneManager.get()
+        m_sceneManager.get(),
+        m_resourceManager.get()
     };
+
+    auto texHandle = m_resourceManager->Load<Graphics::Texture>("Resource/particle.png", initCtx);
+    if (!texHandle.IsValid()) {
+      LOG_ERROR("Failed to load particle texture via ResourceManager");
+      m_isRunning = false;
+      return;
+    }
 
     m_sceneManager->PushScene(std::make_unique<BoidDemoScene>());
     m_sceneManager->ProcessPendingTransitions(initCtx);
@@ -148,9 +155,9 @@ namespace GLFD {
         m_fileManager.get(),
         dt,
         m_renderer.get(),
-        m_texture.get(),
         m_totalTime,
-        m_sceneManager.get()
+        m_sceneManager.get(),
+        m_resourceManager.get()
     };
 
     m_inputSystem->Update(m_window->GetHWND());
@@ -175,9 +182,9 @@ namespace GLFD {
         m_fileManager.get(),
         0.0f,
         m_renderer.get(),
-        m_texture.get(),
         m_totalTime,
-        m_sceneManager.get()
+        m_sceneManager.get(),
+        m_resourceManager.get()
     };
 
     m_sceneManager->Render(ctx);

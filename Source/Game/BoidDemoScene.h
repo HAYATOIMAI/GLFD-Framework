@@ -1,6 +1,8 @@
 #pragma once
 
 #include "../Scene/IScene.h"
+#include "../Resource/ResourceHandle.h"
+#include "../Graphics/Texture.h"
 
 namespace GLFD {
 
@@ -19,6 +21,8 @@ namespace GLFD {
 
   private:
     void ApplyWorldBounds(GameContext& ctx);
+
+    Resource::ResourceHandle<Graphics::Texture> m_textureHandle;
   };
 
 }

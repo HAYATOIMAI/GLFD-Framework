@@ -4,7 +4,8 @@ namespace GLFD::Memory { class StackAllocator; class StackResource; class Double
 namespace GLFD::Thread { class JobSystem; }
 namespace GLFD::ECS { class Registry; }
 namespace GLFD::Events { class EventBus; }
-namespace GLFD::Graphics { class SimpleWindow; class DX11Renderer;  class Texture; }
+namespace GLFD::Graphics { class SimpleWindow; class DX11Renderer; }
+namespace GLFD::Resource { class ResourceManager; }
 namespace GLFD::Physics  { class SpatialHashGrid; }
 namespace GLFD::Core { class InputSystem; class FileManager; }
 namespace GLFD::Scene { class SceneManager; }
@@ -37,8 +38,9 @@ namespace GLFD {
     std::unique_ptr<Graphics::DX11Renderer> m_renderer = nullptr;
 
     std::unique_ptr<Core::InputSystem> m_inputSystem = nullptr;
-    std::unique_ptr<Graphics::Texture> m_texture = nullptr;
     std::unique_ptr<Core::FileManager> m_fileManager = nullptr;
+
+    std::unique_ptr<Resource::ResourceManager> m_resourceManager = nullptr;
 
     std::unique_ptr<Scene::SceneManager> m_sceneManager = nullptr;
 

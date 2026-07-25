@@ -6,13 +6,13 @@
 #include "../Events/EventBus.h"
 #include "../Graphics/SimpleWindow.h"
 #include "../Graphics/DX11Renderer.h"
-#include "../Graphics/Texture.h"
 #include "../Physics/SpatialHashGrid.h"
 #include "InputSystem.h"
 #include "DoubleStackAllocator.h"
 #include "FileManager.h"
 
 namespace GLFD::Scene { class SceneManager; }
+namespace GLFD::Resource { class ResourceManager; }
 
 namespace GLFD {
   // �S�V�X�e�������L���ׂ��u�Q�[���̐��E�v�f�[�^
@@ -36,8 +36,8 @@ namespace GLFD {
     float dt;
 
     Graphics::DX11Renderer*   renderer;
-    Graphics::Texture*        texture;
     float                     totalTime;
     Scene::SceneManager*      sceneManager;
+    Resource::ResourceManager* resourceManager;
   };
 }
