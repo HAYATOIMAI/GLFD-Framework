@@ -35,6 +35,8 @@
     <ClCompile Include="Source\Threading\ThreadPool.cpp" />
     <ClCompile Include="Source\Scene\SceneManager.cpp" />
     <ClCompile Include="Source\Game\BoidDemoScene.cpp" />
+    <ClCompile Include="Source\Resource\ResourceManager.cpp" />
+    <ClCompile Include="Source\Resource\TextureLoader.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Core\DoubleStackAllocator.h" />
@@ -83,6 +85,10 @@
     <ClInclude Include="Source\Scene\IScene.h" />
     <ClInclude Include="Source\Scene\SceneManager.h" />
     <ClInclude Include="Source\Game\BoidDemoScene.h" />
+    <ClInclude Include="Source\Resource\ResourceHandle.h" />
+    <ClInclude Include="Source\Resource\IResourceLoader.h" />
+    <ClInclude Include="Source\Resource\ResourceManager.h" />
+    <ClInclude Include="Source\Resource\TextureLoader.h" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="Source\Shaders\Particle.hlsl">

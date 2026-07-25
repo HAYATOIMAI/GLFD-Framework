@@ -12,7 +12,8 @@
 
 #include "../Graphics/RenderSystem.h"
 #include "../Graphics/DX11Renderer.h"
-#include "../Graphics/Texture.h"
+
+#include "../Resource/ResourceManager.h"
 
 #include "../Physics/CollisionSystem.h"
 
@@ -33,6 +34,8 @@ namespace GLFD {
 
   void BoidDemoScene::OnEnter(GameContext& ctx) {
     LOG_INFO("BoidDemoScene: OnEnter");
+
+    m_textureHandle = ctx.resourceManager->Load<Graphics::Texture>("Resource/particle.png", ctx);
 
     ctx.eventBus->Register<Events::CollisionEvent>();
 
@@ -59,7 +62,10 @@ namespace GLFD {
   }
 
   void BoidDemoScene::OnRender(GameContext& ctx) {
-    ctx.renderer->SetTexture(ctx.texture);
+    auto* tex = ctx.resourceManager->Get(m_textureHandle);
+    if (tex) {
+      ctx.renderer->SetTexture(tex);
+    }
     Systems::RenderSystem::Update(*ctx.registry, *ctx.renderer, ctx.totalTime);
   }
 
