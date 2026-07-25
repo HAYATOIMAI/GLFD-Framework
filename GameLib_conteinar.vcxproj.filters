@@ -215,13 +215,16 @@
     <ClInclude Include="Source\Graphics\Texture.h">
       <Filter>ヘッダー ファイル\Graphics</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Core\HashMap.h">
-      <Filter>ヘッダー ファイル\Core</Filter>
-    </ClInclude>
     <ClInclude Include="Source\Core\Logger.h">
       <Filter>ヘッダー ファイル\Core</Filter>
     </ClInclude>
     <ClInclude Include="Source\Core\FileManager.h">
+      <Filter>ヘッダー ファイル\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\ShaderManager.h">
+      <Filter>ヘッダー ファイル\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\HashMap.h">
       <Filter>ヘッダー ファイル\Core</Filter>
     </ClInclude>
   </ItemGroup>

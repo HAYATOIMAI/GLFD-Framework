@@ -1,11 +1,3 @@
-/*****************************************************************//**
- * \file   HashMap.h
- * \brief  ƒnƒbƒVƒ…ƒ}ƒbƒv(SBO‘Î‰A“§‰ß“IƒL[ŒŸõ‘Î‰)
- * \brief std::unordered_map‘Š“–
- * 
- * \author meat
- * \date   December 2025
- *********************************************************************/
 #pragma once
 #include <iostream>
 #include <string>
@@ -22,8 +14,8 @@
 #include <cassert>
 
 namespace GLFD {
-  // --- ƒwƒ‹ƒp[\‘¢‘Ì ---
-  // “§‰ß“IƒL[ŒŸõ—pƒnƒbƒVƒƒ[
+  // --- ãƒ˜ãƒ«ãƒ‘ãƒ¼æ§‹é€ ä½“ ---
+  // é€éçš„ã‚­ãƒ¼æ¤œç´¢ç”¨ãƒãƒƒã‚·ãƒ£ãƒ¼
   struct StringViewHasher {
     using is_transparent = void;
     std::size_t operator()(const char* str) const { return std::hash<std::string_view>{}(str); }
@@ -44,7 +36,7 @@ namespace GLFD {
     struct Node;
 
   public:
-    // --- Œ^’è‹` ---
+    // --- å‹å®šç¾© ---
     using key_type = Key;
     using mapped_type = Value;
     using value_type = std::pair<const Key, Value>;
@@ -57,6 +49,7 @@ namespace GLFD {
     struct Node {
       value_type m_pair;
       Node* m_next;
+      bool m_isSmall = false;  // Bug #1 fix: ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆåˆæœŸåŒ–
 
       template<typename... Args>
       Node(Args&&... args) : m_pair(std::forward<Args>(args)...), m_next(nullptr) {}
@@ -65,20 +58,20 @@ namespace GLFD {
     using NodeAllocator = typename std::allocator_traits<Allocator>::template rebind_alloc<Node>;
     using AllocatorTraits = std::allocator_traits<NodeAllocator>;
 
-    // SBO—pƒXƒgƒŒ[ƒW
+    // SBOç”¨ã‚¹ãƒˆãƒ¬ãƒ¼ã‚¸
     struct SmallStorage {
       std::array<Node*, SmallSize> m_buckets;
       std::array<std::aligned_storage_t<sizeof(Node), alignof(Node)>, SmallSize> m_nodes;
-      Node* m_sboFreeList = nullptr; // SBO“à•”‚Ì‹ó‚«ƒm[ƒhƒŠƒXƒg
+      Node* m_sboFreeList = nullptr; // SBOå†…éƒ¨ã®ç©ºããƒãƒ¼ãƒ‰ãƒªã‚¹ãƒˆ
     };
 
-    // --- ƒƒ“ƒo•Ï” ---
+    // --- ãƒ¡ãƒ³ãƒå¤‰æ•° ---
     Node** m_buckets;
     size_type m_bucketCount;
     size_type m_size;
     float m_maxLoadFactor;
 
-    // íœ‚³‚ê‚½ƒq[ƒvƒm[ƒh‚ğÄ—˜—p‚·‚é‚½‚ß‚ÌƒŠƒXƒgiV‹KŠ„‚è“–‚ÄƒRƒXƒgíŒ¸j
+    // å‰Šé™¤ã•ã‚ŒãŸãƒ’ãƒ¼ãƒ—ãƒãƒ¼ãƒ‰ã‚’å†åˆ©ç”¨ã™ã‚‹ãŸã‚ã®ãƒªã‚¹ãƒˆï¼ˆæ–°è¦å‰²ã‚Šå½“ã¦ã‚³ã‚¹ãƒˆå‰Šæ¸›ï¼‰
     Node* m_heapRecycledList = nullptr;
 
     [[no_unique_address]] std::optional<SmallStorage> m_storage;
@@ -87,10 +80,9 @@ namespace GLFD {
     [[no_unique_address]] NodeAllocator m_allocator;
 
   public:
-    // --- ƒCƒeƒŒ[ƒ^ (‘O•ûƒCƒeƒŒ[ƒ^) ---
+    // --- ã‚¤ãƒ†ãƒ¬ãƒ¼ã‚¿ (å‰æ–¹ã‚¤ãƒ†ãƒ¬ãƒ¼ã‚¿) ---
     template<bool IsConst>
-    class ForwardIterator
-    {
+    class ForwardIterator {
     public:
       using iterator_category = std::forward_iterator_tag;
       using value_type = HashMap::value_type;
@@ -103,11 +95,9 @@ namespace GLFD {
       reference operator*() const { return m_node->m_pair; }
       pointer operator->() const { return &m_node->m_pair; }
 
-      ForwardIterator& operator++()
-      {
+      ForwardIterator& operator++() {
         m_node = m_node->m_next;
-        while (!m_node && ++m_bucketIndex < m_map->m_bucketCount)
-        {
+        while (!m_node && ++m_bucketIndex < m_map->m_bucketCount) {
           m_node = m_map->m_buckets[m_bucketIndex];
         }
         return *this;
@@ -121,7 +111,7 @@ namespace GLFD {
       friend class HashMap;
       using MapPtr = std::conditional_t<IsConst, const HashMap*, HashMap*>;
       MapPtr m_map;
-      Node* m_node;
+      Node*  m_node;
       size_t m_bucketIndex;
       ForwardIterator(MapPtr map, Node* node, size_t bucketIndex) : m_map(map), m_node(node), m_bucketIndex(bucketIndex) {}
     };
@@ -129,37 +119,87 @@ namespace GLFD {
     using iterator = ForwardIterator<false>;
     using const_iterator = ForwardIterator<true>;
 
-    // --- ƒRƒ“ƒXƒgƒ‰ƒNƒ^ / ƒfƒXƒgƒ‰ƒNƒ^ ---
+    // --- ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ / ãƒ‡ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ ---
     explicit HashMap(const Allocator& alloc = Allocator())
-      : m_buckets(nullptr), m_bucketCount(0), m_size(0), m_maxLoadFactor(0.75f), m_heapRecycledList(nullptr), m_allocator(alloc)
-    {
-      if constexpr (SmallSize > 0)
-      {
+      : m_buckets(nullptr), m_bucketCount(0), m_size(0), m_maxLoadFactor(0.75f), m_heapRecycledList(nullptr), m_allocator(alloc) {
+      if constexpr (SmallSize > 0) {
         m_storage.emplace();
         ResetToSBO();
       }
-      else
-      {
+      else {
         m_bucketCount = 16;
         m_buckets = new Node * [m_bucketCount]();
       }
     }
 
-    ~HashMap()
-    {
-      DestroyAllNodes(); // ‘Sƒm[ƒh‚ğ”jŠü
-      if (!IsUsingSmallStorage())
-      {
+    ~HashMap() {
+      Clear();
+      if (!IsUsingSmallStorage()) {
         delete[] m_buckets;
       }
     }
+    // ã‚³ãƒ”ãƒ¼ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
+    HashMap(const HashMap& other)
+      : m_bucketCount(0), m_size(0), m_maxLoadFactor(other.m_maxLoadFactor),
+      m_allocator(AllocatorTraits::select_on_container_copy_construction(other.m_allocator)),
+      m_hasher(other.m_hasher), m_keyEqual(other.m_keyEqual)
+    {
+      // ç›¸æ‰‹ãŒSBOã‚’ä½¿ã£ã¦ã„ã‚‹ã‹ã€ç©ºã§ã‚ã‚Œã°SBOã§é–‹å§‹
+      if (SmallSize > 0 && (other.IsUsingSmallStorage() || other.Empty())) {
+        m_storage.emplace();
+        ResetToSBO();
+      }
+      else {
+        m_bucketCount = other.m_bucketCount;
+        m_buckets = new Node * [m_bucketCount]();
+      }
 
-    // --- å—vAPI ---
-    // ‘}“ü (Try Emplace)
+      try {
+        for (const auto& pair : other) {
+          try_emplace(pair.first, pair.second);
+        }
+      }
+      catch (...) {
+        Clear();
+        if (!IsUsingSmallStorage()) delete[] m_buckets;
+        throw;
+      }
+    }
+
+    // ãƒ ãƒ¼ãƒ–ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
+    HashMap(HashMap&& other) noexcept
+      : m_buckets(nullptr), m_bucketCount(0), m_size(0), m_allocator(std::move(other.m_allocator))
+    {
+      MoveFrom(std::move(other));
+    }
+
+    // ãƒ ãƒ¼ãƒ–ä»£å…¥
+    HashMap& operator=(HashMap&& other) noexcept {
+      if (this != &other) {
+        Clear();
+        // ãƒ’ãƒ¼ãƒ—é…åˆ—ã®è§£æ”¾ãŒå¿…è¦ãªã‚‰è¡Œã†
+        if (!IsUsingSmallStorage()) { delete[] m_buckets; m_buckets = nullptr; }
+
+        MoveFrom(std::move(other));
+      }
+      return *this;
+    }
+
+    HashMap& operator=(const HashMap& other)
+    {
+      if (this != &other) {
+        HashMap temp(other);
+        Swap(temp);
+      }
+      return *this;
+    }
+
+    // --- ä¸»è¦API ---
+    // æŒ¿å…¥ (Try Emplace)
     template<typename K, typename... Args>
     std::pair<iterator, bool> try_emplace(const K& key, Args&&... args)
     {
-      // —e—Êƒ`ƒFƒbƒN & ƒŠƒnƒbƒVƒ…
+      // å®¹é‡ãƒã‚§ãƒƒã‚¯ & ãƒªãƒãƒƒã‚·ãƒ¥
       if (NeedsRehash())
       {
         Rehash(std::max<size_t>(16, m_bucketCount * 2));
@@ -171,7 +211,7 @@ namespace GLFD {
         return { iterator(this, found, index), false };
       }
 
-      // ƒm[ƒh‚ÌŠm•ÛiÄ—˜—pƒŠƒXƒg—Dæj
+      // ãƒãƒ¼ãƒ‰ã®ç¢ºä¿ï¼ˆå†åˆ©ç”¨ãƒªã‚¹ãƒˆå„ªå…ˆï¼‰
       Node* newNode = AllocateNode(std::piecewise_construct, std::forward_as_tuple(key), std::forward_as_tuple(std::forward<Args>(args)...));
 
       newNode->m_next = m_buckets[index];
@@ -181,8 +221,8 @@ namespace GLFD {
       return { iterator(this, newNode, index), true };
     }
 
-    // íœ (Erase)
-    // ƒm[ƒh‚ğ”jŠü‚¹‚¸AƒŠƒTƒCƒNƒ‹ƒŠƒXƒg‚É‰ñ‚·
+    // å‰Šé™¤ (Erase)
+    // ãƒãƒ¼ãƒ‰ã‚’ç ´æ£„ã›ãšã€ãƒªã‚µã‚¤ã‚¯ãƒ«ãƒªã‚¹ãƒˆã«å›ã™
     size_type erase(const key_type& key)
     {
       size_t index = GetIndex(key);
@@ -196,7 +236,7 @@ namespace GLFD {
           if (prev) prev->m_next = current->m_next;
           else m_buckets[index] = current->m_next;
 
-          RecycleNode(current); // ‚±‚±‚ÅÄ—˜—pƒŠƒXƒg‚Ö
+          RecycleNode(current); // ã“ã“ã§å†åˆ©ç”¨ãƒªã‚¹ãƒˆã¸
           m_size--;
           return 1;
         }
@@ -206,7 +246,7 @@ namespace GLFD {
       return 0;
     }
 
-    // ŒŸõ (“§‰ß“I)
+    // æ¤œç´¢ (é€éçš„)
     template<typename K>
     iterator Find(const K& key)
     {
@@ -215,7 +255,7 @@ namespace GLFD {
       return end();
     }
 
-    // ƒAƒNƒZƒX
+    // ã‚¢ã‚¯ã‚»ã‚¹
     mapped_type& operator[](const key_type& key) { return try_emplace(key).first->second; }
 
     iterator begin()
@@ -226,266 +266,343 @@ namespace GLFD {
     }
     iterator end() { return iterator(this, nullptr, m_bucketCount); }
 
-    // ƒŠƒZƒbƒg
+    // ãƒªã‚»ãƒƒãƒˆ
     void Clear()
     {
-      // ƒAƒNƒeƒBƒu‚Èƒm[ƒh‚ğ‘S‚ÄƒŠƒTƒCƒNƒ‹ƒŠƒXƒg‚Öi‚Ü‚½‚ÍSBOƒtƒŠ[ƒŠƒXƒg‚Öj
-      for (size_t i = 0; i < m_bucketCount; ++i)
-      {
-        Node* current = m_buckets[i];
-        while (current)
-        {
-          Node* next = current->m_next;
-          RecycleNode(current);
-          current = next;
+      for (size_t i = 0; i < m_bucketCount; ++i) {
+        Node* curr = m_buckets[i];
+        while (curr) {
+          Node* next = curr->m_next;
+          bool wasSmall = curr->m_isSmall;  // destroyå‰ã«é€€é¿
+
+          AllocatorTraits::destroy(m_allocator, curr); // ãƒ‡ã‚¹ãƒˆãƒ©ã‚¯ã‚¿å‘¼ã³å‡ºã—
+
+          // SBOå¤–ï¼ˆãƒ’ãƒ¼ãƒ—ï¼‰ã«ã‚ã‚‹ãƒãƒ¼ãƒ‰ãªã‚‰ãƒ¡ãƒ¢ãƒªè§£æ”¾
+          if (!wasSmall) {
+            AllocatorTraits::deallocate(m_allocator, curr, 1);
+          }
+          // SBOå†…ã®ãƒãƒ¼ãƒ‰ã¯ä½•ã‚‚ã—ãªãã¦è‰¯ã„ï¼ˆå¾Œã§ã¾ã¨ã‚ã¦ãƒªã‚»ãƒƒãƒˆã•ã‚Œã‚‹ï¼‰
+
+          curr = next;
         }
         m_buckets[i] = nullptr;
       }
+
       m_size = 0;
 
-      // ƒq[ƒv‚ğg‚Á‚Ä‚¢‚ÄA‚©‚ÂSBO‚ª‰Â”\‚È‚çSBO‚Ö–ß‚é
+      // ãƒªã‚µã‚¤ã‚¯ãƒ«ãƒªã‚¹ãƒˆï¼ˆãƒ’ãƒ¼ãƒ—ï¼‰ã®è§£æ”¾
+      // â€» RecycleNodeã§æ—¢ã«destroyæ¸ˆã¿ãªã®ã§deallocateã®ã¿
+      while (m_heapRecycledList) {
+        Node* next = m_heapRecycledList->m_next;
+        AllocatorTraits::deallocate(m_allocator, m_heapRecycledList, 1);
+        m_heapRecycledList = next;
+      }
+
+      // çŠ¶æ…‹ã®ãƒªã‚»ãƒƒãƒˆ
       if (!IsUsingSmallStorage() && SmallSize > 0)
       {
-        // ƒq[ƒvã‚ÌƒŠƒTƒCƒNƒ‹ƒm[ƒh‚ğ‘S‚Ä•¨—íœ
-        CleanUpHeapRecycledList();
-        delete[] m_buckets;
-
+        delete[] m_buckets; // ãƒ’ãƒ¼ãƒ—ãƒã‚±ãƒƒãƒˆè§£æ”¾
+        m_storage.emplace(); // SBOãƒªã‚»ãƒƒãƒˆ
+        ResetToSBO();
+      }
+      else if (IsUsingSmallStorage())
+      {
         ResetToSBO();
       }
     }
 
-    [[nodiscard]] size_t Size() const noexcept { return m_size; }
-    [[nodiscard]] bool IsUsingSmallStorage() const noexcept
+    void Swap(HashMap& other) noexcept
     {
+      if (this == &other) return;
+      HashMap temp(std::move(*this));
+      *this = std::move(other);
+      other = std::move(temp);
+    }
+
+    [[nodiscard]] size_t Size() const noexcept { return m_size; }
+    [[nodiscard]] bool Empty() const noexcept { return m_size == 0; }
+    [[nodiscard]] bool IsUsingSmallStorage() const noexcept {
       if constexpr (SmallSize > 0) return m_buckets == m_storage->m_buckets.data();
       return false;
     }
 
-    private:
-      // --- “à•”ƒƒWƒbƒN ---
-      template<typename K>
-      size_t GetIndex(const K& key) const { return m_hasher(key) % m_bucketCount; }
+  private:
+    // --- å†…éƒ¨ãƒ­ã‚¸ãƒƒã‚¯ ---
+    template<typename K>
+    size_t GetIndex(const K& key) const { return m_hasher(key) % m_bucketCount; }
 
-      bool NeedsRehash() const
+    bool NeedsRehash() const {
+      // SBOä¸­ã¯ãƒãƒƒãƒ•ã‚¡ã‚µã‚¤ã‚ºã‚’è¶…ãˆãŸã‚‰å¿…é ˆ
+      if (IsUsingSmallStorage()) return m_size >= SmallSize;
+      // ãƒ’ãƒ¼ãƒ—ä¸­ã¯è² è·ç‡ã§åˆ¤å®š
+      return LoadFactor() > m_maxLoadFactor;
+    }
+
+    float LoadFactor() const  { 
+      return m_bucketCount > 0 ? static_cast<float>(m_size) / m_bucketCount : 0.0f; 
+    }
+
+    template<typename K>
+    Node* FindNode(const K& key, size_t index) const {
+      Node* current = m_buckets[index];
+      while (current)
       {
-        // SBO’†‚Íƒoƒbƒtƒ@ƒTƒCƒY‚ğ’´‚¦‚½‚ç•K{
-        if (IsUsingSmallStorage()) return m_size >= SmallSize;
-        // ƒq[ƒv’†‚Í•‰‰×—¦‚Å”»’è
-        return LoadFactor() > m_maxLoadFactor;
+        if (m_keyEqual(current->m_pair.first, key)) return current;
+        current = current->m_next;
+      }
+      return nullptr;
+    }
+
+    // ä¾‹å¤–å®‰å…¨ãªRehash
+    void Rehash(size_t newBucketCount) {
+      if (newBucketCount == 0) return;
+
+      // æ–°ã—ã„ãƒã‚±ãƒƒãƒˆé…åˆ—ã®ç¢ºä¿
+      Node** newBuckets = nullptr;
+      try {
+        newBuckets = new Node * [newBucketCount]();
+      }
+      catch (...) {
+        throw;
       }
 
-      float LoadFactor() const { return m_bucketCount > 0 ? static_cast<float>(m_size) / m_bucketCount : 0.0f; }
+      // ã‚¬ãƒ¼ãƒ‰: é–¢æ•°çµ‚äº†æ™‚ã«commitãƒ•ãƒ©ã‚°ãŒfalseãªã‚‰newBucketsã‚’å‰Šé™¤
+      bool commit = false;
+      auto bucketGuard = std::unique_ptr<Node * []>(newBuckets);
 
-      template<typename K>
-      Node* FindNode(const K& key, size_t index) const
-      {
-        Node* current = m_buckets[index];
-        while (current)
-        {
-          if (m_keyEqual(current->m_pair.first, key)) return current;
-          current = current->m_next;
+      bool wasUsingSBO = IsUsingSmallStorage();
+      std::vector<Node*> nodesToMove;
+      nodesToMove.reserve(m_size);
+
+      // ãƒãƒ¼ãƒ‰ã®æº–å‚™
+      if (wasUsingSBO) {
+        try {
+          for (auto it = begin(); it != end(); ++it) {
+            // æ–°ã—ã„ãƒ’ãƒ¼ãƒ—ãƒãƒ¼ãƒ‰ã‚’ç¢ºä¿ã—ã¦ãƒ ãƒ¼ãƒ–æ§‹ç¯‰
+            Node* newNode = AllocatorTraits::allocate(m_allocator, 1);
+            try {
+              AllocatorTraits::construct(m_allocator, newNode, std::move(*it));
+            }
+            catch (...) {
+              AllocatorTraits::deallocate(m_allocator, newNode, 1);
+              throw;
+            }
+            newNode->m_isSmall = false;  // ãƒ’ãƒ¼ãƒ—ãƒãƒ¼ãƒ‰ã¨ã—ã¦æ˜ç¤ºçš„ã«ãƒãƒ¼ã‚¯
+            newNode->m_next = nullptr;
+            nodesToMove.push_back(newNode);
+          }
         }
-        return nullptr;
+        catch (...) {
+          // ä½œæˆé€”ä¸­ã®ä¸€æ™‚ãƒãƒ¼ãƒ‰ã‚’ç ´æ£„
+          for (Node* n : nodesToMove) {
+            AllocatorTraits::destroy(m_allocator, n);
+            AllocatorTraits::deallocate(m_allocator, n, 1);
+          }
+          throw; // Rehashä¸­æ­¢ã€å…ƒã®çŠ¶æ…‹ã¯ç¶­æŒã•ã‚Œã‚‹
+        }
       }
 
-      // —áŠOˆÀ‘S‚ÈRehash
-      void Rehash(size_t newBucketCount)
-      {
-        if (newBucketCount == 0) return;
+      // ã‚³ãƒŸãƒƒãƒˆãƒ•ã‚§ãƒ¼ã‚ºï¼ˆã“ã“ã‹ã‚‰ã¯ä¾‹å¤–ã‚’å‡ºã•ãªã„ï¼‰
+      bucketGuard.release(); // æ‰€æœ‰æ¨©ã‚’æ”¾æ£„ï¼ˆm_bucketsã«æ¸¡ã™ãŸã‚ï¼‰
 
-        // 1. V‚µ‚¢ƒoƒPƒbƒg”z—ñ‚ÌŠm•Ûi¸”s‚µ‚½‚ç‚±‚±‚Å—áŠO‘—oAŠù‘¶ƒf[ƒ^‚Í–³–j
-        Node** newBuckets = new Node * [newBucketCount]();
+      if (wasUsingSBO) {
+        // å¤ã„SBOãƒãƒ¼ãƒ‰ã®ç ´æ£„
+        DestroyAllNodesInSBO();
+        m_storage.reset(); // SBOé ˜åŸŸã‚’ç„¡åŠ¹åŒ–ï¼ˆå¿…è¦ãªã‚‰ï¼‰
 
-        bool wasSBO = IsUsingSmallStorage();
-
-        // SBO‚©‚çƒq[ƒv‚Ö‚ÌˆÚs‚Ìê‡Aƒm[ƒh‚ÌÄŠm•Û‚ª•K—vi—áŠO”­¶ƒŠƒXƒN‚ ‚èj
-        // ‚»‚Ì‚½‚ßAˆê“I‚ÈƒŠƒXƒg‚ğì‚Á‚Ä¬Œ÷‚ğŠm”F‚µ‚Ä‚©‚çØ‚è‘Ö‚¦‚é
-        if (wasSBO)
-        {
-          std::vector<Node*> tempNodes;
-          tempNodes.reserve(m_size);
-
-          try
-          {
-            for (size_t i = 0; i < m_bucketCount; ++i)
-            {
-              Node* current = m_buckets[i];
-              while (current)
-              {
-                // V‚µ‚¢ƒm[ƒh‚ğƒq[ƒv‚ÉŠm•Û
-                Node* newNode = AllocatorTraits::allocate(m_allocator, 1);
-                // move\’zB‚±‚ê‚ªthrow‚·‚é‰Â”\«‚à‚ ‚é
-                AllocatorTraits::construct(m_allocator, newNode, std::move(current->m_pair));
-                newNode->m_next = nullptr;
-                tempNodes.push_back(newNode);
-
-                current = current->m_next;
-              }
-            }
-          }
-          catch (...)
-          {
-            // ¸”s‚µ‚½ê‡AŠm•Û‚µ‚½ˆêƒm[ƒh‚ÆƒoƒPƒbƒg‚ğ‰ğ•ú‚µ‚ÄI—¹
-            for (Node* node : tempNodes)
-            {
-              AllocatorTraits::destroy(m_allocator, node);
-              AllocatorTraits::deallocate(m_allocator, node, 1);
-            }
-            delete[] newBuckets;
-            throw; // —áŠO‚ğÄ‘—o
-          }
-
-          // ‚±‚±‚Ü‚Å—ˆ‚ê‚Î¬Œ÷BSBO‚ÌŒÃ‚¢—v‘f‚ğƒfƒXƒgƒ‰ƒNƒg
-          for (size_t i = 0; i < SmallSize; ++i)
-          {
-            // ƒoƒbƒtƒ@“à‚ÌƒIƒuƒWƒFƒNƒg‚ğ”jŠüiƒƒ‚ƒŠ‰ğ•ú‚Å‚Í‚È‚¢j
-            // ƒtƒŠ[ƒŠƒXƒg‚©‚Ç‚¤‚©”»•Ê‚ª–Ê“|‚È‚Ì‚ÅAm_bucketsŒo—R‚Å’H‚Á‚½•û‚ªˆÀ‘S‚¾‚ªA
-            // ‚±‚±‚Å‚ÍSBO—Ìˆæ‚Ì—LŒø‚ÈƒIƒuƒWƒFƒNƒg‚¾‚¯ƒfƒXƒgƒ‰ƒNƒg‚·‚éŠÈˆÕÀ‘•‚Æ‚·‚é
-            // iŒµ–§‚É‚Íƒrƒbƒgƒ}ƒbƒvŠÇ—‚È‚Ç‚ª•K—v‚¾‚ªAŠ„ˆ¤j
-          }
-          // ‘ã‚í‚è‚ÉCleanUpSBO‚ğŒÄ‚ñ‚ÅƒŠƒZƒbƒg‚·‚é‚Ì‚ª–³“ï
-          ResetToSBO(); // ‚½‚¾‚µm_buckets‚ªã‘‚«‚³‚ê‚é‚Ì‚Å’ˆÓ
-
-          // V‚µ‚¢ƒoƒPƒbƒg‚É”z’u
-          for (Node* node : tempNodes)
-          {
-            size_t newIndex = m_hasher(node->m_pair.first) % newBucketCount;
-            node->m_next = newBuckets[newIndex];
-            newBuckets[newIndex] = node;
+        // æ–°ã—ã„ãƒãƒ¼ãƒ‰ã‚’é…ç½®
+        for (Node* node : nodesToMove) {
+          size_t idx = m_hasher(node->m_pair.first) % newBucketCount;
+          node->m_next = newBuckets[idx];
+          newBuckets[idx] = node;
+        }
+      }
+      else {
+        for (size_t i = 0; i < m_bucketCount; ++i) {
+          Node* curr = m_buckets[i];
+          while (curr) {
+            Node* next = curr->m_next;
+            size_t idx = m_hasher(curr->m_pair.first) % newBucketCount;
+            curr->m_next = newBuckets[idx];
+            newBuckets[idx] = curr;
+            curr = next;
           }
         }
-        else // ƒq[ƒv -> ƒq[ƒv‚ÌRehash (Noexcept‚Å‰Â”\)
-        {
-          // ƒm[ƒh‚ÌÄŠm•Û‚Í•s—vBƒ|ƒCƒ“ƒ^‚ğŒq‚¬•Ï‚¦‚é‚¾‚¯B
-          for (size_t i = 0; i < m_bucketCount; ++i)
-          {
-            Node* current = m_buckets[i];
-            while (current)
-            {
-              Node* next = current->m_next;
-              size_t newIndex = m_hasher(current->m_pair.first) % newBucketCount;
-              current->m_next = newBuckets[newIndex];
-              newBuckets[newIndex] = current;
-              current = next;
-            }
-          }
-          delete[] m_buckets; // ŒÃ‚¢ƒoƒPƒbƒg”z—ñ‚Ì‚İíœ
-        }
-
-        m_buckets = newBuckets;
-        m_bucketCount = newBucketCount;
+        delete[] m_buckets; // å¤ã„ãƒã‚±ãƒƒãƒˆé…åˆ—ã‚’å‰Šé™¤
       }
 
-      // --- ƒƒ‚ƒŠŠÇ—EÄ—˜—pƒƒWƒbƒN ---
-      template<typename... Args>
-      Node* AllocateNode(Args&&... args)
-      {
-        // 1. SBO‚ğg—p’†‚È‚çASBO‚ÌƒtƒŠ[ƒŠƒXƒg‚©‚ç
-        if (IsUsingSmallStorage())
-        {
-          if (m_storage->m_sboFreeList)
-          {
-            Node* node = m_storage->m_sboFreeList;
-            m_storage->m_sboFreeList = node->m_next;
-            AllocatorTraits::construct(m_allocator, node, std::forward<Args>(args)...); // pair\’z
-            node->m_next = nullptr;
-            return node;
-          }
-          // ‚±‚±‚É—ˆ‚éSBO–”t‚¾‚ªARehashƒƒWƒbƒN‚ªæ‚É“­‚­‚Í‚¸‚È‚Ì‚Å“’B•s”\‚È‚Í‚¸
-          throw std::bad_alloc();
-        }
+      m_buckets = newBuckets;
+      m_bucketCount = newBucketCount;
+    }
 
-        // 2. ƒq[ƒv‚ÌƒŠƒTƒCƒNƒ‹ƒŠƒXƒg‚É‹ó‚«‚ª‚ ‚ê‚ÎÄ—˜—p
-        if (m_heapRecycledList)
-        {
-          Node* node = m_heapRecycledList;
-          m_heapRecycledList = node->m_next;
-          // ƒƒ‚ƒŠ‚ÍŠm•ÛÏ‚İ‚È‚Ì‚ÅAconstruct‚Ì‚İŒÄ‚Ô
-          AllocatorTraits::construct(m_allocator, node, std::forward<Args>(args)...);
+    bool IsSmallNode(Node* node) const noexcept {
+      return node && node->m_isSmall;
+    }
+
+    void DestroyAllNodesInSBO() {
+      // ãƒã‚±ãƒƒãƒˆçµŒç”±ã§ã‚¢ã‚¯ãƒ†ã‚£ãƒ–ãªãƒãƒ¼ãƒ‰ã‚’æ¢ã—ã¦destroy
+      for (size_t i = 0; i < m_bucketCount; ++i) {
+        Node* current = m_buckets[i];
+        while (current) {
+          Node* next = current->m_next;
+          if (current->m_isSmall) {
+            AllocatorTraits::destroy(m_allocator, current);
+          }
+          current = next;
+        }
+      }
+    }
+
+    // ãƒ ãƒ¼ãƒ–ãƒ­ã‚¸ãƒƒã‚¯ã®å…±é€šåŒ–
+    void MoveFrom(HashMap&& other) {
+      m_maxLoadFactor = other.m_maxLoadFactor;
+      m_hasher = std::move(other.m_hasher);
+      m_keyEqual = std::move(other.m_keyEqual);
+
+      if (other.IsUsingSmallStorage()) {
+        // ç›¸æ‰‹ãŒSBOã®å ´åˆã€ãƒã‚¤ãƒ³ã‚¿ã®æ¨ªå–ã‚Šã¯ã§ããªã„ï¼ˆãƒãƒƒãƒ•ã‚¡ãŒç›¸æ‰‹ã®ä¸­ã«ã‚ã‚‹ãŸã‚ï¼‰
+        // SBOé ˜åŸŸã‚’ç¢ºä¿ã—ã€ä¸­èº«ã‚’ã€Œç§»å‹•ã€ã•ã›ã‚‹å¿…è¦ãŒã‚ã‚‹
+        m_storage.emplace();
+        ResetToSBO();
+
+        // ãƒãƒ¼ãƒ‰ã‚’ç§»å‹•
+        for (auto it = other.begin(); it != other.end(); ++it) {
+          // SBOå†…ã§ã®ç§»å‹•ãªã®ã§ã€try_emplaceã§å†æ§‹ç¯‰
+          // ã‚­ãƒ¼ã¯const Keyã®ãŸã‚ã‚³ãƒ”ãƒ¼ã€å€¤ã¯ãƒ ãƒ¼ãƒ–
+          try_emplace(it->first, std::move(it->second));
+        }
+        other.Clear(); // å…ƒã®ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã¯ç©ºã«ã™ã‚‹
+      }
+      else {
+        // ç›¸æ‰‹ãŒãƒ’ãƒ¼ãƒ—ã®å ´åˆã€ãƒã‚¤ãƒ³ã‚¿ã‚’å¥ªã†ã ã‘ã§OK
+        m_buckets = other.m_buckets;
+        m_bucketCount = other.m_bucketCount;
+        m_size = other.m_size;
+        m_heapRecycledList = other.m_heapRecycledList; // ãƒªã‚µã‚¤ã‚¯ãƒ«ãƒªã‚¹ãƒˆã‚‚å¥ªã†
+
+        // ç›¸æ‰‹ã‚’ç„¡åŠ¹åŒ–
+        other.m_buckets = nullptr;
+        other.m_size = 0;
+        other.m_bucketCount = 0;
+        other.m_heapRecycledList = nullptr;
+      }
+    }
+
+    void CleanupPartialConstruction() {
+      for (size_t i = 0; i < m_bucketCount; ++i) {
+        Node* current = m_buckets[i];
+        while (current) {
+          Node* next = current->m_next;
+          bool wasSmall = current->m_isSmall;  // destroyå‰ã«é€€é¿
+          AllocatorTraits::destroy(m_allocator, current);
+          if (!wasSmall) {
+            AllocatorTraits::deallocate(m_allocator, current, 1);
+          }
+          current = next;
+        }
+      }
+      if (!IsUsingSmallStorage()) {
+        delete[] m_buckets;
+      }
+    }
+
+    template<typename... Args>
+    Node* AllocateNode(Args&&... args) {
+      // SBOã‚’ä½¿ç”¨ä¸­ãªã‚‰ã€SBOã®ãƒ•ãƒªãƒ¼ãƒªã‚¹ãƒˆã‹ã‚‰
+      if (IsUsingSmallStorage()) {
+        if (m_storage->m_sboFreeList) {
+          Node* node = m_storage->m_sboFreeList;
+          m_storage->m_sboFreeList = node->m_next;
+          AllocatorTraits::construct(m_allocator, node, std::forward<Args>(args)...); // pairæ§‹ç¯‰
+          node->m_isSmall = true;  // constructãŒãƒ‡ãƒ•ã‚©ãƒ«ãƒˆåˆæœŸåŒ–å­ã§ä¸Šæ›¸ãã™ã‚‹ãŸã‚å†è¨­å®š
           node->m_next = nullptr;
           return node;
         }
 
-        // 3. ‚È‚¯‚ê‚ÎV‹KƒAƒƒP[ƒg
-        Node* node = AllocatorTraits::allocate(m_allocator, 1);
-        try {
-          AllocatorTraits::construct(m_allocator, node, std::forward<Args>(args)...);
-        }
-        catch (...) {
-          AllocatorTraits::deallocate(m_allocator, node, 1);
-          throw;
-        }
+        throw std::bad_alloc();
+      }
+
+      // ãƒ’ãƒ¼ãƒ—ã®ãƒªã‚µã‚¤ã‚¯ãƒ«ãƒªã‚¹ãƒˆã«ç©ºããŒã‚ã‚Œã°å†åˆ©ç”¨
+      if (m_heapRecycledList) {
+        Node* node = m_heapRecycledList;
+        m_heapRecycledList = node->m_next;
+        // ãƒ¡ãƒ¢ãƒªã¯ç¢ºä¿æ¸ˆã¿ãªã®ã§ã€constructã®ã¿å‘¼ã¶
+        AllocatorTraits::construct(m_allocator, node, std::forward<Args>(args)...);
+        node->m_isSmall = false;  // ãƒ’ãƒ¼ãƒ—ãƒãƒ¼ãƒ‰ã«ãƒ•ãƒ©ã‚°è¨­å®š
         node->m_next = nullptr;
         return node;
       }
 
-      void RecycleNode(Node* node)
-      {
-        // ƒfƒXƒgƒ‰ƒNƒ^‚Ì‚İŒÄ‚Ño‚µAƒƒ‚ƒŠ‚Í‰ğ•ú‚µ‚È‚¢
-        AllocatorTraits::destroy(m_allocator, node);
+      // ãªã‘ã‚Œã°æ–°è¦ç¢ºä¿
+      Node* node = AllocatorTraits::allocate(m_allocator, 1);
+      try {
+        AllocatorTraits::construct(m_allocator, node, std::forward<Args>(args)...);
+        node->m_isSmall = false;  // æ–°è¦ãƒ’ãƒ¼ãƒ—ãƒãƒ¼ãƒ‰ã«ãƒ•ãƒ©ã‚°è¨­å®š
+      }
+      catch (...) {
+        AllocatorTraits::deallocate(m_allocator, node, 1);
+        throw;
+      }
+      node->m_next = nullptr;
+      return node;
+    }
 
-        if (IsUsingSmallStorage())
-        {
-          // SBO—Ìˆæ‚Ìƒm[ƒh‚È‚çSBOƒtƒŠ[ƒŠƒXƒg‚Ö–ß‚·
-          node->m_next = m_storage->m_sboFreeList;
-          m_storage->m_sboFreeList = node;
+    void RecycleNode(Node* node) {
+      // ãƒ‡ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ã®ã¿å‘¼ã³å‡ºã—ã€ãƒ¡ãƒ¢ãƒªã¯è§£æ”¾ã—ãªã„
+      AllocatorTraits::destroy(m_allocator, node);
+
+      if (IsUsingSmallStorage()) {
+        // SBOé ˜åŸŸã®ãƒãƒ¼ãƒ‰ãªã‚‰SBOãƒ•ãƒªãƒ¼ãƒªã‚¹ãƒˆã¸æˆ»ã™
+        node->m_next = m_storage->m_sboFreeList;
+        m_storage->m_sboFreeList = node;
+      }
+      else {
+        // ãƒ’ãƒ¼ãƒ—é ˜åŸŸã®ãƒãƒ¼ãƒ‰ãªã‚‰ãƒ’ãƒ¼ãƒ—ãƒªã‚µã‚¤ã‚¯ãƒ«ãƒªã‚¹ãƒˆã¸æˆ»ã™
+        node->m_next = m_heapRecycledList;
+        m_heapRecycledList = node;
+      }
+    }
+
+    void CleanUpHeapRecycledList() {
+      while (m_heapRecycledList) {
+        Node* next = m_heapRecycledList->m_next;
+        AllocatorTraits::deallocate(m_allocator, m_heapRecycledList, 1);
+        m_heapRecycledList = next;
+      }
+    }
+
+    void DestroyAllNodes() {
+      // ã‚¢ã‚¯ãƒ†ã‚£ãƒ–ãªãƒãƒ¼ãƒ‰ã®ç ´æ£„
+      for (size_t i = 0; i < m_bucketCount; ++i) {
+        Node* current = m_buckets[i];
+        while (current) {
+          Node* next = current->m_next;
+          AllocatorTraits::destroy(m_allocator, current);
+          if (!IsUsingSmallStorage()) AllocatorTraits::deallocate(m_allocator, current, 1);
+          current = next;
         }
-        else
-        {
-          // ƒq[ƒv—Ìˆæ‚Ìƒm[ƒh‚È‚çƒq[ƒvƒŠƒTƒCƒNƒ‹ƒŠƒXƒg‚Ö–ß‚·
-          node->m_next = m_heapRecycledList;
-          m_heapRecycledList = node;
-        }
+        m_buckets[i] = nullptr;
       }
 
-      void CleanUpHeapRecycledList()
-      {
-        while (m_heapRecycledList)
-        {
-          Node* next = m_heapRecycledList->m_next;
-          // construct‚³‚ê‚Ä‚¢‚È‚¢‚Ì‚Ådestroy‚Í•s—v
-          AllocatorTraits::deallocate(m_allocator, m_heapRecycledList, 1);
-          m_heapRecycledList = next;
-        }
+      // ãƒªã‚µã‚¤ã‚¯ãƒ«å¾…ã¡ãƒãƒ¼ãƒ‰ï¼ˆãƒ’ãƒ¼ãƒ—ï¼‰ã®è§£æ”¾
+      if (!IsUsingSmallStorage()) {
+        CleanUpHeapRecycledList();
       }
+    }
 
-      void DestroyAllNodes()
-      {
-        // 1. ƒAƒNƒeƒBƒu‚Èƒm[ƒh‚Ì”jŠü
-        for (size_t i = 0; i < m_bucketCount; ++i)
-        {
-          Node* current = m_buckets[i];
-          while (current)
-          {
-            Node* next = current->m_next;
-            AllocatorTraits::destroy(m_allocator, current);
-            if (!IsUsingSmallStorage()) AllocatorTraits::deallocate(m_allocator, current, 1);
-            current = next;
-          }
-          m_buckets[i] = nullptr;
-        }
+    void ResetToSBO() {
+      m_buckets = m_storage->m_buckets.data();
+      m_bucketCount = SmallSize;
+      std::fill(m_buckets, m_buckets + SmallSize, nullptr);
 
-        // 2. ƒŠƒTƒCƒNƒ‹‘Ò‚¿ƒm[ƒhiƒq[ƒvj‚Ì‰ğ•ú
-        if (!IsUsingSmallStorage())
-        {
-          CleanUpHeapRecycledList();
-        }
+      // SBOãƒãƒƒãƒ•ã‚¡å…¨ä½“ã‚’åˆæœŸåŒ–ã—ã¦ãƒ•ãƒªãƒ¼ãƒªã‚¹ãƒˆã‚’æ§‹ç¯‰
+      m_storage->m_sboFreeList = nullptr;
+      for (size_t i = 0; i < SmallSize; ++i) {
+        Node* node = reinterpret_cast<Node*>(&m_storage->m_nodes[i]);
+        node->m_next = m_storage->m_sboFreeList;
+        node->m_isSmall = true;  // Bug #2 fix: SBOãƒãƒ¼ãƒ‰ã«ãƒ•ãƒ©ã‚°è¨­å®š
+        m_storage->m_sboFreeList = node;
       }
-
-      void ResetToSBO()
-      {
-        m_buckets = m_storage->m_buckets.data();
-        m_bucketCount = SmallSize;
-        std::fill(m_buckets, m_buckets + SmallSize, nullptr);
-
-        // SBOƒoƒbƒtƒ@‘S‘Ì‚ğ‰Šú‰»‚µ‚ÄƒtƒŠ[ƒŠƒXƒg‚ğ\’z
-        m_storage->m_sboFreeList = nullptr;
-        for (size_t i = 0; i < SmallSize; ++i)
-        {
-          Node* node = reinterpret_cast<Node*>(&m_storage->m_nodes[i]);
-          node->m_next = m_storage->m_sboFreeList;
-          m_storage->m_sboFreeList = node;
-        }
-      }
+    }
   };
 }

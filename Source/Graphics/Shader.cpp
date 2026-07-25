@@ -21,8 +21,6 @@ namespace GLFD::Graphics {
     file.seekg(0, std::ios::beg); // æ“ª‚É–ß‚é
     file.read(&outString[0], fileSize);
 
-    ///
-
     return true;
   }
 
