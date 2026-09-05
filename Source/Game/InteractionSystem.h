@@ -9,10 +9,14 @@
 namespace GLFD::Systems {
   class InteractionSystem {
   public:
-    static void Update(ECS::Registry& registry, 
+    /// @param explosionRadius / explosionForce / screenScale 設定由来 (interaction)
+    static void Update(ECS::Registry& registry,
                        Thread::JobSystem& jobSystem,
-                       const Core::InputSystem& input, 
-                       const Graphics::SimpleWindow& window) {
+                       const Core::InputSystem& input,
+                       const Graphics::SimpleWindow& window,
+                       float explosionRadius,
+                       float explosionForce,
+                       float screenScale) {
      
       // 左クリックした瞬間だけ処理
       if (input.IsTriggered(GLFD::Core::KeyCode::MouseLeft)) {
@@ -22,7 +26,7 @@ namespace GLFD::Systems {
         int my = input.GetMouseY();
         int halfW = window.GetWidth() / 2;
         int halfH = window.GetHeight() / 2;
-        float scale = 6.0f; // RenderSystemと合わせる
+        float scale = screenScale; // RenderSystemと合わせる
 
         float worldX = (mx - halfW) / scale;
         float worldY = (my - halfH) / scale; // Y軸の向きに注意（GDIは下が+なのでそのまま）
@@ -41,10 +45,6 @@ namespace GLFD::Systems {
         size_t batchSize = count / threadCount;
         Thread::JobCounter counter;
         auto handle = jobSystem.CreateHandle(counter);
-
-        // 爆発パラメータ
-        float explosionRadius = 20.0f;
-        float explosionForce = 50.0f;
 
         for (size_t t = 0; t < threadCount; ++t) {
           size_t start = t * batchSize;

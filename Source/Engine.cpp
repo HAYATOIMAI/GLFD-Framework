@@ -5,6 +5,9 @@
 #include "Core/MemoryResource.h"
 #include "Core/GameContext.h"
 #include "Core/GameConfig.h"
+#include "Core/GameConfigLoad.h"
+#include "Core/GameConfigLog.h"
+#include "Core/Json/Json.h"
 #include "Core/InputSystem.h"
 #include "Core/Profiler.h"
 #include "Core/Logger.h"
@@ -31,6 +34,18 @@
 namespace {
   constexpr auto USE_MEMORY_SIZE = 512 * 1024 * 1024; // 512MB
   constexpr auto FRAME_MEMORY_SIZE = 64 * 1024 * 1024; // 64MB
+
+  /// UTF-8 の StringView を Win32 へ渡すためのワイド文字列にする
+  std::wstring ToWide(GLFD::StringView utf8) {
+    if (utf8.Empty()) { return std::wstring(); }
+    const int needed = ::MultiByteToWideChar(CP_UTF8, 0, utf8.Data(),
+                                             static_cast<int>(utf8.Size()), nullptr, 0);
+    if (needed <= 0) { return std::wstring(); }
+    std::wstring wide(static_cast<size_t>(needed), wchar_t{});
+    ::MultiByteToWideChar(CP_UTF8, 0, utf8.Data(), static_cast<int>(utf8.Size()),
+                          wide.data(), needed);
+    return wide;
+  }
 }
 
 namespace GLFD {
@@ -56,11 +71,44 @@ namespace GLFD {
     m_jobSystem = std::make_unique<Thread::JobSystem>();
     m_registry = std::make_unique<ECS::Registry>(m_stackResource.get());
     m_eventBus = std::make_unique<Events::EventBus>(m_stackResource.get());
-    m_window = std::make_unique<Graphics::SimpleWindow>(GameConfig::WindowTitle, GameConfig::WindowWidth, GameConfig::WindowHeight);
+    // --- 設定の読み込み ------------------------------------------------------
+    // Document は GameConfig と同じ寿命で持つ。StringView (title など) が
+    // Document のアリーナを指しているため (R0-5)
+    {
+      // 2 段レイヤ (2-3)。.local.json は無いのが普通で、あれば上書きされる
+      ConfigDiagnosticsLogger diagnostics;
+      const bool loaded = ReloadGameConfig(m_configDoc, m_configLocalDoc, m_config,
+                                           kGameConfigPath, kGameConfigLocalPath,
+                                           m_stackResource.get(), diagnostics);
+      if (loaded) {
+        LOG_INFO("config loaded: %s (version %u)%s", kGameConfigPath, diagnostics.Version(),
+                 diagnostics.SawLocal() ? " + GameConfig.local.json" : "");
+      }
+      else {
+        // **起動不能にしない。** 既定値のまま続行する。
+        // 失敗の位置は診断が file(line,col) 形式で出している
+        LOG_WARN("config could not be loaded (%s). falling back to built-in defaults",
+                 kGameConfigPath);
+        m_configDoc      = std::make_unique<Json::Document>(m_stackResource.get());
+        m_configLocalDoc = std::make_unique<Json::Document>(m_stackResource.get());
+        m_config         = std::make_unique<GameConfig>(m_stackResource.get());
+      }
+    }
+
+    // 適用値をログに残す。設定が効いていることを起動ログだけで確認できる
+    LOG_INFO("window: %dx%d entities=%d maxSpeed=%.2f halfExtent=(%.1f, %.1f)",
+             m_config->window.width, m_config->window.height,
+             m_config->simulation.entityCount, m_config->simulation.maxSpeed,
+             m_config->world.halfExtent[0], m_config->world.halfExtent[1]);
+
+    const std::wstring windowTitle = ToWide(m_config->window.title);
+    m_window = std::make_unique<Graphics::SimpleWindow>(
+        windowTitle, m_config->window.width, m_config->window.height);
     m_inputSystem = std::make_unique<Core::InputSystem>();
 
     m_renderer = std::make_unique<Graphics::DX11Renderer>();
-    if (!m_renderer->Initialize(m_window->GetHWND(), GameConfig::WindowWidth, GameConfig::WindowHeight)) {
+    if (!m_renderer->Initialize(m_window->GetHWND(),
+                                m_config->window.width, m_config->window.height)) {
 #ifdef _DEBUG
       std::cerr << "DX11 Init Failed!" << std::endl;
 #endif // DEBUG

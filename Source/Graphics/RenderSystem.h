@@ -12,14 +12,17 @@ namespace GLFD::Systems {
   class RenderSystem {
   public:
     // メイン処理
-    static void Update(ECS::Registry& registry, Graphics::DX11Renderer& renderer, float time) {
+    /// @param width / height 実際のウィンドウサイズ。**設定の型に依存させない**ため
+    ///        GameConfig ではなく値で受け取る(レンダラを単体で試せる形を保つ)
+    static void Update(ECS::Registry& registry, Graphics::DX11Renderer& renderer, float time,
+                       int windowWidth, int windowHeight) {
 
       // 画面クリア (黒)
      renderer.BeginFrame();
 
      // 定数バッファ更新
-     float width = static_cast<float>(GameConfig::WindowWidth);
-     float height = static_cast<float>(GameConfig::WindowHeight);
+     float width = static_cast<float>(windowWidth);
+     float height = static_cast<float>(windowHeight);
      //float aspect = width / height;
 
      // 高さ0対策

@@ -13,6 +13,8 @@ namespace GLFD::Core {
     Up = VK_UP,
     Right = VK_RIGHT,
     Down = VK_DOWN,
+    F5 = VK_F5,
+    F6 = VK_F6,
     // •K—v‚É‰ž‚¶‚Ä’Ç‰Á (A-Z‚Í 'A' ‚ÅOK)
     MouseLeft = VK_LBUTTON,
     MouseRight = VK_RBUTTON
