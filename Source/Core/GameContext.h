@@ -8,18 +8,15 @@
 #include "../Graphics/DX11Renderer.h"
 #include "../Physics/SpatialHashGrid.h"
 #include "InputSystem.h"
-#include "DoubleStackAllocator.h"
+#include "../Core/DoubleStackAllocator.h"
 #include "FileManager.h"
 
 namespace GLFD::Scene { class SceneManager; }
 namespace GLFD::Resource { class ResourceManager; }
 
 namespace GLFD {
-  // �S�V�X�e�������L���ׂ��u�Q�[���̐��E�v�f�[�^
   struct GameContext {
-    // �i���I�ȃ��\�[�X
     Memory::StackResource*    globalResource;
-    // �t���[�����Ƃ̃��\�[�X
     Memory::StackResource*    frameResource;
 
     Thread::JobSystem*        jobSystem;

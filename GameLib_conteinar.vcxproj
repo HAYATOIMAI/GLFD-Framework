@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -20,6 +20,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\Core\FileManager.cpp" />
+    <ClCompile Include="Source\Core\Json\JsonArena.cpp" />
+    <ClCompile Include="Source\Core\Json\JsonReader.cpp" />
+    <ClCompile Include="Source\Core\Json\JsonValue.cpp" />
+    <ClCompile Include="Source\Core\Json\JsonFileIO.cpp" />
+    <ClCompile Include="Source\Core\Json\JsonDocument.cpp" />
+    <ClCompile Include="Source\Core\Json\JsonWriter.cpp" />
     <ClCompile Include="Source\Core\InputSystem.cpp" />
     <ClCompile Include="Source\Core\Logger.cpp" />
     <ClCompile Include="Source\Core\Profiler.cpp" />
@@ -43,8 +49,25 @@
     <ClInclude Include="Source\Core\DynamicArray.h" />
     <ClInclude Include="Source\Core\FileManager.h" />
     <ClInclude Include="Source\Core\GameConfig.h" />
+    <ClInclude Include="Source\Core\GameConfigLoad.h" />
+    <ClInclude Include="Source\Core\GameConfigLog.h" />
     <ClInclude Include="Source\Core\GameContext.h" />
     <ClInclude Include="Source\Core\HashMap.h" />
+    <ClInclude Include="Source\Core\Json\JsonArena.h" />
+    <ClInclude Include="Source\Core\Json\JsonReader.h" />
+    <ClInclude Include="Source\Core\Json\JsonValue.h" />
+    <ClInclude Include="Source\Core\Json\JsonWriter.h" />
+    <ClInclude Include="Source\Core\Json\JsonFileIO.h" />
+    <ClInclude Include="Source\Core\Json\JsonDiagnostics.h" />
+    <ClInclude Include="Source\Core\Json\JsonDocument.h" />
+    <ClInclude Include="Source\Core\Json\JsonTypes.h" />
+    <ClInclude Include="Source\Core\Json\JsonArchive.h" />
+    <ClInclude Include="Source\Core\Json\JsonArchiveTypes.h" />
+    <ClInclude Include="Source\Core\Json\JsonArchiveContainers.h" />
+    <ClInclude Include="Source\Core\Json\Json.h" />
+    <ClInclude Include="Source\Core\Json\JsonQuery.h" />
+    <ClInclude Include="Source\Core\Json\JsonReadArchive.h" />
+    <ClInclude Include="Source\Core\Json\JsonWriteArchive.h" />
     <ClInclude Include="Source\Core\InputSystem.h" />
     <ClInclude Include="Source\Core\Logger.h" />
     <ClInclude Include="Source\Core\MemoryResource.h" />
@@ -53,6 +76,7 @@
     <ClInclude Include="Source\Core\Profiler.h" />
     <ClInclude Include="Source\Core\StackAllocator.h" />
     <ClInclude Include="Source\Core\StackResource.h" />
+    <ClInclude Include="Source\Core\StringView.h" />
     <ClInclude Include="Source\Core\TypeInfo.h" />
     <ClInclude Include="Source\ECS\Components.h" />
     <ClInclude Include="Source\ECS\Entity.h" />

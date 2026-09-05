@@ -37,6 +37,10 @@ namespace GLFD::Core {
 
     std::ofstream m_fileStream;
     std::mutex m_mutex; // スレッドセーフ用
+
+    /// コンソールを UTF-8 に切り替えられたか (2-4)。false なら端末側で
+    /// 日本語が化ける。ファイルと OutputDebugString は常に UTF-8 で正しい
+    bool m_consoleCodePageChanged = true;
   };
 }
 #define LOG_INFO(...)    ::GLFD::Core::Logger::Get().LogFmt(::GLFD::Core::LogLevel::Info, __VA_ARGS__)

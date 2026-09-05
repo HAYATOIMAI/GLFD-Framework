@@ -1,0 +1,107 @@
+// =============================================================================
+//  GLFD — Boid デモのチューニング設定
+//
+//  **このファイルは共有される。** 個人的な上書きは Resource/GameConfig.local.json
+//  へ書くこと(.gitignore 済み)。そちらに書いた値だけがこのファイルを上書きし、
+//  チューニングを commit してしまう事故が構造的に起きない。
+//  雛形は GameConfig.local.json.sample にある。
+//
+//  JSONC で読み込んでいるため、コメントと末尾カンマが使える。
+//  値を書き換えて **F5** を押すと、アプリを再起動せずに反映される。
+//  ただし F5 ではエンティティを作り直さないため、その場で効くのは毎フレーム
+//  読む値(simulation.maxSpeed / world.halfExtent / interaction.*)だけ。
+//  entityCount と boidProfiles と spawnRange はシーンの入室時に効く。
+//  window.* は起動時にしか効かない。
+//
+//  キー名に "/" を使わないこと。診断メッセージのパスも doc.Query() のパスも
+//  "/" 区切りのため、"a/b" というキーは "a" の中の "b" と区別が付かない。
+//  エラーにはならず、**静かに別の値が引かれる**。
+//
+//  読み込みは Source/Core/GameConfig.h の Serialize() 1本で行っている。
+//  フィールドを増やすときは、その関数に既定値つきで1行足すだけでよい。
+//  古い設定ファイルは欠損したフィールドが既定値で埋まるのでそのまま読める。
+// =============================================================================
+{
+  // このファイルの書式バージョン。読み込み側は ar.Version() で分岐できる。
+  // 最初から書いておかないと、後から足したときに既存のファイルが全部 0 になる。
+  //
+  // v1 -> v2: world.bounds を world.halfExtent へ改名した。
+  // v1 のファイルもそのまま読める(読み込み時に旧名から拾う)。書き出すと v2 になる。
+  // 移行の書き方は Source/Core/Json/README.md を参照
+  "$version": 2,
+
+  // --- ウィンドウ(起動時にしか効かない)-------------------------------------
+  "window": {
+    "width": 1280,
+    "height": 720,
+    // 日本語も通る。UTF-8 のまま出力され、そのまま読み戻せる
+    "title": "GLFD ボイドデモ"
+  },
+
+  // --- 世界 -------------------------------------------------------------------
+  "world": {
+    // 画面の**半分**の寸法 { x, y }。位置は ±halfExtent で折り返すので、
+    // 85 と書くと横幅 170 の箱になる。小さくすると群れが狭い箱に押し込まれる。
+    // v1 では "bounds" という名前だった(全体の幅と読めてしまうので改名した)
+    "halfExtent": [85.0, 64.0],
+    // 初期配置の範囲 { min, max }
+    "spawnRange": [-20.0, 20.0],
+    // 初期速度の範囲 { min, max }
+    "velocityRange": [-0.5, 0.5],
+    "colliderRadius": 0.3,
+  },
+
+  // --- シミュレーション -------------------------------------------------------
+  "simulation": {
+    // 以前は GameConfig::ParticleCount と BoidDemoScene.cpp の NUM_ENTITIES に
+    // 同じ 20000 が二重定義されていた。JSON 化でここ 1 箇所になった
+    "entityCount": 20000,
+    "timeStep": 0.016,
+    "maxSpeed": 2.0,
+  },
+
+  // --- マウス左クリックの爆発 -------------------------------------------------
+  "interaction": {
+    "explosionRadius": 20.0,
+    "explosionForce": 50.0,
+    // スクリーン座標 → ワールド座標の倍率。RenderSystem と合わせること
+    "screenScale": 6.0,
+  },
+
+  // --- Boid の性格 ------------------------------------------------------------
+  // boidProfiles が空ならこの値が全個体に使われる
+  "defaultBoid": {
+    "name": "default",
+    "viewRadius": 5.0,
+    // 離れる力を強めにするとぶつかりにくい
+    "separationWeight": 1.5,
+    "alignmentWeight": 1.0,
+    "cohesionWeight": 1.0,
+  },
+
+  // 個体へ順番に配る性格。増減させると群れの見た目が変わる。
+  // 空配列 [] にすると defaultBoid だけが使われる
+  "boidProfiles": [
+    {
+      "name": "おくびょう", // 分離を強く。ぶつかる前に離れる
+      "viewRadius": 6.0,
+      "separationWeight": 2.5,
+      "alignmentWeight": 0.8,
+      "cohesionWeight": 0.6,
+    },
+    {
+      "name": "むれたがり", // 結合を強く。団子になりやすい
+      "viewRadius": 7.0,
+      "separationWeight": 1.0,
+      "alignmentWeight": 1.2,
+      "cohesionWeight": 2.0,
+    },
+    {
+      "name": "きまぐれ",
+      "viewRadius": 4.0,
+      "separationWeight": 1.5,
+      "alignmentWeight": 0.4,
+      "cohesionWeight": 0.4,
+    },
+  ],
+}

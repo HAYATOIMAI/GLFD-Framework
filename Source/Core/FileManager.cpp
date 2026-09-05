@@ -82,26 +82,6 @@ namespace GLFD::Core {
     return false;
   }
 
-  bool FileManager::ReadJsonFile(const std::string& relativePath, Json& outJson) {
-    std::string content;
-
-    if (!ReadTextFile(relativePath, content)) return false;
-
-    try {
-      outJson = Json::parse(content);
-    }
-    catch (Json::parse_error& e) {
-      LOG_ERROR("JSON Parse Error in %s: %s", relativePath.c_str(), e.what());
-      return false;
-    }
-    return true;
-  }
-
-  bool FileManager::WriteJsonFile(const std::string& relativePath, const Json& json, bool prettyPrint) {
-    std::string content = prettyPrint ? json.dump(4) : json.dump(); // dump(4)‚ÅƒCƒ“ƒfƒ“ƒg4
-    return WriteTextFile(relativePath, content);
-  }
-
   bool FileManager::Exists(const std::string& relativePath) const {
     return std::filesystem::exists(ResolvePath(relativePath));
   }

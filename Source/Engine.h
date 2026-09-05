@@ -9,11 +9,14 @@ namespace GLFD::Resource { class ResourceManager; }
 namespace GLFD::Physics  { class SpatialHashGrid; }
 namespace GLFD::Core { class InputSystem; class FileManager; }
 namespace GLFD::Scene { class SceneManager; }
+// 設定は JSON から読む。ヘッダに Document を持ち込まない
+namespace GLFD::Json { class Document; }
 
 #include <memory>
 
 namespace GLFD {
   struct GameContext;
+  struct GameConfig;
 
   class GameEngine {
   public:
@@ -43,6 +46,15 @@ namespace GLFD {
     std::unique_ptr<Resource::ResourceManager> m_resourceManager = nullptr;
 
     std::unique_ptr<Scene::SceneManager> m_sceneManager = nullptr;
+
+    // 起動時の設定。**Document と GameConfig は同じ寿命で持つ**
+    // GameConfig の StringView は Document のアリーナ上にあるため、
+    // Document を先に捨てるとタイトルなどがダングリングする (R0-5)
+    std::unique_ptr<Json::Document> m_configDoc = nullptr;
+    // 2-3: 個人の上書き (.local.json)。これも同じ寿命で持つ ―
+    // 上書きが文字列に及ぶと StringView はこちらを指す (R0-5)
+    std::unique_ptr<Json::Document> m_configLocalDoc = nullptr;
+    std::unique_ptr<GameConfig>     m_config    = nullptr;
 
     bool m_isRunning = false;
     float m_totalTime = 0.0f;

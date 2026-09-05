@@ -39,3 +39,16 @@
 
 # debug information files
 *.dwo
+
+# 個人の上書き設定 (2-3)。共有される Resource/GameConfig.jsonc は追跡する。
+# ここに書いた値だけが .jsonc を上書きするので、チューニングを commit しない
+Resource/GameConfig.local.json
+
+# ビルド成果物と IDE の作業ディレクトリ。
+# *.exe / *.obj / *.pdb は上で無視しているが、ビルドログが残るためまとめて除く
+.vs/
+x64/
+Tests/build/
+
+# ゲームの実行ログ (Logger::Initialize の出力先)
+Game.log

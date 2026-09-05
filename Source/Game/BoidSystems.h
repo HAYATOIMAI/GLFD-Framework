@@ -12,7 +12,8 @@
 namespace GLFD::Systems {
   class BoidSystem {
   public:
-    static void Update(GameContext& context) {
+    /// @param maxSpeed Ý’è—R—ˆ‚Ì‘¬“xãŒÀ (simulation.maxSpeed)
+    static void Update(GameContext& context, float maxSpeed) {
 
       auto& registry = *context.registry;
       auto& eventBus = *context.eventBus;
@@ -135,7 +136,6 @@ namespace GLFD::Systems {
               myVel.vy += forceY * context.dt;
 
               // ‘¬“x§ŒÀ (”š‘¬‚É‚È‚ç‚È‚¢‚æ‚¤‚É)
-              float maxSpeed = 2.0f;
               float speedSq = myVel.vx * myVel.vx + myVel.vy * myVel.vy;
               if (speedSq > maxSpeed * maxSpeed) {
                 float speed = std::sqrt(speedSq);
