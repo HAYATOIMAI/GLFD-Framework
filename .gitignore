@@ -1,4 +1,4 @@
-# Prerequisites
+﻿# Prerequisites
 *.d
 
 # Compiled Object files
@@ -52,3 +52,13 @@ Tests/build/
 
 # ゲームの実行ログ (Logger::Initialize の出力先)
 Game.log
+
+# ビルド出力 (worktree から持ち込まれたもの)
+GameLib_.c9b39e52/
+
+# 生成物・ダンプ。**手で作った痕跡であって成果物ではない**
+engine_source_all.txt
+results.json
+
+# ツールの設定
+.claude/
