@@ -261,6 +261,14 @@ namespace {
       CHECK(load.baseDoc->Query(StringView("world/bounds")) == nullptr);
       CHECK(load.baseDoc->Query(StringView("world/halfExtent")) != nullptr);
 
+      // T-ECS-10 (1-2): **出荷 config が上限を越えていないこと。**
+      // 越えると `RangeOverflow` が出て既定値へ戻るので、上の
+      // 「Issue 0 件」でも間接的には捕まる。ただしそれでは
+      // **「なぜ落ちたか」が上限の話だと分からない**ので名指しで見る。
+      // 値そのものは固定しない(チューニングで動いてよい)
+      CHECK(config.simulation.entityCount <= GLFD::kMaxConfigurableEntityCount);
+      CHECK(config.simulation.entityCount > 0);
+
       // ネストしたスカラ
       const Value* const width = load.baseDoc->Query(StringView("window/width"));
       CHECK(width != nullptr);

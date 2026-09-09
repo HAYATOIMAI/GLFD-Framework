@@ -2,7 +2,7 @@
 
 namespace GLFD::Memory { class StackAllocator; class StackResource; class DoubleStackAllocator; }
 namespace GLFD::Thread { class JobSystem; }
-namespace GLFD::ECS { class Registry; }
+namespace GLFD::ECS { class Registry; class CommandBuffer; }
 namespace GLFD::Events { class EventBus; }
 namespace GLFD::Graphics { class SimpleWindow; class DX11Renderer; }
 namespace GLFD::Resource { class ResourceManager; }
@@ -36,6 +36,11 @@ namespace GLFD {
 
     std::unique_ptr<Thread::JobSystem> m_jobSystem = nullptr;
     std::unique_ptr<ECS::Registry>     m_registry = nullptr;
+    // 1-4: 構造変更のバッファ。**フレームアロケータからは取らない** ―
+    // StackResource::Deallocate は no-op なので、DynamicArray が 1.5 倍で
+    // 伸びるたびに旧領域がフレーム内で死蔵される。寿命の長い側から取り、
+    // Clear() で容量を保って使い回す
+    std::unique_ptr<ECS::CommandBuffer> m_commands = nullptr;
     std::unique_ptr<Events::EventBus>  m_eventBus = nullptr;
     std::unique_ptr<Graphics::SimpleWindow> m_window = nullptr;
     std::unique_ptr<Graphics::DX11Renderer> m_renderer = nullptr;

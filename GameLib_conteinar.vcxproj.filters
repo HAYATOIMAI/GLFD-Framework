@@ -51,12 +51,12 @@
     <ClInclude Include="Source\Core\Logger.h" />
     <ClInclude Include="Source\Core\MemoryResource.h" />
     <ClInclude Include="Source\Core\MemoryUtils.h" />
-    <ClInclude Include="Source\Core\ObjectPool.h" />
     <ClInclude Include="Source\Core\Profiler.h" />
     <ClInclude Include="Source\Core\StackAllocator.h" />
     <ClInclude Include="Source\Core\StackResource.h" />
     <ClInclude Include="Source\Core\StringView.h" />
     <ClInclude Include="Source\Core\TypeInfo.h" />
+    <ClInclude Include="Source\ECS\CommandBuffer.h" />
     <ClInclude Include="Source\ECS\Components.h" />
     <ClInclude Include="Source\ECS\Entity.h" />
     <ClInclude Include="Source\ECS\Registry.h" />
@@ -76,7 +76,6 @@
     <ClInclude Include="Source\Graphics\GraphicsType.h" />
     <ClInclude Include="Source\Graphics\RenderSystem.h" />
     <ClInclude Include="Source\Graphics\Shader.h" />
-    <ClInclude Include="Source\Graphics\ShaderManager.h" />
     <ClInclude Include="Source\Graphics\SimpleWindow.h" />
     <ClInclude Include="Source\Graphics\Texture.h" />
     <ClInclude Include="Source\Physics\CollisionComponents.h" />

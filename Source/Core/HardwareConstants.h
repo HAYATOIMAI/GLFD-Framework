@@ -12,4 +12,18 @@ namespace GLFD::System {
     static constexpr size_t CacheLineSize = 64;
 #endif
   };
+
+  /**
+   * @brief ジョブを分割する本数。**0 を返さない**
+   *
+   * @note `std::thread::hardware_concurrency()` は「値が計算できない場合は 0 を
+   *       返す」と規定されている。5 つのシステムが `count / threadCount` を
+   *       無条件に計算していたため、**0 が返るとゼロ除算**になっていた
+   *       (ECS-0 3-7)。1 へ丸める。
+   *       各システムで書くと同じ判定が 5 箇所に散るのでここに 1 本置く
+   */
+  [[nodiscard]] inline unsigned int WorkerThreadCount() noexcept {
+    const unsigned int detected = std::thread::hardware_concurrency();
+    return (detected != 0u) ? detected : 1u;
+  }
 }

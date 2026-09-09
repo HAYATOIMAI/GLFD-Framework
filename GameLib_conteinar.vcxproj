@@ -72,12 +72,12 @@
     <ClInclude Include="Source\Core\Logger.h" />
     <ClInclude Include="Source\Core\MemoryResource.h" />
     <ClInclude Include="Source\Core\MemoryUtils.h" />
-    <ClInclude Include="Source\Core\ObjectPool.h" />
     <ClInclude Include="Source\Core\Profiler.h" />
     <ClInclude Include="Source\Core\StackAllocator.h" />
     <ClInclude Include="Source\Core\StackResource.h" />
     <ClInclude Include="Source\Core\StringView.h" />
     <ClInclude Include="Source\Core\TypeInfo.h" />
+    <ClInclude Include="Source\ECS\CommandBuffer.h" />
     <ClInclude Include="Source\ECS\Components.h" />
     <ClInclude Include="Source\ECS\Entity.h" />
     <ClInclude Include="Source\ECS\Registry.h" />
@@ -97,7 +97,6 @@
     <ClInclude Include="Source\Graphics\GraphicsType.h" />
     <ClInclude Include="Source\Graphics\RenderSystem.h" />
     <ClInclude Include="Source\Graphics\Shader.h" />
-    <ClInclude Include="Source\Graphics\ShaderManager.h" />
     <ClInclude Include="Source\Graphics\SimpleWindow.h" />
     <ClInclude Include="Source\Graphics\Texture.h" />
     <ClInclude Include="Source\Physics\CollisionComponents.h" />
@@ -182,6 +181,12 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <!-- 未指定だと MSBuild の既定 (ExceptionHandling=Sync = /EHsc) が効く。
+           「未指定 = 無効」と読み違えた前例があるため明示している。
+           RuntimeTypeInfo=false (/GR-) は E-1 で typeid / dynamic_cast が
+           リポジトリ全体で 0 件と確認した上で追加した -->
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <AdditionalIncludeDirectories>$(ProjectDir)Source;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -199,6 +204,12 @@
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <!-- 未指定だと MSBuild の既定 (ExceptionHandling=Sync = /EHsc) が効く。
+           「未指定 = 無効」と読み違えた前例があるため明示している。
+           RuntimeTypeInfo=false (/GR-) は E-1 で typeid / dynamic_cast が
+           リポジトリ全体で 0 件と確認した上で追加した -->
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <AdditionalIncludeDirectories>$(ProjectDir)Source;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -214,6 +225,12 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <!-- 未指定だと MSBuild の既定 (ExceptionHandling=Sync = /EHsc) が効く。
+           「未指定 = 無効」と読み違えた前例があるため明示している。
+           RuntimeTypeInfo=false (/GR-) は E-1 で typeid / dynamic_cast が
+           リポジトリ全体で 0 件と確認した上で追加した -->
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <AdditionalIncludeDirectories>$(ProjectDir)Source;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -231,6 +248,12 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <!-- 未指定だと MSBuild の既定 (ExceptionHandling=Sync = /EHsc) が効く。
+           「未指定 = 無効」と読み違えた前例があるため明示している。
+           RuntimeTypeInfo=false (/GR-) は E-1 で typeid / dynamic_cast が
+           リポジトリ全体で 0 件と確認した上で追加した -->
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <AdditionalIncludeDirectories>$(ProjectDir)Source;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>

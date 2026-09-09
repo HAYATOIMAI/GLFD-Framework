@@ -61,6 +61,13 @@ rem ---------------------------------------------------------------------------
 :build_and_run
 set /a SUITES+=1
 set "NAME=%~2"
+
+rem  スイート個別の追加ソース。既定は無し。
+rem  TemplateInstantiationTests (E-1) だけは ResourceStorage<T>::Load が
+rem  LOG_ERROR を呼ぶため Logger.cpp が要る。全スイートへ足すと Json 側の
+rem  スイートにまで Logger を持ち込むことになるので、個別に足す
+set "EXTRA_SOURCES="
+if /i "%NAME%"=="TemplateInstantiationTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
 set "OBJDIR=%OUTDIR%\%NAME%"
 if not exist "%OBJDIR%" mkdir "%OBJDIR%"
 
@@ -69,7 +76,7 @@ echo ----- building %NAME% (%CONFIG%) -----
 cl %COMMON_FLAGS% %CFG_FLAGS% ^
    /I "%ROOT%\Source" /I "%~dp0." ^
    /Fo"%OBJDIR%\\" /Fd"%OBJDIR%\%NAME%.pdb" ^
-   "%~1" %ENGINE_SOURCES% ^
+   "%~1" %ENGINE_SOURCES% %EXTRA_SOURCES% ^
    /Fe"%OUTDIR%\%NAME%.exe"
 
 if errorlevel 1 (

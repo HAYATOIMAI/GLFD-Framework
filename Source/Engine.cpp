@@ -16,6 +16,7 @@
 #include "Threading/JobSystem.h"
 
 #include "ECS/Registry.h"
+#include "ECS/CommandBuffer.h"
 
 #include "Events/EventBus.h"
 
@@ -70,6 +71,9 @@ namespace GLFD {
     m_fileManager = std::make_unique<Core::FileManager>(".");
     m_jobSystem = std::make_unique<Thread::JobSystem>();
     m_registry = std::make_unique<ECS::Registry>(m_stackResource.get());
+    // **メインスレッドで作る。** 構築したスレッドが所有者になり、他スレッドからの
+    // 積み込み・適用を Debug の assert が捕まえる (R-18)
+    m_commands = std::make_unique<ECS::CommandBuffer>(m_stackResource.get());
     m_eventBus = std::make_unique<Events::EventBus>(m_stackResource.get());
     // --- 設定の読み込み ------------------------------------------------------
     // Document は GameConfig と同じ寿命で持つ。StringView (title など) が
@@ -129,6 +133,7 @@ namespace GLFD {
         nullptr,
         m_jobSystem.get(),
         m_registry.get(),
+        m_commands.get(),
         m_eventBus.get(),
         nullptr,
         m_window.get(),
@@ -196,6 +201,7 @@ namespace GLFD {
         &frameResource,
         m_jobSystem.get(),
         m_registry.get(),
+        m_commands.get(),
         m_eventBus.get(),
         nullptr,
         m_window.get(),
@@ -218,11 +224,24 @@ namespace GLFD {
   }
 
   void GameEngine::Render() {
+    // **描画にもフレームメモリを渡す** (ECS 1-1)。`RenderSystem` の頂点バッファが
+    // 関数ローカルの `static std::vector`(N-1 / N-3 抵触)から
+    // `DynamicArray` + `IMemoryResource` へ移ったため、確保元が要る。
+    //
+    // `SwapAndReset()` は `Update()` の先頭で呼ばれ、`Run()` は
+    // `Update(); Render();` の順なので、**このフレームの領域は Render が
+    // 終わるまで生きている**。取った分は次フレームの先頭でまとめて戻る。
+    Memory::StackResource frameResource(m_frameAllocator->GetCurrent());
+
     GameContext ctx{
         m_stackResource.get(),
-        nullptr,
+        &frameResource,
         m_jobSystem.get(),
         m_registry.get(),
+        // **描画にも同じバッファを渡す。** nullptr を入れると、将来ここで
+        // 積んだ人が落ちる地雷になる。描画中に積まれたものは次フレームの
+        // 適用で効く(描画は構造を変えない前提なので、通常は空のまま)
+        m_commands.get(),
         m_eventBus.get(),
         nullptr,
         m_window.get(),

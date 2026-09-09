@@ -51,7 +51,9 @@ namespace GLFD::Graphics {
 
     // パーティクル描画用メソッドを追加
     // CPU側で計算した頂点リストを受け取ってGPUに送る
-    void DrawPoints(const std::vector<SimpleVertex>& points);
+    /// @note `std::vector` を取るのをやめた。呼び出し側 (`RenderSystem`) が
+    ///       `DynamicArray` + `IMemoryResource` へ移ったため (N-1 / N-3)
+    void DrawPoints(const SimpleVertex* points, size_t count);
 
     void UpdateGlobalConstants(float aspectRatio, float time);
 

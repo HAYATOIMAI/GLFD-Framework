@@ -122,19 +122,19 @@ namespace GLFD::Graphics {
     m_swapChain->Present(1, 0);
   }
 
-  void DX11Renderer::DrawPoints(const std::vector<SimpleVertex>& points) {
-    if (points.empty()) return;
+  void DX11Renderer::DrawPoints(const SimpleVertex* points, size_t pointCount) {
+    if (points == nullptr || pointCount == 0) return;
 
     // 頂点バッファをCPUメモリで更新 (Map / Unmap)
     D3D11_MAPPED_SUBRESOURCE mapped = {};
 
     // バッファサイズを超えないように安全策
-    size_t count = std::min((size_t)points.size(), (size_t)MAX_PARTICLES);
+    size_t count = std::min(pointCount, (size_t)MAX_PARTICLES);
 
     auto hr = m_deviceContext->Map(m_vertexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
 
     if (SUCCEEDED(hr)) {
-      memcpy(mapped.pData, points.data(), sizeof(SimpleVertex) * count);
+      memcpy(mapped.pData, points, sizeof(SimpleVertex) * count);
       m_deviceContext->Unmap(m_vertexBuffer.Get(), 0);
     }
 

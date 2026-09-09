@@ -7,6 +7,7 @@
 #include <memory>
 
 namespace GLFD::Json { class Document; }
+namespace GLFD::ECS  { class CommandBuffer; }
 
 namespace GLFD {
 
@@ -42,6 +43,14 @@ namespace GLFD {
      */
     void ReloadConfig(GameContext& ctx);
 
+    /**
+     * @brief コマンドの適用結果をログへ出す (1-4 / R-28)
+     *
+     * @note **出力は上層で行う。** `Registry` は `ApplyReport` へ書くだけで
+     *       `Logger` を呼ばない(JSON の診断と同じ分担)
+     */
+    void ReportAppliedCommands(const ECS::CommandBuffer& commands);
+
     Resource::ResourceHandle<Graphics::Texture> m_textureHandle;
 
     // Document と GameConfig は同じ寿命で持つ。GameConfig の StringView が
@@ -50,6 +59,10 @@ namespace GLFD {
     /// 2-3: 個人の上書き (.local.json)。**config と同じ寿命で持つ** (R0-5)
     std::unique_ptr<Json::Document> m_configLocalDoc;
     std::unique_ptr<GameConfig>     m_config;
+
+    /// 1 回目の適用だけは中身が空でもログに出す。**「動いた」と「コマンドを
+    /// 1 つも積まないので動いた」を区別できるようにするため** (1-4)
+    bool m_loggedFirstApply = false;
   };
 
 }

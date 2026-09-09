@@ -6,7 +6,8 @@
 #include "../ECS/View.h"
 #include "../Core/Profiler.h"
 #include "../Core/GameConfig.h"
-#include <vector>
+#include "../Core/DynamicArray.h"
+#include "../Core/MemoryResource.h"
 
 namespace GLFD::Systems {
   class RenderSystem {
@@ -14,7 +15,12 @@ namespace GLFD::Systems {
     // メイン処理
     /// @param width / height 実際のウィンドウサイズ。**設定の型に依存させない**ため
     ///        GameConfig ではなく値で受け取る(レンダラを単体で試せる形を保つ)
-    static void Update(ECS::Registry& registry, Graphics::DX11Renderer& renderer, float time,
+    /// @param frameResource 頂点の一時バッファの確保元。**フレームごとに Reset
+    ///        されるもの**を渡すこと。以前は関数ローカルの `static std::vector`
+    ///        で、N-1(STL コンテナ)と N-3(グローバル可変状態)に抵触し、
+    ///        **スレッド安全でもなかった** (ECS-0 の 2)
+    static void Update(ECS::Registry& registry, Graphics::DX11Renderer& renderer,
+                       Memory::IMemoryResource* frameResource, float time,
                        int windowWidth, int windowHeight) {
 
       // 画面クリア (黒)
@@ -36,13 +42,23 @@ namespace GLFD::Systems {
 
      renderer.UpdateGlobalConstants(aspect, time);
 
-      auto& view = registry.View<Components::Position>(); // 全ての位置を取得
-      size_t count = view.GetSize();
-      auto* pData = view.GetData();
+      // 全ての位置を取得。**単一型なので飛ばされる要素が無く、
+      // dense 配列をそのまま舐められる** (1-5)
+      auto view = registry.View<Components::Position>();
+      const size_t count = view.BaseSize();
+      const Components::Position* const pData = view.BaseComponents();
 
-      // DX11用の一時バッファ
-      static std::vector<Graphics::SimpleVertex> vertices;
-      vertices.resize(count);
+      // DX11 用の一時バッファ。**フレームメモリから取る**ので、
+      // グローバル状態にもならずスレッド安全にもなる
+      DynamicArray<Graphics::SimpleVertex> vertices(frameResource);
+      if (!vertices.TryResize(count)) {
+        // フレームメモリを使い切った。**この 1 フレームは点を描かない**。
+        // 毎フレーム出るログはノイズになるので、ここでは黙って諦める。
+        // R-28(部分的な失敗を静かに通さない)に対する借りであり、
+        // 1-6(実行順序と診断の整理)で観測点を用意すること
+        renderer.EndFrame();
+        return;
+      }
 
       // 画面サイズ定数 (GameConfigから取ると良い)
       // ワールド座標(-50~50) を NDC座標(-1.0~1.0) に変換する係数
@@ -51,6 +67,10 @@ namespace GLFD::Systems {
       const float scaleY = 1.0f / 64.0f;
 
       // データ変換
+      if (pData == nullptr) {
+        renderer.EndFrame();
+        return;
+      }
       for (size_t i = 0; i < count; ++i) {
         vertices[i].Pos = DirectX::XMFLOAT4(
           pData[i].x * scaleX,
@@ -63,7 +83,7 @@ namespace GLFD::Systems {
       }
 
       // GPUへ転送して描画
-      renderer.DrawPoints(vertices);
+      renderer.DrawPoints(vertices.GetData(), vertices.GetSize());
 
       renderer.EndFrame();
     }

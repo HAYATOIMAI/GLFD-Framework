@@ -168,15 +168,6 @@ namespace GLFD {
     const_reference Back() const { assert(m_size > 0); return m_data[m_size - 1]; }
 
     // 容量管理
-    template<typename... Args>
-    reference EmplaceBack(Args&&... args) {
-      if (m_size >= m_capacity) {
-        Grow();
-      }
-      std::construct_at(&m_data[m_size], std::forward<Args>(args)...);
-      return m_data[m_size++];
-    }
-
     void PushBack(const T& value) { 
       if (m_size == m_capacity) Grow();
       std::construct_at(&m_data[m_size], value);
@@ -357,6 +348,27 @@ namespace GLFD {
     }
 
     /// @copydoc TryPushBack(const T&)
+    /**
+     * @brief 末尾に構築する。**確保に失敗したら `nullptr`**(投げない)
+     * @return 構築した要素。失敗時は `nullptr`
+     *
+     * @note ECS 1-1 で追加。`SparseSet::TryEmplace` が確保失敗を戻り値で
+     *       返せるようにするため (R-14 / N-2)。
+     *       `TryReserve` を先に呼んで投擲を避ける手もあるが、**成長方針
+     *       (1.5 倍)を呼び出し側へ写すことになる**ので、既存の `TryGrow` を
+     *       使うこちらを採った
+     */
+    template <typename... Args>
+      requires std::constructible_from<T, Args...>
+    [[nodiscard]] T* TryEmplaceBack(Args&&... args)
+      noexcept(kNothrowRelocate && std::is_nothrow_constructible_v<T, Args...>) {
+      if (m_size == m_capacity && !TryGrow()) {
+        return nullptr;
+      }
+      std::construct_at(&m_data[m_size], std::forward<Args>(args)...);
+      return &m_data[m_size++];
+    }
+
     [[nodiscard]] bool TryPushBack(T&& value) noexcept(kNothrowRelocate) {
       if (m_size == m_capacity && !TryGrow()) {
         return false;

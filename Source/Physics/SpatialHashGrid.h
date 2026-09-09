@@ -1,6 +1,5 @@
 #pragma once
 #include <atomic>
-#include <vector>
 #include <cmath>
 #include <cstdint>
 #include "../Core/MemoryResource.h"
@@ -28,6 +27,24 @@ namespace GLFD::Physics {
 
     // エンティティをグリッドに登録 (Thread-Safe / Lock-Free)
     void Insert(uint32_t entityId, const GLFD::Components::Position& pos);
+
+    /**
+     * @brief 組んだ時点の「構造版」を控える (ECS 1-5 / R-24)
+     *
+     * @details
+     *  グリッドに入っているのは **dense 添字**であって `Entity` ではない
+     *  (1-5 論点3)。dense 添字が有効なのは「組んでから ECS の構造が変わって
+     *  いない間」だけである。1-4 で構造変更をフレーム境界へ遅延させたので
+     *  この前提は制度として保証されているが、**保証は検査できる形にしておく。**
+     *
+     *  ここは値を預かるだけで、比較はしない。**`Registry` を知っている側
+     *  (システム)が、並列ループへ入る前に 1 回だけ突き合わせる。**
+     *  Physics から ECS への依存を作らないためである。
+     */
+    void SetBuildStamp(uint32_t structureVersion) noexcept { m_buildStamp = structureVersion; }
+
+    /// @copydoc SetBuildStamp
+    [[nodiscard]] uint32_t BuildStamp() const noexcept { return m_buildStamp; }
 
     // 周辺のパーティクルを取得して処理する
     template <typename Func>
@@ -65,6 +82,9 @@ namespace GLFD::Physics {
 
     // Next配列: あるエンティティの次のエンティティインデックス (SoA的なリンクリスト)
     DynamicArray<uint32_t> m_next;
+
+    /// 組んだ時点の ECS の構造版 (1-5)。**このクラスは比較しない**
+    uint32_t m_buildStamp = 0;
 
     // 座標ハッシュ関数
     size_t GetHash(const GLFD::Components::Position& pos) const;

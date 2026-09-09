@@ -1,5 +1,6 @@
 #pragma once
 #include "../ECS/Registry.h"
+#include "../ECS/View.h"
 #include "../Threading/JobSystem.h"
 #include "../Core/InputSystem.h"
 #include "../ECS/Components.h"
@@ -34,14 +35,13 @@ namespace GLFD::Systems {
         // 2. 爆発処理（並列実行）
         // 全エンティティに対して距離チェックを行い、近ければ吹き飛ばす
 
-        auto& positions = registry.View<Components::Position>();
-        auto& velocities = registry.View<Components::Velocity>();
+        // 位置と速度の**組**を回す (1-5 / R-32)。以前は 2 本の dense 配列を
+        // 同じ添字で触っていた
+        auto view = registry.View<Components::Position, Components::Velocity>();
+        const size_t count = view.BaseSize();
+        if (count == 0) { return; }
 
-        size_t count = positions.GetSize();
-        auto* pData = positions.GetData();
-        auto* vData = velocities.GetData();
-
-        size_t threadCount = std::thread::hardware_concurrency();
+        size_t threadCount = System::WorkerThreadCount();   // 0 を返し得るので丸める (ECS-0 3-7)
         size_t batchSize = count / threadCount;
         Thread::JobCounter counter;
         auto handle = jobSystem.CreateHandle(counter);
@@ -50,10 +50,12 @@ namespace GLFD::Systems {
           size_t start = t * batchSize;
           size_t end = (t == threadCount - 1) ? count : start + batchSize;
 
-          jobSystem.KickJob([=]() {
-              for (size_t i = start; i < end; ++i) {
-                float dx = pData[i].x - worldX;
-                float dy = pData[i].y - worldY;
+          jobSystem.KickJob([view, start, end, worldX, worldY,
+                             explosionRadius, explosionForce]() {
+              for (auto [entity, pos, vel] : view.Slice(start, end)) {
+                (void)entity;
+                float dx = pos.x - worldX;
+                float dy = pos.y - worldY;
                 float distSq = dx * dx + dy * dy;
 
                 // 範囲内なら
@@ -63,8 +65,8 @@ namespace GLFD::Systems {
                   float power = (1.0f - (dist / explosionRadius)) * explosionForce;
 
                   // 速度に加算（吹き飛ばす）
-                  vData[i].vx += (dx / dist) * power;
-                  vData[i].vy += (dy / dist) * power;
+                  vel.vx += (dx / dist) * power;
+                  vel.vy += (dy / dist) * power;
                 }
               }
             }, &handle);

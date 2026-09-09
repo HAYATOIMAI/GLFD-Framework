@@ -9,7 +9,11 @@
 #include "Events/Events.h"
 #include "../Core/Profiler.h"
 #include "../Core/GameContext.h"
+#include "../Core/HardwareConstants.h"
+#include "ECS/View.h"
+#include <cassert>
 #include <immintrin.h>
+#include <tuple>
 
 namespace GLFD::Systems {
   class CollisionSystem {
@@ -17,61 +21,78 @@ namespace GLFD::Systems {
     // メイン処理
     static void Update(GameContext& context) {
 
-      auto& registry = *context.registry;
       auto& eventBus = *context.eventBus;
       auto& grid = *context.grid;
 
-      auto& positions = context.registry->View<Components::Position>();
-      auto& velocities = context.registry->View<Components::Velocity>();
-      auto& colliders = context.registry->View<Components::Collider>();
+      // グリッドの基準は Position 単独の View (1-5 論点3)。BoidSystem が
+      // 同じ基準で組んでいる
+      auto gridView = context.registry->View<Components::Position>();
+      const size_t gridCount = gridView.BaseSize();
+      const Components::Position* const gridPositions = gridView.BaseComponents();
+      const ECS::Entity* const gridOwners = gridView.BaseEntities();
 
-      size_t count = positions.GetSize();
-      if (count == 0) return;
+      // 自分側は 3 成分の**組** (R-32)
+      auto view = context.registry->View<Components::Position,
+                                         Components::Velocity,
+                                         Components::Collider>();
+      const size_t count = view.BaseSize();
+      if (count == 0 || gridCount == 0 || gridPositions == nullptr) return;
 
-      // 生ポインタ取得
-      auto* pData = positions.GetData();
-      auto* vData = velocities.GetData();
-      auto* cData = colliders.GetData();
-
-      // 全エンティティをグリッドに登録する
-
+      // @warning **このあと Clear() するだけで再挿入しない。** したがって以下の
+      //          探索は空のバケットを辿るだけで、衝突は 1 件も出ない
+      //          (ECS-0 1-1)。**是正は 1-7。** 1-5 で直すと前後比較の
+      //          意味が変わる(空走査の費用と実仕事の費用を比べることになる)
       context.grid->Clear(); // バケット初期化
 
       // バッチ処理設定
-      size_t threadCount = std::thread::hardware_concurrency();
+      size_t threadCount = System::WorkerThreadCount();   // 0 を返し得るので丸める (ECS-0 3-7)
       size_t batchSize = count / threadCount;
-      Thread::JobCounter buildCounter;
-      auto buildHandle = context.jobSystem->CreateHandle(buildCounter);
 
       // グリッドを使って近傍を検索し、衝突応答を行う
 
       Thread::JobCounter solveCounter;
       auto solveHandle = context.jobSystem->CreateHandle(solveCounter);
 
+      // 並列ループへ入る前に 1 回だけ突き合わせる (1-5 / R-24)
+      assert(grid.BuildStamp() == context.registry->StructureVersion()
+             && "CollisionSystem: the registry changed shape after the grid was built. "
+                "The dense indices stored in the grid no longer mean what they meant (1-5).");
+
       for (size_t t = 0; t < threadCount; ++t) {
         size_t start = t * batchSize;
         size_t end = (t == threadCount - 1) ? count : start + batchSize;
 
-        context.jobSystem->KickJob([start, end, pData, vData, cData, &grid, &eventBus]() {
-          for (size_t i = start; i < end; ++i) {
-            Components::Position& posA = pData[i];
-            Components::Velocity& velA = vData[i];
-            float rA = cData[i].radius;
+        context.jobSystem->KickJob([=, &grid, &eventBus]() {
+          for (auto entry : view.Slice(start, end)) {
+            const ECS::Entity     self = std::get<0>(entry);
+            Components::Position& posA = std::get<1>(entry);
+            Components::Velocity& velA = std::get<2>(entry);
+            const float           rA   = std::get<3>(entry).radius;
 
             int checkCount = 0;
             const int MAX_CHECKS = 16;
 
             // 近傍探索
             grid.Query(posA, [&](uint32_t neighborId) -> bool {
-              if (i == neighborId) return true; // 自分自身は無視して継続
+              if (neighborId >= gridCount) return true;   // 純粋な防御
+
+              // **自己スキップは `Entity` で行う** (1-5)。反復側の添字と
+              // グリッドの添字は別の View のものなので、添字では比べられない
+              const ECS::Entity other = gridOwners[neighborId];
+              if (other == self) return true; // 自分自身は無視して継続
 
               // 上限チェック
               if (++checkCount > MAX_CHECKS) {
                 return false;
               }
 
-              Components::Position& posB = pData[neighborId];
-              float rB = cData[neighborId].radius;
+              const Components::Position& posB = gridPositions[neighborId];
+
+              // 半径は `Entity` から引く。Position の dense 添字では引けない
+              const Components::Collider* const colliderB =
+                  view.Find<Components::Collider>(other);
+              if (colliderB == nullptr) return true;
+              const float rB = colliderB->radius;
 
               // 距離チェック
               float dx = posA.x - posB.x;
@@ -94,9 +115,18 @@ namespace GLFD::Systems {
                 // 衝突の勢いを適当に計算
                 float impact = std::abs(velA.vx) + std::abs(velA.vy);
 
+                // **1-5 で正しいハンドルを入れた。** 1-4 までは dense 添字を
+                // Entity として渡せなくなったため `Invalid()` を置いていた
+                // (偽の identity より正直だという理由)。View が反復中の
+                // `Entity` を返し、グリッドの添字は `BaseEntities()` で
+                // `Entity` に戻せるようになったので、両方とも本物を渡せる。
+                //
+                // @note **この経路はまだ動いていない。** 上の Clear() の後に
+                //       再挿入が無いので Query は何も返さない (ECS-0 1-1)。
+                //       **1-7 で衝突検出を直せば、ここはそのまま動く。**
                 eventBus.Publish<Events::CollisionEvent>({
-                  static_cast<ECS::Entity>(i),
-                  static_cast<ECS::Entity>(neighborId),
+                  self,
+                  other,
                   impact
                   });
 

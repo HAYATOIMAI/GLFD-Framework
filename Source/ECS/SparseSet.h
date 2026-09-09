@@ -1,135 +1,211 @@
-#pragma once
+ï»¿#pragma once
+
 #include "Entity.h"
 #include "../Core/DynamicArray.h"
 #include <cassert>
-#include <limits>
+#include <cstddef>
+#include <cstdint>
+#include <utility>
 
 namespace GLFD::ECS {
+
   /**
-   * @brief Œ^Á‹‚Ì‚½‚ß‚ÌŠî’êƒNƒ‰ƒX
-   * Registry‚ªˆÙí¬‡‚ÌSparseSet‚ğƒŠƒXƒg‚ÅŠÇ—‚·‚é‚½‚ß‚É•K—v
+   * @brief å‹æ¶ˆå»ã®ãŸã‚ã®åŸºåº•ã‚¯ãƒ©ã‚¹
+   *
+   * @details
+   *  `Registry` ãŒç•°ç¨®æ··åˆã® `SparseSet` ã‚’ã¾ã¨ã‚ã¦æŒã¤ãŸã‚ã«è¦ã‚‹ã€‚
+   *  **`Registry` / `View` ä»¥å¤–ã‹ã‚‰åˆ°é”ã•ã›ãªã„ã“ã¨** (R-19)ã€‚
    */
   class ISparseSet {
   public:
     virtual ~ISparseSet() = default;
-    virtual void Remove(Entity entity) = 0;
-    virtual bool Has(Entity entity) const = 0;
 
-    virtual size_t GetSize() const = 0;
-    virtual Entity* GetEntityList() = 0; // Dense”z—ñiEntity‹tˆø‚«—pj‚Ö‚Ìƒ|ƒCƒ“ƒ^
+    /**
+     * @brief `entity` ã®æˆåˆ†ã‚’å–ã‚Šé™¤ãã€‚**æŒã£ã¦ã„ãªã‘ã‚Œã°ä½•ã‚‚ã—ãªã„**
+     *
+     * @note **1-1 ã§å¥‘ç´„ã‚’å¤‰ãˆãŸã€‚** ä»¥å‰ã¯å…ˆé ­ã« `assert(Has(entity));` ãŒã‚ã‚Šã€
+     *       ã€ŒæŒã£ã¦ã„ã‚‹ã“ã¨ã€ã‚’å‘¼ã³å‡ºã—å´ã®å‰æã«ã—ã¦ã„ãŸã€‚
+     *       **å‘¼ã³å‡ºã—å…ƒãŒ 0 ä»¶ã ã£ãŸ**ã®ã§å¤‰æ›´ã¯å®‰å…¨ã§ã‚ã‚‹ã€‚
+     *
+     *       å¤‰ãˆãŸç†ç”±: `Registry::DestroyEntity` ã¯å…¨ãƒ—ãƒ¼ãƒ«ã‚’å›ã‚‹ãŒã€
+     *       `if (pool->Has(e)) { pool->Remove(e); }` ã¨æ›¸ãã¨**ä»®æƒ³å‘¼ã³å‡ºã—ãŒ
+     *       ãƒ—ãƒ¼ãƒ«ã‚ãŸã‚Š 2 å›**ã«ãªã‚‹ã€‚ã€Œä¸åœ¨ãªã‚‰ä½•ã‚‚ã—ãªã„ã€ã«ã™ã‚Œã° 1 å›ã§æ¸ˆã‚€ã€‚
+     *
+     *       ã“ã‚Œã¯ Â§3.1(`SparseSet` ã«ç„¡åŠ¹ãª `Entity` ã‚’å¼¾ã‹ã›ãªã„)ã«åã—ãªã„ã€‚
+     *       æœ‰åŠ¹æ€§ (`IsAlive`) ã®æ¤œæŸ»ã¯ `Registry` ãŒæŒã¡ã€
+     *       ã€Œ**ã“ã®ãƒ—ãƒ¼ãƒ«ãŒæˆåˆ†ã‚’æŒã£ã¦ã„ã‚‹ã‹**ã€ã¯ãƒ—ãƒ¼ãƒ«ã«ã—ã‹ç­”ãˆã‚‰ã‚Œãªã„
+     *       åˆ¥ã®å•ã„ã ã‹ã‚‰ã§ã‚ã‚‹ã€‚
+     */
+    virtual void Remove(Entity entity) = 0;
+
+    [[nodiscard]] virtual bool        Has(Entity entity) const = 0;
+    [[nodiscard]] virtual std::size_t GetSize() const = 0;
+    [[nodiscard]] virtual Entity*     GetEntityList() = 0;
   };
 
   /**
-   * @brief ƒf[ƒ^Œ^ T ‚ğŠÇ—‚·‚é Sparse Set
+   * @brief ãƒ‡ãƒ¼ã‚¿å‹ T ã‚’ç®¡ç†ã™ã‚‹ Sparse Set
+   *
    * @details
-   * - Dense”z—ñ : ƒRƒ“ƒ|[ƒlƒ“ƒgƒf[ƒ^‚»‚Ì‚à‚Ì (ƒCƒeƒŒ[ƒVƒ‡ƒ“—p)
-   * - Sparse”z—ñ: ƒGƒ“ƒeƒBƒeƒBID‚©‚çDense”z—ñ‚Ö‚ÌƒCƒ“ƒfƒbƒNƒX (ƒ‰ƒ“ƒ_ƒ€ƒAƒNƒZƒX—p)
+   *   - dense: ã‚³ãƒ³ãƒãƒ¼ãƒãƒ³ãƒˆæœ¬ä½“ (`m_components`) ã¨ã€åŒã˜ä¸¦ã³ã®
+   *     æ‰€æœ‰è€…ãƒãƒ³ãƒ‰ãƒ« (`m_denseToEntity`)
+   *   - sparse: **`Entity::Index()` ã‹ã‚‰ dense æ·»å­—ã‚’å¼•ã** (R-12)ã€‚
+   *     è¦ç´ ã¯ `uint32_t`(1-2)ã€‚æ ¼ç´ã™ã‚‹ã®ã¯ dense ã®æ·»å­—ã§ã€ä¸Šé™ã¯
+   *     `MaxEntities` ãªã®ã§ 32 bit ã§è¶³ã‚Šã‚‹ã€‚`size_t` ã®åŠåˆ†ã§æ¸ˆã‚€
+   *
+   *  @note é€†å¼•ãã¯ `Entity`(64bit)ã‚’ä¸¸ã”ã¨æŒã¤ (R-11)ã€‚index ã ã‘ã«è½ã¨ã™ã¨
+   *        generation ãŒå¤±ã‚ã‚Œã€`IsAlive` ãŒæˆç«‹ã—ãªã„ã€‚
+   *
+   *  @warning **swap-and-pop ãªã®ã§ã€1 å›ã®å‰Šé™¤ã§ dense ã®é †åºãŒå¤‰ã‚ã‚‹** (R-16)ã€‚
+   *           **é †åºã«ä¾å­˜ã™ã‚‹ã‚·ã‚¹ãƒ†ãƒ ã‚’æ›¸ã„ã¦ã¯ãªã‚‰ãªã„ã€‚** ã“ã‚Œã¯è¦ç´„ã§ã‚ã‚Š
+   *           æ©Ÿæ¢°çš„ã«ã¯æ¤œè¨¼ã§ããªã„ã€‚T-ECS-6 ãŒã€Œé †åºãŒå¤‰ã‚ã£ã¦ã‚‚çµæœãŒ
+   *           å¤‰ã‚ã‚‰ãªã„ã€ã“ã¨ã§è£ã‚’å–ã‚‹ã€‚
    */
   template <typename T>
   class SparseSet : public ISparseSet {
   public:
-    explicit SparseSet(Memory::IMemoryResource* resource, size_t maxEntities = MaxEntities)
+    /**
+     * @brief ç–é…åˆ—ã‚’ `maxEntities` åˆ†ã ã‘ç¢ºä¿ã™ã‚‹
+     * @note  **ç¢ºä¿ã«å¤±æ•—ã—ã¦ã‚‚æŠ•ã’ãªã„** (R-14 / N-2)ã€‚å¤±æ•—ã—ãŸã‚‰
+     *        `IsReady()` ãŒ false ã«ãªã‚Šã€`TryEmplace` ãŒå¸¸ã« `nullptr` ã‚’è¿”ã™ã€‚
+     *        ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ã¯å¤±æ•—ã‚’æˆ»ã‚Šå€¤ã§è¿”ã›ãªã„ã®ã§ã€ã“ã®å½¢ã«ã—ã¦ã‚ã‚‹
+     */
+    explicit SparseSet(Memory::IMemoryResource* resource,
+                       std::size_t maxEntities = MaxEntities)
       : m_components(resource)
-      , m_denseToEntity(resource) // Dense‚©‚çEntity‚Ö‚Ì‹tˆø‚«—p
+      , m_denseToEntity(resource)
       , m_sparse(resource) {
-      // Sparse”z—ñ‚Í‘SƒGƒ“ƒeƒBƒeƒBID•ªŠm•Û‚µA–³Œø’l‚Å–„‚ß‚é
-      // ƒXƒ^ƒbƒNƒAƒƒP[ƒ^‚È‚çˆêu‚ÅI‚í‚é‚ªAƒq[ƒv‚¾‚Æ­‚µd‚¢‚Ì‚Å’ˆÓ
-      m_sparse.Resize(maxEntities);
-
-      // ‰Šú‰»: ‘S‚Ä NullIndex
-      for (size_t i = 0; i < maxEntities; ++i) {
-        m_sparse[i] = NullIndex;
+      if (!m_sparse.TryResize(maxEntities)) {
+        return;                       // m_ready ã¯ false ã®ã¾ã¾
       }
+      for (std::size_t i = 0; i < maxEntities; ++i) {
+        m_sparse[i] = kNullIndex;
+      }
+      static_assert(MaxEntities <= 0xFFFFFFFEu,
+                    "the sparse array stores dense indices as uint32_t and reserves "
+                    "0xFFFFFFFF as the 'absent' sentinel. If MaxEntities could reach "
+                    "0xFFFFFFFF, a real index would be indistinguishable from absent. "
+                    "Widen m_sparse before raising MaxEntities past this.");
+      m_ready = true;
     }
 
+    /// ç–é…åˆ—ã‚’ç¢ºä¿ã§ããŸã‹ã€‚false ãªã‚‰ `TryEmplace` ã¯å¸¸ã«å¤±æ•—ã™ã‚‹
+    [[nodiscard]] bool IsReady() const noexcept { return m_ready; }
+
     /**
-     * @brief ƒRƒ“ƒ|[ƒlƒ“ƒg‚ğ’Ç‰Á (Emplace)
+     * @brief æˆåˆ†ã‚’è¿½åŠ ã™ã‚‹
+     * @return è¿½åŠ ã—ãŸæˆåˆ†ã€‚**å¤±æ•—ã—ãŸã‚‰ `nullptr`**
+     *
+     * @note å¤±æ•—ã™ã‚‹ã®ã¯ã€Œæ—¢ã«æŒã£ã¦ã„ã‚‹ã€ã€Œindex ãŒç¯„å›²å¤–ã€ã€Œç¢ºä¿ã«å¤±æ•—ã—ãŸã€ã®
+     *       3 ã¤ã€‚**æŠ•ã’ãªã„** (N-2)ã€‚æœ‰åŠ¹ãª `Entity` ã‹ã©ã†ã‹ã¯ `Registry` ãŒ
+     *       å…ˆã«è¦‹ã¦ã„ã‚‹å‰æã§ã€ã“ã“ã¯ `assert` ã ã‘ã‚’æŒã¤ (Â§3.1)
      */
     template <typename... Args>
-    T& Emplace(Entity entity, Args&&... args) {
-      assert(entity < m_sparse.GetSize() && "Entity ID out of range");
-      assert(m_sparse[entity] == NullIndex && "Component already exists");
+    [[nodiscard]] T* TryEmplace(Entity entity, Args&&... args) {
+      assert(entity.IsValid() && "SparseSet::TryEmplace: the Registry must reject invalid handles");
 
-      // 1. Dense”z—ñ‚Ì––”ö‚ÉƒRƒ“ƒ|[ƒlƒ“ƒg‚ğ’Ç‰Á
-      m_components.EmplaceBack(std::forward<Args>(args)...);
+      const std::size_t index = entity.Index();
+      if (!m_ready || index >= m_sparse.GetSize() || m_sparse[index] != kNullIndex) {
+        return nullptr;
+      }
 
-      // 2. ‹tˆø‚«—p”z—ñ‚É‚àEntityID‚ğ’Ç‰Á (Swap-and-Pop‚É•K—v)
-      m_denseToEntity.PushBack(entity);
+      // **é€†å¼•ãã‚’å…ˆã«ä¼¸ã°ã™ã€‚** æˆåˆ†ã‚’æ§‹ç¯‰ã—ã¦ã‹ã‚‰å¤±æ•—ã™ã‚‹ã¨ã€
+      // ä½œã£ãŸã‚‚ã®ã‚’å£Šã—ã¦æˆ»ã™å¾Œå§‹æœ«ãŒè¦ã‚‹
+      if (!m_denseToEntity.TryPushBack(entity)) {
+        return nullptr;
+      }
+      T* const created = m_components.TryEmplaceBack(std::forward<Args>(args)...);
+      if (created == nullptr) {
+        m_denseToEntity.PopBack();
+        return nullptr;
+      }
 
-      // 3. Sparse”z—ñ‚ÉuDense”z—ñ‚ÌƒCƒ“ƒfƒbƒNƒX(––”ö)v‚ğ‹L˜^
-      size_t denseIndex = m_components.GetSize() - 1;
-      m_sparse[entity] = denseIndex;
+      // dense ã®æ·»å­—ã¯ `MaxEntities` ã‚’è¶…ãˆãªã„ã®ã§ 32 bit ã«åã¾ã‚‹
+      // (ä¸Šã® static_assert ãŒãã®æ¡ä»¶ã‚’å®ˆã£ã¦ã„ã‚‹)
+      m_sparse[index] = static_cast<std::uint32_t>(m_components.GetSize() - 1);
+      return created;
+    }
 
-      return m_components.Back();
+    /// @copydoc ISparseSet::Remove
+    void Remove(Entity entity) override {
+      if (!Has(entity)) {
+        return;                      // **ä¸åœ¨ãªã‚‰ä½•ã‚‚ã—ãªã„**(å¥‘ç´„ã¯åŸºåº•ã® @note)
+      }
+
+      const std::size_t indexToRemove = m_sparse[entity.Index()];
+      const std::size_t lastIndex     = m_components.GetSize() - 1;
+
+      if (indexToRemove != lastIndex) {
+        // æœ«å°¾ã‚’ç©´ã¸æŒã£ã¦ãã‚‹ (swap-and-pop)
+        const Entity lastEntity = m_denseToEntity[lastIndex];
+        m_components[indexToRemove]    = std::move(m_components[lastIndex]);
+        m_denseToEntity[indexToRemove] = lastEntity;
+        // è©°ã‚å…ˆã®æ·»å­—ã‚‚ 32 bit ã«åã¾ã‚‹(ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ã® static_assert)
+        m_sparse[lastEntity.Index()]   = static_cast<std::uint32_t>(indexToRemove);
+      }
+
+      m_components.PopBack();
+      m_denseToEntity.PopBack();
+      m_sparse[entity.Index()] = kNullIndex;
+    }
+
+    [[nodiscard]] bool Has(Entity entity) const override {
+      if (!m_ready || !entity.IsValid()) {
+        return false;
+      }
+      const std::size_t index = entity.Index();
+      return index < m_sparse.GetSize() && m_sparse[index] != kNullIndex;
     }
 
     /**
-     * @brief ƒRƒ“ƒ|[ƒlƒ“ƒg‚ğíœ (Remove)
-     * @details Swap-and-Pop ‚ğg—p‚µ‚Ä O(1) ‚Åíœ‚µA–§‚Èó‘Ô‚ğˆÛ‚·‚é
+     * @return æˆåˆ†ã€‚**æŒã£ã¦ã„ãªã‘ã‚Œã° `nullptr`**
+     *
+     * @note **ç–é…åˆ—ã‚’ 1 å›ã—ã‹èª­ã¾ãªã„** (1-5)ã€‚ä»¥å‰ã¯ `Has()` ã‚’é€šã—ã¦ã‹ã‚‰
+     *       æ”¹ã‚ã¦ `m_sparse[...]` ã‚’å¼•ã„ã¦ãŠã‚Šã€åŒã˜å ´æ‰€ã‚’ 2 å›èª­ã‚“ã§ã„ãŸã€‚
+     *       `View` ã®åå¾©ã¨è¿‘å‚æ¢ç´¢ãŒã“ã®é–¢æ•°ã‚’æ¯ãƒ•ãƒ¬ãƒ¼ãƒ æ•°åä¸‡å›å‘¼ã¶ã®ã§ã€
+     *       ã“ã“ã¯ 1 å›ã§æ¸ˆã¾ã›ã‚‹ã€‚**æ„å‘³ã¯å¤‰ãˆã¦ã„ãªã„ã€‚**
      */
-    void Remove(Entity entity) override {
-      assert(Has(entity));
-
-      size_t indexToRemove = m_sparse[entity];
-      size_t lastIndex = m_components.GetSize() - 1;
-
-      // íœ‘ÎÛ‚ª––”ö‚Å‚È‚¢ê‡A––”ö‚Ì—v‘f‚ğ‚Á‚Ä‚«‚ÄŒŠ–„‚ß‚·‚é
-      if (indexToRemove != lastIndex) {
-        // ––”ö‚É‚ ‚éƒRƒ“ƒ|[ƒlƒ“ƒg‚Æ‚»‚ÌŠ—LƒGƒ“ƒeƒBƒeƒBID‚ğæ“¾
-        Entity lastEntity = m_denseToEntity[lastIndex];
-
-        // 1. ƒRƒ“ƒ|[ƒlƒ“ƒg‚ğˆÚ“® (Swap or Move)
-        m_components[indexToRemove] = std::move(m_components[lastIndex]);
-
-        // 2. ‹tˆø‚«”z—ñ‚àXV
-        m_denseToEntity[indexToRemove] = lastEntity;
-
-        // 3. ˆÚ“®‚µ‚Ä‚«‚½ƒGƒ“ƒeƒBƒeƒB(lastEntity)‚ÌSparseî•ñ‚ğXV
-        m_sparse[lastEntity] = indexToRemove;
-      }
-
-      // ––”ö‚ğíœ
-      m_components.PopBack();
-      m_denseToEntity.PopBack();
-
-      // íœ‚³‚ê‚½ƒGƒ“ƒeƒBƒeƒB‚ÌSparseî•ñ‚ğ–³Œø‰»
-      m_sparse[entity] = NullIndex;
+    [[nodiscard]] T* Find(Entity entity) {
+      const std::uint32_t dense = DenseIndexOf(entity);
+      return (dense != kNullIndex) ? &m_components[dense] : nullptr;
+    }
+    /// @copydoc Find
+    [[nodiscard]] const T* Find(Entity entity) const {
+      const std::uint32_t dense = DenseIndexOf(entity);
+      return (dense != kNullIndex) ? &m_components[dense] : nullptr;
     }
 
-    bool Has(Entity entity) const override {
-      return entity < m_sparse.GetSize() && m_sparse[entity] != NullIndex;
-    }
+    [[nodiscard]] std::size_t GetSize() const override { return m_components.GetSize(); }
 
-    T& Get(Entity entity) {
-      assert(Has(entity));
-      return m_components[m_sparse[entity]];
-    }
+    [[nodiscard]] Entity* GetEntityList() override { return m_denseToEntity.GetData(); }
 
-    // ƒI[ƒo[ƒ‰ƒCƒhÀ‘•
-    size_t GetSize() const override { return m_components.GetSize(); }
+    // --- dense ã¸ã®ç›´æ¥ã‚¢ã‚¯ã‚»ã‚¹ (R-13: const ç‰ˆã‚’å¯¾ã§æŒã¤) --------------------
+    [[nodiscard]] T*       GetData()       { return m_components.GetData(); }
+    [[nodiscard]] const T* GetData() const { return m_components.GetData(); }
 
-    Entity* GetEntityList() override {
-      // m_denseToEntity ‚Í DynamicArray<Entity>
-      return m_denseToEntity.GetData();
-    }
-
-    // --- ƒCƒeƒŒ[ƒ^ (System‚ª‰ñ‚·—p) ---
-    // Dense”z—ñ‚Ö‚Ì’¼ÚƒAƒNƒZƒX‚ğ’ñ‹Ÿ‚·‚é‚Ì‚Å”š‘¬
-    T* GetData() { return m_components.GetData(); }
-
-    // ”ÍˆÍfor•¶—p
-    auto begin() { return m_components.begin(); }
-    auto end() { return m_components.end(); }
+    [[nodiscard]] auto begin()       { return m_components.begin(); }
+    [[nodiscard]] auto end()         { return m_components.end(); }
+    [[nodiscard]] auto begin() const { return m_components.begin(); }
+    [[nodiscard]] auto end()   const { return m_components.end(); }
 
   private:
-    static constexpr size_t NullIndex = SIZE_MAX;
+    /// ã€Œã“ã® index ã¯æˆåˆ†ã‚’æŒãŸãªã„ã€ã‚’è¡¨ã™ç•ªå…µã€‚**å®Ÿåœ¨ã™ã‚‹ dense æ·»å­—ã¨
+    /// è¡çªã—ãªã„ã“ã¨**ã‚’ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ã® `static_assert` ãŒå®ˆã£ã¦ã„ã‚‹
+    static constexpr std::uint32_t kNullIndex = 0xFFFFFFFFu;
 
-    // –§ (Dense): ƒf[ƒ^–{‘Ì
-    DynamicArray<T> m_components;
-    // –§ (Dense): ƒRƒ“ƒ|[ƒlƒ“ƒg”z—ñ‚Æ“¯‚¶•À‚Ñ‡‚ÌƒGƒ“ƒeƒBƒeƒBID (‹tˆø‚«—p)
-    DynamicArray<Entity> m_denseToEntity;
+    /// `entity` ã® dense æ·»å­—ã€‚æŒã£ã¦ã„ãªã‘ã‚Œã° `kNullIndex`ã€‚**ç–é…åˆ—ã¯ 1 å›ã ã‘èª­ã‚€**
+    [[nodiscard]] std::uint32_t DenseIndexOf(Entity entity) const noexcept {
+      if (!m_ready || !entity.IsValid()) {
+        return kNullIndex;
+      }
+      const std::size_t index = entity.Index();
+      return (index < m_sparse.GetSize()) ? m_sparse[index] : kNullIndex;
+    }
 
-    // ‘a (Sparse): EntityID -> DenseIndex
-    DynamicArray<size_t> m_sparse;
+    DynamicArray<T>           m_components;     ///< dense: æœ¬ä½“
+    DynamicArray<Entity>      m_denseToEntity;  ///< dense: æ‰€æœ‰è€… (R-11)
+    DynamicArray<std::uint32_t> m_sparse;       ///< sparse: Index() -> dense æ·»å­— (1-2)
+    bool                      m_ready = false;
   };
+
 }

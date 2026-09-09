@@ -815,9 +815,48 @@ namespace {
 
 }
 
+  // ---------------------------------------------------------------------------
+  // TryEmplaceBack (ECS 1-1 で追加)
+  // ---------------------------------------------------------------------------
+
+  void TestTryEmplaceBack() {
+    GLFD::Test::BeginCase("Try*: TryEmplaceBack constructs in place and returns nullptr on failure");
+
+    GLFD::Test::MockMemoryResource mock;
+    GLFD::DynamicArray<int>        values(&mock);
+
+    int* const first = values.TryEmplaceBack(7);
+    CHECK(first != nullptr);
+    CHECK(first != nullptr && *first == 7);
+    CHECK(values.GetSize() == 1u);
+    CHECK(first == &values[0]);
+
+    // 伸長をまたいでも構築できること
+    bool grewCleanly = true;
+    for (int i = 1; i < 64; ++i) {
+      const int* const p = values.TryEmplaceBack(i);
+      if (p == nullptr || *p != i) { grewCleanly = false; break; }
+    }
+    CHECK(grewCleanly);
+    CHECK(values.GetSize() == 64u);
+    CHECK(values[0] == 7);
+
+    // **確保に失敗したら nullptr。投げない** (N-2)
+    mock.SetFailAfter(mock.AllocateCalls());
+    const size_t sizeBeforeFailure = values.GetSize();
+    while (values.GetSize() < values.GetCapacity()) {
+      if (values.TryEmplaceBack(0) == nullptr) { break; }
+    }
+    CHECK(values.GetSize() == values.GetCapacity());
+    CHECK(values.TryEmplaceBack(1) == nullptr);
+    CHECK(values.GetSize() == values.GetCapacity());   // 失敗しても壊れない
+    CHECK(sizeBeforeFailure <= values.GetSize());
+  }
+
 int main() {
   GLFD::Test::BeginSuite("DynamicArray Try* (1-5a)");
 
+  TestTryEmplaceBack();
   TestSuccessPaths();
   TestFailureLeavesStateUnchanged();
   TestNonTrivialElements();

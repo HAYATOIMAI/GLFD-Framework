@@ -29,6 +29,11 @@
 #include "MemoryResource.h"
 #include "StringView.h"
 
+// 値域違反を `ArchiveIssue` として記録するために要る。**軽い**ヘッダで、
+// `JsonReader.h` / `JsonDocument.h` / `JsonValue.h` のいずれも引き込まないので
+// README §4(セーブだけする場合の最小 include)の約束は壊れない
+#include "Json/JsonArchive.h"
+
 namespace GLFD {
 
   /// 設定ファイルの既定の置き場所
@@ -168,15 +173,61 @@ namespace GLFD {
     (void)ar.Member("colliderRadius", v.colliderRadius, 0.3f);
   }
 
+  /// `simulation.entityCount` の既定値。**3 箇所で要るので定数にしてある**
+  /// (構造体の初期化子 / `Member` の既定値 / 値域違反からの復帰先)
+  inline constexpr std::int32_t kDefaultEntityCount = 20000;
+
+  /**
+   * @brief `simulation.entityCount` に書ける上限 (ECS-0 1-3)
+   *
+   * @details
+   *  **`ECS::MaxEntities`(疎配列の構造的な限界)そのものは使わない。**
+   *  検査値を構造的限界に置くと、境界の実装が正しいことに依存してしまう。
+   *
+   *  32,768 の根拠 (1-2):
+   *   - `MaxEntities` = 65,536 の**半分**。`MaxEntities` 自体が小さくなったので
+   *     ECS-0b の「1 桁の余裕」は過剰で、半分でも境界の off-by-one には届かない
+   *   - 出荷値 20,000 に対して 1.6 倍。実験で 3 万体まで試せる
+   *
+   *  @note **「1 桁の余裕」という以前の規約はここでは採らない。** 根拠が変わった
+   *        のに検査だけ残すと、次の人が守れない規約を守ろうとする
+   *
+   *  @note `ECS::MaxEntities` との大小関係は `BoidDemoScene.cpp` の
+   *        `static_assert` が守っている。`Core` から `ECS` へ依存させないため、
+   *        両方を include している翻訳単位に置いてある
+   */
+  inline constexpr std::int32_t kMaxConfigurableEntityCount = 32768;
+
   struct SimulationConfig {
-    std::int32_t entityCount = 20000;
+    std::int32_t entityCount = kDefaultEntityCount;
     float        timeStep    = 0.016f;
     float        maxSpeed    = 2.0f;
   };
 
   template <class Ar>
   void Serialize(Ar& ar, SimulationConfig& v) {
-    (void)ar.Member("entityCount", v.entityCount, 20000);
+    (void)ar.Member("entityCount", v.entityCount, kDefaultEntityCount);
+
+    // --- entityCount だけの値域検査 (ECS-0 1-3) --------------------------------
+    // Release では `SparseSet::Emplace` と `DynamicArray::operator[]` の `assert`
+    // が消えるため、ここで弾かないと**設定ファイルから疎配列の範囲外書き込みに
+    // 到達できる**。今日の Release で到達可能な唯一の欠陥だったので塞いである。
+    //
+    // **汎用の値域検証機構は作らない。** この 1 件に限定する。
+    // `RangeOverflow` は Fatal ではない (R3-11) ので、ロード自体は成功し、
+    // 他のフィールドはそのまま読まれる
+    if constexpr (Ar::IsReading()) {
+      if (v.entityCount < 0 || v.entityCount > kMaxConfigurableEntityCount) {
+        // `detail` は静的な文字列リテラルを指す契約なので、**フィールド名を
+        // 文言に入れる**。診断パスの方は `simulation` になる —
+        // `Member` が戻った時点で `entityCount` の `PathScope` は降りている
+        ar.Context().Report(
+            Json::ArchiveErrorKind::RangeOverflow,
+            StringView("simulation/entityCount is outside the supported range"));
+        v.entityCount = kDefaultEntityCount;
+      }
+    }
+
     (void)ar.Member("timeStep", v.timeStep, 0.016f);
     (void)ar.Member("maxSpeed", v.maxSpeed, 2.0f);
   }

@@ -2,12 +2,16 @@
 
 #include "../ECS/Components.h"
 #include "../ECS/Registry.h"
+#include "../ECS/View.h"
 #include "../Threading/JobSystem.h"
 #include "../Core/Profiler.h"
 #include "../Physics/SpatialHashGrid.h"
 #include "BoidAgent.h"
 #include "../Core/GameContext.h"
+#include "../Core/HardwareConstants.h"
+#include <cassert>
 #include <cmath>
+#include <tuple>
 
 namespace GLFD::Systems {
   class BoidSystem {
@@ -15,54 +19,72 @@ namespace GLFD::Systems {
     /// @param maxSpeed 設定由来の速度上限 (simulation.maxSpeed)
     static void Update(GameContext& context, float maxSpeed) {
 
-      auto& registry = *context.registry;
-      auto& eventBus = *context.eventBus;
       auto& grid = *context.grid;
 
-      auto& positions = context.registry->View<Components::Position>();
-      auto& velocities = context.registry->View<Components::Velocity>();
-      auto& boidAgents = context.registry->View<Components::BoidAgent>();
+      // **グリッドの基準は Position 単独の View** (1-5 論点3)。
+      // グリッドに入るのはこの View の dense 添字で、引くときも同じ View から引く
+      auto gridView = context.registry->View<Components::Position>();
+      const size_t gridCount = gridView.BaseSize();
+      const Components::Position* const gridPositions = gridView.BaseComponents();
+      const ECS::Entity* const gridOwners = gridView.BaseEntities();
 
-      size_t count = positions.GetSize();
-      if (count == 0) return;
-
-      auto* pData = positions.GetData();
-      auto* vData = velocities.GetData();
-      auto* aData = boidAgents.GetData();
+      // 自分側は 3 成分の**組**を回す (R-32)。以前は 3 本の dense 配列を
+      // 同じ添字で触っていた
+      auto view = context.registry->View<Components::Position,
+                                         Components::Velocity,
+                                         Components::BoidAgent>();
+      const size_t count = view.BaseSize();
+      if (count == 0 || gridCount == 0 || gridPositions == nullptr) return;
       
-      size_t threadCount = std::thread::hardware_concurrency();
+      size_t threadCount = System::WorkerThreadCount();   // 0 を返し得るので丸める (ECS-0 3-7)
       size_t batchSize = count / threadCount;
       Thread::JobCounter counter;
       auto handle = context.jobSystem->CreateHandle(counter);
 
+      // @note **ここで組み直している。** 直前に GridBuildSystem が組んだ内容は
+      //       この Clear() で捨てられる(ECS-0 の「1 フレームに 2 回組まれる」)。
+      //       整理は 1-7。1-5 で消すと View 化の前後比較に混ざる
       grid.Clear();
 
+      const size_t gridBatch = gridCount / threadCount;
       Thread::JobCounter buildCounter;
       Thread::JobHandle buildHandle = context.jobSystem->CreateHandle(buildCounter);
 
       for (size_t t = 0; t < threadCount; ++t) {
-        size_t start = t * batchSize;
-        size_t end = (t == threadCount - 1) ? count : start + batchSize;
+        size_t start = t * gridBatch;
+        size_t end = (t == threadCount - 1) ? gridCount : start + gridBatch;
 
-        context.jobSystem->KickJob([start, end, pData, &grid]() {
+        context.jobSystem->KickJob([start, end, gridPositions, &grid]() {
           for (size_t i = start; i < end; ++i) {
-            grid.Insert(static_cast<uint32_t>(i), pData[i]);
+            grid.Insert(static_cast<uint32_t>(i), gridPositions[i]);
           }
           }, &buildHandle);
       }
 
       context.jobSystem->WaitFor(buildHandle);
 
+      // 組んだ時点の構造版を控える (1-5 / R-24)
+      grid.SetBuildStamp(gridView.StructureVersion());
 
-      for (size_t i = 0; i < threadCount; ++i) {
-        size_t start = i * batchSize;
-        size_t end = (i == threadCount - 1) ? count : start + batchSize;
+      // **並列ループへ入る前に 1 回だけ突き合わせる。** グリッドに入っている
+      // dense 添字が、まだ同じものを指しているか。1-4 で構造変更をフレーム境界へ
+      // 集めたので成り立つはずだが、**成り立つはずを検査にする**
+      assert(grid.BuildStamp() == context.registry->StructureVersion()
+             && "BoidSystem: the registry changed shape after the grid was built. "
+                "The dense indices stored in the grid no longer mean what they meant "
+                "(1-5). Structural changes belong in a CommandBuffer.");
+
+      for (size_t t = 0; t < threadCount; ++t) {
+        size_t start = t * batchSize;
+        size_t end = (t == threadCount - 1) ? count : start + batchSize;
 
         context.jobSystem->KickJob([=, &grid]() {
-          for (size_t i = start; i < end; ++i) {
-            auto& myPos = pData[i];
-            auto& myVel = vData[i];
-            const auto& agent = aData[i];
+          for (auto entry : view.Slice(start, end)) {
+            // 構造化束縛を内側のラムダで捕まえない形にしておく
+            const ECS::Entity            self  = std::get<0>(entry);
+            Components::Position&        myPos = std::get<1>(entry);
+            Components::Velocity&        myVel = std::get<2>(entry);
+            const Components::BoidAgent& agent = std::get<3>(entry);
 
             // 集計用変数
             float sepX = 0, sepY = 0; // 分離
@@ -74,12 +96,27 @@ namespace GLFD::Systems {
 
             // 近傍探索
             grid.Query(myPos, [&](uint32_t neighborId) -> bool {
-                if (i == neighborId) return true;
+                if (neighborId >= gridCount) return true;      // 純粋な防御
+
+                // **自己スキップは `Entity` で行う。** 反復側の添字は 3 成分の
+                // View の基準プールのもので、**グリッドの添字(Position 単独の
+                // View)とは別物**である。添字で比べると、自分を飛ばし損ねて
+                // 無関係な他人を飛ばす。しかも群れが少し変わるだけで落ちない
+                const ECS::Entity other = gridOwners[neighborId];
+                if (other == self) return true;
 
                 if (++neighborCount > MAX_NEIGHBORS) return false; // 打ち切り
 
-                const auto& otherPos = pData[neighborId];
-                const auto& otherVel = vData[neighborId];
+                // 位置は**直接添字**で引ける(グリッドと同じ View なので)
+                const auto& otherPos = gridPositions[neighborId];
+
+                // 速度は `Entity` から引く。**ここだけは疎配列を通る**。
+                // プールごとに swap-and-pop が独立に起きるので、
+                // 「Position の dense 添字で Velocity を引く」は成立しない
+                const Components::Velocity* const otherVelPtr =
+                    view.Find<Components::Velocity>(other);
+                if (otherVelPtr == nullptr) return true;   // 速度が無い相手は数えない
+                const auto& otherVel = *otherVelPtr;
 
                 float dx = myPos.x - otherPos.x;
                 float dy = myPos.y - otherPos.y;

@@ -1,6 +1,8 @@
 #pragma once
 #include "../ECS/Components.h"
+#include "../ECS/View.h"
 #include "../Core/GameContext.h"
+#include "../Core/HardwareConstants.h"
 #include <immintrin.h>
 
 namespace GLFD::Systems {
@@ -13,20 +15,19 @@ namespace GLFD::Systems {
      * @param dt デルタタイム
      */
     static void Update(GameContext& context) {
-      // データへの生ポインタを取得 (Viewを使わず直接Dense配列を触るのが最速)
-      // ※今回は「全員がPos/Velを持っている」前提のデモです
-      auto& positions = context.registry->View<Components::Position>();
-      auto& velocities = context.registry->View<Components::Velocity>();
-
-      size_t count = positions.GetSize();
-      Components::Position* pData = positions.GetData();
-      const Components::Velocity* vData = velocities.GetData();
+      // **添字が揃っている前提を捨てた** (1-5 / R-32)。以前は Position と
+      // Velocity の dense 配列を同じ i で触っていたが、プールごとに
+      // swap-and-pop が独立に起きるので**サイズが同じでも並びは一致しない**。
+      // View が組を保証する
+      auto view = context.registry->View<Components::Position, Components::Velocity>();
+      const size_t count = view.BaseSize();
+      if (count == 0) { return; }
 
       // dt (デルタタイム) をSIMDレジスタの全レーンにセット: [dt, dt, dt, dt]
-      __m128 dtVec = _mm_set1_ps(context.dt);
+      const float dt = context.dt;
 
       // 並列処理の設定
-      size_t threadCount = std::thread::hardware_concurrency();
+      size_t threadCount = System::WorkerThreadCount();   // 0 を返し得るので丸める (ECS-0 3-7)
       size_t batchSize = count / threadCount;
 
       // ジョブハンドルの作成
@@ -37,26 +38,22 @@ namespace GLFD::Systems {
         size_t start = t * batchSize;
         size_t end = (t == threadCount - 1) ? count : start + batchSize;
 
-        context.jobSystem->KickJob([=]() {
-            // ループアンローリングなどの最適化はコンパイラに任せるか、
-            // さらに手動で 4要素ずつ処理することも可能だが、
-            // ここでは「1エンティティ = 1SIMD演算」として記述する。
-            // 構造体が16バイト(float*4)なので、配列アクセスも綺麗にアラインされる。
+        // **View は値でコピーして投げる**(プールへのポインタしか持たない)
+        context.jobSystem->KickJob([view, start, end, dt]() {
+            const __m128 dtVec = _mm_set1_ps(dt);
 
-            for (size_t i = start; i < end; ++i) {
-              // 1. メモリからレジスタへロード (Aligned Load)
-              // pData[i] は alignas(16) なので _mm_load_ps が使える（最速）
-              // もしアライメントが保証されない場合は _mm_loadu_ps を使う必要がある
-              __m128 p = _mm_load_ps(reinterpret_cast<const float*>(&pData[i]));
-              __m128 v = _mm_load_ps(reinterpret_cast<const float*>(&vData[i]));
+            // **SIMD は残っている。** 各成分が個別に alignas(16) なので、
+            // 参照からそのまま _mm_load_ps できる。失ったのは
+            // 「2 本の配列を同じ添字で舐める」形だけで、命令列は変わらない
+            for (auto [entity, pos, vel] : view.Slice(start, end)) {
+              (void)entity;
+              __m128 p = _mm_load_ps(reinterpret_cast<const float*>(&pos));
+              __m128 v = _mm_load_ps(reinterpret_cast<const float*>(&vel));
 
-              // 2. 計算: P = P + V * dt
-              // _mm_mul_ps: V * dt (4要素同時掛け算)
-              // _mm_add_ps: P + result (4要素同時足し算)
+              // 計算: P = P + V * dt
               __m128 result = _mm_add_ps(p, _mm_mul_ps(v, dtVec));
 
-              // 3. レジスタからメモリへストア (Aligned Store)
-              _mm_store_ps(reinterpret_cast<float*>(&pData[i]), result);
+              _mm_store_ps(reinterpret_cast<float*>(&pos), result);
             }
           }, &handle);
       }

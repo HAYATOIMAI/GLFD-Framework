@@ -1,8 +1,9 @@
-#pragma once
+﻿#pragma once
 
 #include "../Core/StackResource.h"
 #include "../Threading/JobSystem.h"
 #include "../ECS/Registry.h"
+#include "../ECS/CommandBuffer.h"
 #include "../Events/EventBus.h"
 #include "../Graphics/SimpleWindow.h"
 #include "../Graphics/DX11Renderer.h"
@@ -21,6 +22,8 @@ namespace GLFD {
 
     Thread::JobSystem*        jobSystem;
     ECS::Registry*            registry;
+    /// 構造変更の積み place (1-4)。**反復中の生成・破棄はここへ積む**
+    ECS::CommandBuffer*       commands;
     Events::EventBus*         eventBus;
 
     Physics::SpatialHashGrid* grid;
