@@ -9,7 +9,6 @@
 #include "Core/GameConfigLog.h"
 #include "Core/Json/Json.h"
 #include "Core/InputSystem.h"
-#include "Core/Profiler.h"
 #include "Core/Logger.h"
 #include "Core/FileManager.h"
 

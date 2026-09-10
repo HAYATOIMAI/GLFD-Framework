@@ -4,7 +4,6 @@
     <ClCompile Include="Source\Core\FileManager.cpp" />
     <ClCompile Include="Source\Core\InputSystem.cpp" />
     <ClCompile Include="Source\Core\Logger.cpp" />
-    <ClCompile Include="Source\Core\Profiler.cpp" />
     <ClCompile Include="Source\Core\StackAllocator.cpp" />
     <ClCompile Include="Source\Engine.cpp" />
     <ClCompile Include="Source\Graphics\DX11Renderer.cpp" />
@@ -49,12 +48,13 @@
     <ClInclude Include="Source\Core\HashMap.h" />
     <ClInclude Include="Source\Core\InputSystem.h" />
     <ClInclude Include="Source\Core\Logger.h" />
+    <ClInclude Include="Source\Core\FailureGate.h" />
     <ClInclude Include="Source\Core\MemoryResource.h" />
     <ClInclude Include="Source\Core\MemoryUtils.h" />
-    <ClInclude Include="Source\Core\Profiler.h" />
     <ClInclude Include="Source\Core\StackAllocator.h" />
     <ClInclude Include="Source\Core\StackResource.h" />
     <ClInclude Include="Source\Core\StringView.h" />
+    <ClInclude Include="Source\Core\SystemSchedule.h" />
     <ClInclude Include="Source\Core\TypeInfo.h" />
     <ClInclude Include="Source\ECS\CommandBuffer.h" />
     <ClInclude Include="Source\ECS\Components.h" />
@@ -68,6 +68,7 @@
     <ClInclude Include="Source\Events\Events.h" />
     <ClInclude Include="Source\Game\BoidAgent.h" />
     <ClInclude Include="Source\Game\BoidSystems.h" />
+    <ClInclude Include="Source\Game\EcsDiagnosticsLog.h" />
     <ClInclude Include="Source\Game\GridBulidSystem.h" />
     <ClInclude Include="Source\Game\InteractionSystem.h" />
     <ClInclude Include="Source\Game\SimdSystem.h" />

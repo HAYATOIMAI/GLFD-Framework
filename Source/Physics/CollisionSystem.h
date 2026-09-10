@@ -7,7 +7,6 @@
 #include "SpatialHashGrid.h"
 #include "Events/EventBus.h"
 #include "Events/Events.h"
-#include "../Core/Profiler.h"
 #include "../Core/GameContext.h"
 #include "../Core/HardwareConstants.h"
 #include "ECS/View.h"

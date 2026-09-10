@@ -68,6 +68,8 @@ rem  LOG_ERROR を呼ぶため Logger.cpp が要る。全スイートへ足すと Json 側の
 rem  スイートにまで Logger を持ち込むことになるので、個別に足す
 set "EXTRA_SOURCES="
 if /i "%NAME%"=="TemplateInstantiationTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
+rem  EcsDiagnosticsTests (1-6) は SpatialHashGrid の確保失敗を直接見るので実装が要る
+if /i "%NAME%"=="EcsDiagnosticsTests" set "EXTRA_SOURCES=%ROOT%\Source\Physics\SpatialHashGrid.cpp"
 set "OBJDIR=%OUTDIR%\%NAME%"
 if not exist "%OBJDIR%" mkdir "%OBJDIR%"
 

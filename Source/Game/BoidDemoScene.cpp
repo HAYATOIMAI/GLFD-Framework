@@ -2,6 +2,7 @@
 
 #include "../Core/GameContext.h"
 #include "../Core/GameConfig.h"
+#include "../Core/SystemSchedule.h"
 #include "../Core/GameConfigLoad.h"
 #include "../Core/GameConfigLog.h"
 #include "../Core/Json/Json.h"
@@ -21,6 +22,8 @@
 #include "../Resource/ResourceManager.h"
 
 #include "../Physics/CollisionSystem.h"
+
+#include "EcsDiagnosticsLog.h"
 
 #include "InteractionSystem.h"
 #include "BoidSystems.h"
@@ -48,24 +51,8 @@ namespace {
   // ここにも書かれており、片方だけ変えると壊れる二重定義になっていた。
   // 現在は Resource/GameConfig.jsonc の simulation.entityCount 1 箇所である
 
-  const char* CommandKindName(GLFD::ECS::CommandKind kind) {
-    switch (kind) {
-      case GLFD::ECS::CommandKind::Destroy: return "destroy";
-      case GLFD::ECS::CommandKind::Add:     return "add";
-      case GLFD::ECS::CommandKind::Remove:  return "remove";
-    }
-    return "?";
-  }
-
-  const char* DropReasonName(GLFD::ECS::DropReason reason) {
-    switch (reason) {
-      case GLFD::ECS::DropReason::DeadEntity:       return "the entity was not alive";
-      case GLFD::ECS::DropReason::AlreadyDestroyed: return "already destroyed";
-      case GLFD::ECS::DropReason::AlreadyPresent:   return "the component was already there";
-      case GLFD::ECS::DropReason::AllocationFailed: return "allocation failed";
-    }
-    return "?";
-  }
+  // 名前付けと整形は 1-6 で Game/EcsDiagnosticsLog.h へ移した。
+  // 診断を足したら整形が 5 箇所に散り、OnUpdate と OnRender に割れたため
 }
 
 namespace GLFD {
@@ -203,18 +190,69 @@ namespace GLFD {
       LogConfigDump(*m_config, ctx.globalResource);
     }
 
-    // **ReloadConfig の後に束ねる。** 先に取ると差し替え前の設定を指したままになる
-    const GameConfig& config = *m_config;
+    // =======================================================================
+    // **実行順序はここ 1 箇所にある** (1-6 / R-26)
+    // =======================================================================
+    //
+    //  以前はこの下に 6 行が並んでいるだけで、依存は `GameContext` のメンバ
+    //  経由の暗黙のものだった(宣言も検査も無い)。表にすると:
+    //
+    //   - 順序が 1 箇所に見える
+    //   - **前提条件が同じ場所に見える**(「Boid はグリッドが要る」)
+    //   - シグネチャが揃っていなくても並べられる。GLFD のシステムは
+    //     `Update(ctx)` / `Update(ctx, maxSpeed)` / 引数 7 個 /
+    //     シーンのメンバ関数、と 4 種類に割れている
+    //
+    //  @note **描画 (`RenderSystem`) はこの表に入らない。** `OnRender` にいて
+    //        位相が違う。更新の順序表に描画を混ぜると嘘になる。
+    //
+    //  @note **依存を宣言して順序を自動で決めるところまでは行かない**(過剰)。
+    //        順序は人が書き、前提条件が同じ場所に見えていればよい。
+    //
+    //  @note config は**シーンの `m_config` から取る**。`GameContext` へ入れない。
+    //        `GameConfig` の実体は 2 つあり (`GameEngine::m_config` と
+    //        `BoidDemoScene::m_config`)、`ctx` に入るのはエンジン側なので、
+    //        **F5 で読み直しても効かない値**が生まれる。
+    static constexpr Core::SystemStep<BoidDemoScene, GameContext> kUpdateOrder[] = {
+      { "GridBuild", [](BoidDemoScene&, GameContext& c) {
+          Systems::GridBuildSystem::Update(c);
+          // 作れたかどうかは `ctx.grid` に出る (1-6 の確保失敗の扱い)
+          return (c.grid != nullptr) ? Core::StepResult::Ran : Core::StepResult::Failed;
+        } },
 
-    Systems::GridBuildSystem::Update(ctx);
-    Systems::InteractionSystem::Update(*ctx.registry, *ctx.jobSystem, *ctx.input, *ctx.window,
-                                       config.interaction.explosionRadius,
-                                       config.interaction.explosionForce,
-                                       config.interaction.screenScale);
-    Systems::BoidSystem::Update(ctx, config.simulation.maxSpeed);
-    Systems::MovementSystem::Update(ctx);
-    ApplyWorldBounds(ctx);
-    Systems::CollisionSystem::Update(ctx);
+      { "Interaction", [](BoidDemoScene& self, GameContext& c) {
+          const InteractionConfig& in = self.m_config->interaction;
+          Systems::InteractionSystem::Update(*c.registry, *c.jobSystem, *c.input, *c.window,
+                                             in.explosionRadius, in.explosionForce,
+                                             in.screenScale);
+          return Core::StepResult::Ran;
+        } },
+
+      { "Boid", [](BoidDemoScene& self, GameContext& c) {
+          if (c.grid == nullptr) { return Core::StepResult::Skipped; }   // 近傍探索に要る
+          Systems::BoidSystem::Update(c, self.m_config->simulation.maxSpeed);
+          return Core::StepResult::Ran;
+        } },
+
+      { "Movement", [](BoidDemoScene&, GameContext& c) {
+          Systems::MovementSystem::Update(c);
+          return Core::StepResult::Ran;
+        } },
+
+      { "WorldBounds", [](BoidDemoScene& self, GameContext& c) {
+          self.ApplyWorldBounds(c);
+          return Core::StepResult::Ran;
+        } },
+
+      { "Collision", [](BoidDemoScene&, GameContext& c) {
+          if (c.grid == nullptr) { return Core::StepResult::Skipped; }   // 近傍探索に要る
+          Systems::CollisionSystem::Update(c);
+          return Core::StepResult::Ran;
+        } },
+    };
+
+    Core::FrameReport frameReport;
+    Core::RunSteps(kUpdateOrder, *this, ctx, frameReport);
 
     // **構造変更をここで適用する** (1-4)。反復中に積まれたものがフレーム境界で
     // まとめて効く。CollisionSystem の後に置いたのは、破棄を積む最有力の候補が
@@ -226,53 +264,10 @@ namespace GLFD {
     // 差が無い**。1-7 で購読者が現れた時点で、DispatchAll の後へ移すか
     // 2 回目の適用を足すかを決めること。観測できない仮定で選んだふりをしない
     ctx.registry->ApplyCommands(*ctx.commands);
-    ReportAppliedCommands(*ctx.commands);
-  }
 
-  void BoidDemoScene::ReportAppliedCommands(const ECS::CommandBuffer& commands) {
-    const ECS::ApplyReport& report = commands.Report();
-
-    // **1 回目だけは空でも出す。** 「Boid デモが動いた」ではなく
-    // **「Boid デモはコマンドを 1 つも積まないので動いた」**を区別できるように
-    // するため。積み始めるのは 1-7 で衝突が直ってからで、そのとき壊れたときに
-    // 「1-4 では動いていたのに」と原因を誤らないための記録である。
-    // 毎フレーム出すと 1 行流れ続けて役に立たないので、以降は空なら黙る
-    if (!m_loggedFirstApply) {
-      m_loggedFirstApply = true;
-      LOG_INFO("BoidDemoScene: first command flush. applied=%u dropped=%u",
-               report.Applied(), report.Dropped());
-    }
-    else if (report.IsQuiet()) {
-      return;
-    }
-    else if (report.Applied() != 0u) {
-      LOG_INFO("BoidDemoScene: %u command(s) applied", report.Applied());
-    }
-
-    if (report.Dropped() == 0u) {
-      return;
-    }
-
-    // **黙って捨てない** (R-20 / R-28)。件数は正確で、明細だけが上限で切れる
-    LOG_WARN("BoidDemoScene: %u command(s) dropped (%u recorded%s)",
-             report.Dropped(), report.RecordedCount(),
-             report.Truncated() ? ", detail truncated" : "");
-
-    for (std::uint32_t i = 0; i < report.RecordedCount(); ++i) {
-      const ECS::DroppedCommand& dropped = report.Recorded(i);
-      // 二重破棄は VS 型では普通に起きるので**異常として出さない**。
-      // それ以外は追う価値がある
-      if (dropped.reason == ECS::DropReason::AlreadyDestroyed) {
-        LOG_WARN("  dropped %s: %s (entity index %u, generation %u)",
-                 CommandKindName(dropped.kind), DropReasonName(dropped.reason),
-                 dropped.entity.Index(), dropped.entity.Generation());
-      }
-      else {
-        LOG_ERROR("  dropped %s: %s (entity index %u, generation %u)",
-                  CommandKindName(dropped.kind), DropReasonName(dropped.reason),
-                  dropped.entity.Index(), dropped.entity.Generation());
-      }
-    }
+    // **出力は診断層が行う** (1-6)。ここは呼ぶだけ
+    Game::ReportAppliedCommands(ctx.commands->Report(), m_loggedFirstApply);
+    Game::ReportFrameSteps(frameReport, m_frameGate);
   }
 
   void BoidDemoScene::OnRender(GameContext& ctx) {
@@ -280,10 +275,14 @@ namespace GLFD {
     if (tex) {
       ctx.renderer->SetTexture(tex);
     }
-    // 設定の型に依存させないため、実際のウィンドウサイズを値で渡す
-    Systems::RenderSystem::Update(*ctx.registry, *ctx.renderer, ctx.frameResource,
-                                  ctx.totalTime,
-                                  ctx.window->GetWidth(), ctx.window->GetHeight());
+    // 設定の型に依存させないため、実際のウィンドウサイズを値で渡す。
+    // **戻り値で受ける** (1-6)。1-1 からの借りの返済で、それまでは確保に
+    // 失敗しても黙って 1 フレーム描かずに戻っていた
+    const Systems::RenderStatus status =
+        Systems::RenderSystem::Update(*ctx.registry, *ctx.renderer, ctx.frameResource,
+                                      ctx.totalTime,
+                                      ctx.window->GetWidth(), ctx.window->GetHeight());
+    Game::ReportRenderStep(status, m_renderGate);
   }
 
   void BoidDemoScene::OnExit(GameContext& ctx) {

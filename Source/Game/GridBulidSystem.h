@@ -19,16 +19,36 @@ namespace GLFD::Systems {
       // Placement New を使用して構築
       void* buf = ctx.frameResource->Allocate(sizeof(Physics::SpatialHashGrid), alignof(Physics::SpatialHashGrid));
 
+      // **確保できたか見る** (1-6)。以前は戻り値を見ずに placement new していた。
+      // フレームメモリが尽きると nullptr へ構築して未定義動作になり、
+      // その後 BoidSystem の `*context.grid` で null 参照していた
+      if (buf == nullptr) {
+        ctx.grid = nullptr;         // **前フレームのものを残さない**(下の @note)
+        return;
+      }
+
       // フレームリソースを使って Grid を構築
       // Grid内部の配列も frameResource から確保されるため、
       // フレーム終了時に全自動で消滅する。デストラクタ呼び出しすら不要。
       auto* grid = new(buf) Physics::SpatialHashGrid(ctx.frameResource, count);
+
+      // 内部の配列も確保できたか (1-6)。コンストラクタは投げない契約になった
+      if (!grid->IsReady()) {
+        ctx.grid = nullptr;
+        return;
+      }
 
       // **組んだ時点の構造版を控える** (1-5 / R-24)。入っている dense 添字が
       // まだ有効かを、引く側が検査できるようにするため
       grid->SetBuildStamp(view.StructureVersion());
 
       // Contextにセットして、後続のシステムが使えるようにする
+      //
+      // @note **失敗したフレームで `ctx.grid` を前フレームのまま残さない。**
+      //       残すと、構造版の照合 (1-5 / R-43) をすり抜けた古い dense 添字で
+      //       近傍を引くことになる。`nullptr` は「無い」と正直に言える。
+      //       依存するシステム (Boid / Collision) は実行順序の表で
+      //       `Skipped` を返す
       ctx.grid = grid;
 
       if (count == 0) { return; }

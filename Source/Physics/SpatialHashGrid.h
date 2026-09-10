@@ -20,7 +20,18 @@ namespace GLFD::Physics {
     // 無効なインデックス
     static constexpr uint32_t NULL_INDEX = 0xFFFFFFFF;
 
+    /**
+     * @brief バケットと next 配列を確保する
+     *
+     * @note **確保に失敗しても投げない** (1-6 / R-14 / N-2)。以前は投擲版の
+     *       `Resize` を呼んでおり、フレームメモリが尽きると `std::bad_alloc` が
+     *       毎フレームの経路から飛んでいた。受ける側もいなかった。
+     *       失敗したら `IsReady()` が false になる(`SparseSet` と同じ形)。
+     */
     explicit SpatialHashGrid(Memory::IMemoryResource* resource, size_t maxEntities);
+
+    /// 確保できたか。**false のグリッドを使ってはならない**
+    [[nodiscard]] bool IsReady() const noexcept { return m_ready; }
 
     // 毎フレーム呼び出す初期化
     void Clear();
@@ -49,6 +60,12 @@ namespace GLFD::Physics {
     // 周辺のパーティクルを取得して処理する
     template <typename Func>
     void Query(const GLFD::Components::Position& pos, Func&& func) {
+      // **確保できていないグリッドは空として振る舞う** (1-6)。
+      // m_buckets が空のまま添字を引くと範囲外になる
+      if (!m_ready) {
+        return;
+      }
+
       // 自分のいるセルとその周辺(3x3x3)をチェック
       int cx = static_cast<int>(std::floor(pos.x / CELL_SIZE));
       int cy = static_cast<int>(std::floor(pos.y / CELL_SIZE));
@@ -85,6 +102,9 @@ namespace GLFD::Physics {
 
     /// 組んだ時点の ECS の構造版 (1-5)。**このクラスは比較しない**
     uint32_t m_buildStamp = 0;
+
+    /// 確保できたか (1-6)
+    bool m_ready = false;
 
     // 座標ハッシュ関数
     size_t GetHash(const GLFD::Components::Position& pos) const;

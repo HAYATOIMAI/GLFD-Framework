@@ -5,16 +5,27 @@ namespace GLFD::Physics {
   SpatialHashGrid::SpatialHashGrid(Memory::IMemoryResource* resource, size_t maxEntities) :
     m_buckets(resource)
     , m_next(resource) {
-    // スタックアロケータからメモリ確保
+    // スタックアロケータからメモリ確保。**投げない** (1-6 / R-14 / N-2)
 
      // バケット配列（各セルの先頭エンティティID）
-    m_buckets.Resize(TABLE_SIZE);
+    if (!m_buckets.TryResize(TABLE_SIZE)) {
+      return;                       // m_ready は false のまま
+    }
 
     // リンクリスト用のNext配列（エンティティ数分）
-    m_next.Resize(maxEntities);
+    if (!m_next.TryResize(maxEntities)) {
+      return;
+    }
+    m_ready = true;
   }
 
   void SpatialHashGrid::Clear() {
+    // **確保できていなければ何もしない** (1-6)。以前の形のままだと
+    // m_buckets が空のときに nullptr へ 8 MB の memset をかけていた
+    if (!m_ready) {
+      return;
+    }
+
     // バケットを全て「空」にする
     void* ptr = m_buckets.GetData();
     std::memset(ptr, 0xFF, TABLE_SIZE * sizeof(uint32_t));

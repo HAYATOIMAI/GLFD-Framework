@@ -376,6 +376,31 @@ namespace {
 //   GLFD::ECS::View<...>::begin/end/Slice   1-5 で Get<T> の代わりに置いた
 //   GLFD::ECS::View<...>::Iterator::operator*
 //
+// --- 1-6 で消えたもの(**消して無かったことにしない**)-------------------------
+//
+//   GLFD::Core::Instrumentor        Profiler.h / Profiler.cpp ごと削除 (1-6)。
+//   GLFD::Core::InstrumentationTimer  BeginSession の呼び出し 0 件、PROFILE_SCOPE /
+//   PROFILE_FUNCTION (マクロ)         PROFILE_FUNCTION の使用も 0 件だった。
+//   GAMELIB_PROFILE (マクロ)          include だけが 4 ファイルに残っていた
+//                                     (Engine.cpp / BoidSystems.h / RenderSystem.h /
+//                                      CollisionSystem.h)。R-27 の実例。
+//
+//     **証拠**: リポジトリにあった results.json は 14 種類のスコープ名 x 697
+//     フレームで、**そのどれも現在のソースに存在しなかった**。うち 1 つが
+//     "GDI Present (StretchDIBits)" で、**DX11 化より前の計測**だと分かる。
+//     リファクタのたびに PROFILE_SCOPE が消え、マクロ定義と include が残った。
+//
+//     **残す知見(実装は消すが、知見は消さない)**:
+//      - 出力は **Chrome Tracing 形式** ({"traceEvents":[{cat,dur,name,ph,pid,tid,ts}]})。
+//        chrome://tracing または Perfetto でそのまま開ける
+//      - 実装例は Instrumentor::WriteProfile の 20 行だった
+//      - **EcsBenchmark (1-5) では代替できない**部分がある: あちらはヘッドレスで
+//        決定的な「分布」(中央値/最小/p95)を出すが、**スレッド別のタイムライン**
+//        (tid 付き)は出せない。BoidSystem の p95 がなぜ跳ねるかは
+//        タイムラインにしか出ない。必要になったら作り直すこと
+//      - **作り直すときは N-1〜N-4 に合わせること**。旧実装は全部に抵触していた
+//        (std::string / std::ofstream / 関数ローカル static / 生の new)
+//
 // --- 1-5 で消えたもの(**消して無かったことにしない**)-------------------------
 //
 //   GLFD::ECS::View<...>::Get<T>   1-5 で廃止。成分は反復子が参照で返す (R-23)。

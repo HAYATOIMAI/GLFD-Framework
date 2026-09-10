@@ -4,7 +4,6 @@
 #include "../ECS/Registry.h"
 #include "../ECS/View.h"
 #include "../Threading/JobSystem.h"
-#include "../Core/Profiler.h"
 #include "../Physics/SpatialHashGrid.h"
 #include "BoidAgent.h"
 #include "../Core/GameContext.h"

@@ -6,6 +6,8 @@
 
 #include <memory>
 
+#include "../Core/FailureGate.h"
+
 namespace GLFD::Json { class Document; }
 namespace GLFD::ECS  { class CommandBuffer; }
 
@@ -43,13 +45,6 @@ namespace GLFD {
      */
     void ReloadConfig(GameContext& ctx);
 
-    /**
-     * @brief コマンドの適用結果をログへ出す (1-4 / R-28)
-     *
-     * @note **出力は上層で行う。** `Registry` は `ApplyReport` へ書くだけで
-     *       `Logger` を呼ばない(JSON の診断と同じ分担)
-     */
-    void ReportAppliedCommands(const ECS::CommandBuffer& commands);
 
     Resource::ResourceHandle<Graphics::Texture> m_textureHandle;
 
@@ -63,6 +58,16 @@ namespace GLFD {
     /// 1 回目の適用だけは中身が空でもログに出す。**「動いた」と「コマンドを
     /// 1 つも積まないので動いた」を区別できるようにするため** (1-4)
     bool m_loggedFirstApply = false;
+
+    /**
+     * 診断の門 (1-6)。**状態が変わったときだけ通す。**
+     *
+     * @note **シーンが所有する。** 状態を持つので誰かが持たねばならず、
+     *       関数ローカルの `static` にすると N-3 に当たる。
+     *       `RenderSystem` は `static` クラスなので自分では持てない
+     */
+    Core::FailureGate m_frameGate;    ///< 更新の表(どれかが Failed / Skipped)
+    Core::FailureGate m_renderGate;   ///< 描画(確保失敗)
   };
 
 }

@@ -4,12 +4,37 @@
 #include "../ECS/Registry.h"
 #include "../ECS/Components.h"
 #include "../ECS/View.h"
-#include "../Core/Profiler.h"
 #include "../Core/GameConfig.h"
 #include "../Core/DynamicArray.h"
 #include "../Core/MemoryResource.h"
 
+#include <cstddef>
+#include <cstdint>
+
 namespace GLFD::Systems {
+
+  /**
+   * @brief 1 フレームの描画がどうなったか (ECS 1-6 / R-28)
+   *
+   * @details
+   *  **1-1 からの借りの返済。** それまでは確保に失敗すると黙って 1 フレーム
+   *  描かずに戻っていた(コードにも「1-6 で観測点を用意すること」と書いてあった)。
+   *
+   *  ここは**記録するだけ**で `Logger` を呼ばない。出力はシーン側
+   *  (`Game/EcsDiagnosticsLog.h`)が `FailureGate` と組で行う。
+   *  JSON の `ArchiveContext` と同じ分担。
+   */
+  struct RenderStatus {
+    enum class Outcome : std::uint8_t {
+      Drawn,                    ///< 描いた
+      VertexBufferUnavailable,  ///< 頂点の一時バッファを確保できなかった
+      ComponentsUnavailable,    ///< 成分プールを確保できなかった (1-5 で足した経路)
+    };
+
+    Outcome     outcome           = Outcome::Drawn;
+    std::size_t requestedVertices = 0;   ///< 何個ぶん要求したか
+  };
+
   class RenderSystem {
   public:
     // メイン処理
@@ -19,7 +44,8 @@ namespace GLFD::Systems {
     ///        されるもの**を渡すこと。以前は関数ローカルの `static std::vector`
     ///        で、N-1(STL コンテナ)と N-3(グローバル可変状態)に抵触し、
     ///        **スレッド安全でもなかった** (ECS-0 の 2)
-    static void Update(ECS::Registry& registry, Graphics::DX11Renderer& renderer,
+    [[nodiscard]] static RenderStatus Update(ECS::Registry& registry,
+                       Graphics::DX11Renderer& renderer,
                        Memory::IMemoryResource* frameResource, float time,
                        int windowWidth, int windowHeight) {
 
@@ -53,11 +79,9 @@ namespace GLFD::Systems {
       DynamicArray<Graphics::SimpleVertex> vertices(frameResource);
       if (!vertices.TryResize(count)) {
         // フレームメモリを使い切った。**この 1 フレームは点を描かない**。
-        // 毎フレーム出るログはノイズになるので、ここでは黙って諦める。
-        // R-28(部分的な失敗を静かに通さない)に対する借りであり、
-        // 1-6(実行順序と診断の整理)で観測点を用意すること
+        // 1-6 で観測できる形にした。**黙って諦めない** (R-28)
         renderer.EndFrame();
-        return;
+        return RenderStatus{ RenderStatus::Outcome::VertexBufferUnavailable, count };
       }
 
       // 画面サイズ定数 (GameConfigから取ると良い)
@@ -68,8 +92,10 @@ namespace GLFD::Systems {
 
       // データ変換
       if (pData == nullptr) {
+        // 成分プールを確保できていない。**1-5 で足した経路で、当時は
+        // コメントも無く黙って戻っていた。** 1-6 で同じ扱いにする
         renderer.EndFrame();
-        return;
+        return RenderStatus{ RenderStatus::Outcome::ComponentsUnavailable, count };
       }
       for (size_t i = 0; i < count; ++i) {
         vertices[i].Pos = DirectX::XMFLOAT4(
@@ -86,6 +112,7 @@ namespace GLFD::Systems {
       renderer.DrawPoints(vertices.GetData(), vertices.GetSize());
 
       renderer.EndFrame();
+      return RenderStatus{ RenderStatus::Outcome::Drawn, count };
     }
   };
 }
