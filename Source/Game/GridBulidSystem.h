@@ -1,5 +1,6 @@
 #pragma once
 #include "../ECS/Components.h"
+#include "../ECS/View.h"
 #include "../Core/GameContext.h"
 #include "../Physics/SpatialHashGrid.h"
 #include "../Core/HardwareConstants.h"

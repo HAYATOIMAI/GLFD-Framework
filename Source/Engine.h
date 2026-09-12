@@ -36,7 +36,7 @@ namespace GLFD {
 
     std::unique_ptr<Thread::JobSystem> m_jobSystem = nullptr;
     std::unique_ptr<ECS::Registry>     m_registry = nullptr;
-    // 1-4: 構造変更のバッファ。**フレームアロケータからは取らない** ―
+    // 1-4: 構造変更のバッファ。**フレームアロケータからは取らない**
     // StackResource::Deallocate は no-op なので、DynamicArray が 1.5 倍で
     // 伸びるたびに旧領域がフレーム内で死蔵される。寿命の長い側から取り、
     // Clear() で容量を保って使い回す
@@ -56,7 +56,7 @@ namespace GLFD {
     // GameConfig の StringView は Document のアリーナ上にあるため、
     // Document を先に捨てるとタイトルなどがダングリングする (R0-5)
     std::unique_ptr<Json::Document> m_configDoc = nullptr;
-    // 2-3: 個人の上書き (.local.json)。これも同じ寿命で持つ ―
+    // 2-3: 個人の上書き (.local.json)。これも同じ寿命で持つ
     // 上書きが文字列に及ぶと StringView はこちらを指す (R0-5)
     std::unique_ptr<Json::Document> m_configLocalDoc = nullptr;
     std::unique_ptr<GameConfig>     m_config    = nullptr;

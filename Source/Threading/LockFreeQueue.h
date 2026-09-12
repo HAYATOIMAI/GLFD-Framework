@@ -57,7 +57,7 @@ namespace GLFD::Thread {
         intptr_t diff = static_cast<intptr_t>(seq) - static_cast<intptr_t>(head);
 
         if (diff == 0) {
-          // シーケンス番号が一致＝このスロットは書き込み可能
+          // シーケンス番号が一致＝このスロットは書き込み可能。
           // headを1進めることを試みる (CAS)
           if (m_head.compare_exchange_weak(head, head + 1, std::memory_order_relaxed)) {
             // 成功したらデータを書き込む
@@ -94,7 +94,7 @@ namespace GLFD::Thread {
         intptr_t diff = static_cast<intptr_t>(seq) - static_cast<intptr_t>(tail + 1);
 
         if (diff == 0) {
-          // シーケンス番号が (tail + 1) と一致＝データが書き込まれており、読み込み可能
+          // シーケンス番号が (tail + 1) と一致＝データが書き込まれており、読み込み可能。
           // tailを1進めることを試みる (CAS)
           if (m_tail.compare_exchange_weak(tail, tail + 1, std::memory_order_relaxed)) {
             // データを読み出す

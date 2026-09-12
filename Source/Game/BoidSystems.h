@@ -40,30 +40,15 @@ namespace GLFD::Systems {
       Thread::JobCounter counter;
       auto handle = context.jobSystem->CreateHandle(counter);
 
-      // @note **ここで組み直している。** 直前に GridBuildSystem が組んだ内容は
-      //       この Clear() で捨てられる(ECS-0 の「1 フレームに 2 回組まれる」)。
-      //       整理は 1-7。1-5 で消すと View 化の前後比較に混ざる
-      grid.Clear();
-
-      const size_t gridBatch = gridCount / threadCount;
-      Thread::JobCounter buildCounter;
-      Thread::JobHandle buildHandle = context.jobSystem->CreateHandle(buildCounter);
-
-      for (size_t t = 0; t < threadCount; ++t) {
-        size_t start = t * gridBatch;
-        size_t end = (t == threadCount - 1) ? gridCount : start + gridBatch;
-
-        context.jobSystem->KickJob([start, end, gridPositions, &grid]() {
-          for (size_t i = start; i < end; ++i) {
-            grid.Insert(static_cast<uint32_t>(i), gridPositions[i]);
-          }
-          }, &buildHandle);
-      }
-
-      context.jobSystem->WaitFor(buildHandle);
-
-      // 組んだ時点の構造版を控える (1-5 / R-24)
-      grid.SetBuildStamp(gridView.StructureVersion());
+      // **1-7: ここでは組まない。読むだけである。**
+      //
+      // 以前はこの位置で `Clear()` してから組み直していた。直前に
+      // `GridBuildSystem` が組んだ内容を捨てて同じものを作り直す形で、
+      // ECS-0 の「1 フレームに 2 回組まれる」の実体だった。
+      // 実測では `Clear()` が 283μs、挿入が 103μs。**どちらも無駄だった。**
+      //
+      // 構築点は `GridBuildSystem` 1 箇所(実行順序の表の先頭)。
+      // `SetBuildStamp` もあちらが行う。
 
       // **並列ループへ入る前に 1 回だけ突き合わせる。** グリッドに入っている
       // dense 添字が、まだ同じものを指しているか。1-4 で構造変更をフレーム境界へ

@@ -36,6 +36,8 @@
 #include "../Core/Logger.h"
 #include "../Core/SystemSchedule.h"
 #include "../ECS/CommandBuffer.h"
+#include "../Events/EventBus.h"
+#include "../Events/Events.h"
 #include "../Graphics/RenderSystem.h"
 
 #include <cstdint>
@@ -145,6 +147,54 @@ namespace GLFD::Game {
     else if (change == Core::FailureGate::Change::Recovered) {
       LOG_INFO("RenderSystem: drawing again after %u frame(s) (%u dropped frame(s) total)",
                gate.LastStreakLength(), gate.TotalFailures());
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 衝突の観測 (1-7 / R-27)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * @brief 衝突が実際に動いていることの観測点 (1-7)
+   *
+   * @details
+   *  **ECS-0 で「衝突が 1 件も検出されていない」ことに誰も気づかなかったのは、
+   *  購読者が 0 件で観測点が存在しなかったため**である。同じ状態のまま
+   *  修復すると、直ったかどうかも分からない。
+   *
+   *  出し方は 1-4 / 1-6 と同じ考え方:
+   *   - **初めて衝突が届いたフレームだけ** 1 行出す(動いたことの証拠)
+   *   - **キューの取りこぼし**は `FailureGate` で状態の変わり目だけ出す
+   *
+   *  毎フレームの件数は出さない。衝突数は毎フレーム変わるので、出すと
+   *  60 行/秒になる。
+   *
+   *  @param published / dropped この 1 フレームで発行された数と捨てられた数
+   *  @param delivered  購読者に届いた数(**1 フレーム前のぶん**。発行は
+   *                    `OnUpdate` 中、配信は `DispatchAll` なので 1 フレームずれる)
+   */
+  inline void ReportCollisionObservation(std::uint32_t published, std::uint32_t dropped,
+                                         std::uint32_t delivered, bool& loggedFirstHit,
+                                         Core::FailureGate& overflowGate) {
+    if (!loggedFirstHit && delivered != 0u) {
+      loggedFirstHit = true;
+      LOG_INFO("collision: first frame with hits. published=%u delivered=%u dropped=%u",
+               published, delivered, dropped);
+    }
+
+    const Core::FailureGate::Change change = overflowGate.Observe(dropped != 0u);
+    if (change == Core::FailureGate::Change::Started) {
+      // **黙って捨てない** (R-28)。ここは 1-7 まで printf がコメントアウト
+      // されていた場所である
+      LOG_ERROR("event queue overflow: dropped %u of %u published this frame. "
+                "the channel holds %zu",
+                dropped, published,
+                Events::EventChannel<Events::CollisionEvent>::QUEUE_CAPACITY);
+    }
+    else if (change == Core::FailureGate::Change::Recovered) {
+      LOG_INFO("event queue: no longer overflowing after %u frame(s) "
+               "(%u bad frame(s) total)",
+               overflowGate.LastStreakLength(), overflowGate.TotalFailures());
     }
   }
 

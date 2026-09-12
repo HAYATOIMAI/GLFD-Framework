@@ -37,11 +37,12 @@ namespace GLFD::Systems {
       const size_t count = view.BaseSize();
       if (count == 0 || gridCount == 0 || gridPositions == nullptr) return;
 
-      // @warning **このあと Clear() するだけで再挿入しない。** したがって以下の
-      //          探索は空のバケットを辿るだけで、衝突は 1 件も出ない
-      //          (ECS-0 1-1)。**是正は 1-7。** 1-5 で直すと前後比較の
-      //          意味が変わる(空走査の費用と実仕事の費用を比べることになる)
-      context.grid->Clear(); // バケット初期化
+      // **1-7: `Clear()` を消した。これが衝突検出の修復そのものである。**
+      //
+      // 以前はここで `Clear()` してから `Query` しており、**空のバケットを
+      // 20,000 x 27 セルぶん辿るだけで衝突は 1 件も出なかった** (ECS-0 1-1)。
+      // 組んだ人(`GridBuildSystem`)と読む人(ここ)が別なのに、読む側が
+      // 消していた。**このシステムは読むだけである。**
 
       // バッチ処理設定
       size_t threadCount = System::WorkerThreadCount();   // 0 を返し得るので丸める (ECS-0 3-7)

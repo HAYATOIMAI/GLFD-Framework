@@ -8,7 +8,13 @@ namespace GLFD::Physics {
     // スタックアロケータからメモリ確保。**投げない** (1-6 / R-14 / N-2)
 
      // バケット配列（各セルの先頭エンティティID）
-    if (!m_buckets.TryResize(TABLE_SIZE)) {
+     //
+     // **最初から番兵で埋める** (1-7)。以前は 0 埋めのままで、番兵は
+     // 0xFFFFFFFF だった。つまり構築直後は**全バケットの末尾にエンティティ 0 が
+     // ぶら下がった状態**で、Clear() を呼ばずに引くと嘘の近傍が返っていた
+     // (ECS-0 1-4)。1-7 で構築が 1 回になり Clear() の呼び出しが消えたので、
+     // ここが正しくないと即座に表に出る
+    if (!m_buckets.TryResize(TABLE_SIZE, NULL_INDEX)) {
       return;                       // m_ready は false のまま
     }
 

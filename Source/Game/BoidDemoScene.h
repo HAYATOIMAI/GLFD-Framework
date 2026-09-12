@@ -8,6 +8,8 @@
 
 #include "../Core/FailureGate.h"
 
+#include <cstdint>
+
 namespace GLFD::Json { class Document; }
 namespace GLFD::ECS  { class CommandBuffer; }
 
@@ -68,6 +70,17 @@ namespace GLFD {
      */
     Core::FailureGate m_frameGate;    ///< 更新の表(どれかが Failed / Skipped)
     Core::FailureGate m_renderGate;   ///< 描画(確保失敗)
+    Core::FailureGate m_eventOverflowGate;   ///< イベントキューの取りこぼし (1-7)
+
+    /**
+     * 衝突の観測点 (1-7 / R-27)。**購読者が数えるだけ**で、
+     * `CommandBuffer` には何も積まない(破棄を積むのは 1-8)。
+     *
+     * @note 配信は `DispatchAll`(`OnUpdate` の後)なので、**ここに溜まるのは
+     *       1 フレーム前のぶん**である
+     */
+    std::uint32_t m_collisionsDelivered = 0;
+    bool          m_loggedFirstCollision = false;
   };
 
 }

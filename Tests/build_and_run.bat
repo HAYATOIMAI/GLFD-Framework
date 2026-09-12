@@ -67,15 +67,22 @@ rem  TemplateInstantiationTests (E-1) だけは ResourceStorage<T>::Load が
 rem  LOG_ERROR を呼ぶため Logger.cpp が要る。全スイートへ足すと Json 側の
 rem  スイートにまで Logger を持ち込むことになるので、個別に足す
 set "EXTRA_SOURCES="
+set "EXTRA_FLAGS="
 if /i "%NAME%"=="TemplateInstantiationTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
 rem  EcsDiagnosticsTests (1-6) は SpatialHashGrid の確保失敗を直接見るので実装が要る
 if /i "%NAME%"=="EcsDiagnosticsTests" set "EXTRA_SOURCES=%ROOT%\Source\Physics\SpatialHashGrid.cpp"
+rem  EcsCollisionTests (1-7) は本番の GridBuildSystem / CollisionSystem を呼ぶ
+if /i "%NAME%"=="EcsCollisionTests" set "EXTRA_SOURCES=%ROOT%\Source\Physics\SpatialHashGrid.cpp %ROOT%\Source\Threading\JobSystem.cpp %ROOT%\Source\Threading\ThreadPool.cpp %ROOT%\Source\Core\StackAllocator.cpp"
+rem  C4324 (alignas による詰め物の通知) は情報提供の警告で、ゲーム本体の
+rem  /W3 では出ない。LockFreeQueue / JobCounter の alignas は偽共有を
+rem  避けるための意図的なものなので、スレッド系を建てるスイートだけ抑制する
+if /i "%NAME%"=="EcsCollisionTests" set "EXTRA_FLAGS=/wd4324"
 set "OBJDIR=%OUTDIR%\%NAME%"
 if not exist "%OBJDIR%" mkdir "%OBJDIR%"
 
 echo.
 echo ----- building %NAME% (%CONFIG%) -----
-cl %COMMON_FLAGS% %CFG_FLAGS% ^
+cl %COMMON_FLAGS% %CFG_FLAGS% %EXTRA_FLAGS% ^
    /I "%ROOT%\Source" /I "%~dp0." ^
    /Fo"%OBJDIR%\\" /Fd"%OBJDIR%\%NAME%.pdb" ^
    "%~1" %ENGINE_SOURCES% %EXTRA_SOURCES% ^

@@ -3,9 +3,17 @@
 #include "../Core/TypeInfo.h"
 #include "../Core/DynamicArray.h"
 #include "../Core/MemoryResource.h"
+#include <cstdint>
 #include <shared_mutex>
 
 namespace GLFD::Events {
+
+  /// 1 フレームに何件発行され、何件取りこぼしたか (ECS 1-7 / R-28)
+  struct BusCounters {
+    std::uint32_t published = 0;
+    std::uint32_t dropped   = 0;
+  };
+
   class EventBus {
   public:
     explicit EventBus(Memory::IMemoryResource* resource)
@@ -63,6 +71,33 @@ namespace GLFD::Events {
       }
     }
 
+    /**
+     * @brief 全チャネルの発行数と取りこぼし数 (1-7 / R-28)
+     * @note  **`ResetCounters` を呼ぶまで積み上がる。** 呼び出し側が
+     *        フレームの区切りで読んで戻す
+     */
+    [[nodiscard]] BusCounters Counters() const {
+      std::shared_lock<std::shared_mutex> lock(m_mutex);
+      BusCounters out;
+      for (size_t i = 0; i < m_channels.GetSize(); ++i) {
+        if (m_channels[i]) {
+          out.published += m_channels[i]->PublishedCount();
+          out.dropped   += m_channels[i]->DroppedCount();
+        }
+      }
+      return out;
+    }
+
+    /// @copydoc Counters
+    void ResetCounters() {
+      std::shared_lock<std::shared_mutex> lock(m_mutex);
+      for (size_t i = 0; i < m_channels.GetSize(); ++i) {
+        if (m_channels[i]) {
+          m_channels[i]->ResetCounters();
+        }
+      }
+    }
+
   private:
     Memory::IMemoryResource* m_resource;
 
@@ -77,7 +112,7 @@ namespace GLFD::Events {
 
     DynamicArray<TypeMapEntry> m_typeMap;
     // 【追加】書き込み/読み込みを制御するミューテックス
-    std::shared_mutex m_mutex;
+    mutable std::shared_mutex m_mutex;
 
     /**
      * @brief 型 T に対応するチャネルを取得・作成

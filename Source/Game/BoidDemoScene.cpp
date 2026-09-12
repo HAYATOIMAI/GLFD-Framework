@@ -122,6 +122,12 @@ namespace GLFD {
 
     ctx.eventBus->Register<Events::CollisionEvent>();
 
+    // **観測点** (1-7 / R-27)。ECS-0 で衝突が 1 件も動いていないことに誰も
+    // 気づかなかったのは、**購読者が 0 件だった**ためである。
+    // ここは数えるだけで、破棄は積まない(1-8 の仕事)
+    ctx.eventBus->Subscribe<Events::CollisionEvent>(
+        [this](const Events::CollisionEvent&) { ++m_collisionsDelivered; });
+
     std::mt19937 gen(12345);
     std::uniform_real_distribution<float> posDist(config.world.spawnRange[0],
                                                   config.world.spawnRange[1]);
@@ -188,6 +194,17 @@ namespace GLFD {
     // 数十行になるので常時は出さない(専用キーにしてある)
     if (ctx.input->IsTriggered(Core::KeyCode::F6)) {
       LogConfigDump(*m_config, ctx.globalResource);
+    }
+
+    // **前フレームの衝突を報告する** (1-7)。発行は `OnUpdate` の中、配信は
+    // `DispatchAll`(このシーンの外)なので、揃って読めるのは次のフレームの頭になる
+    {
+      const Events::BusCounters counters = ctx.eventBus->Counters();
+      Game::ReportCollisionObservation(counters.published, counters.dropped,
+                                       m_collisionsDelivered, m_loggedFirstCollision,
+                                       m_eventOverflowGate);
+      ctx.eventBus->ResetCounters();
+      m_collisionsDelivered = 0;
     }
 
     // =======================================================================

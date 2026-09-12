@@ -5,6 +5,7 @@
 #include "../Core/MemoryResource.h"
 #include "../Core/DynamicArray.h"
 #include "../ECS/Components.h"
+#include "../ECS/Entity.h"
 
 namespace GLFD::Physics {
   class SpatialHashGrid {
@@ -12,10 +13,36 @@ namespace GLFD::Physics {
     // グリッドのセルサイズ（パーティクルの直径より少し大きくするのが定石）
     static constexpr float CELL_SIZE = 1.8f;
 
-    // ハッシュテーブルのサイズ
-    // 100万個のエンティティに対して衝突率を下げるため大きめに確保
-    static constexpr size_t TABLE_SIZE = 2097152;
+    /**
+     * @brief ハッシュテーブルのサイズ (1-7 で 2,097,152 から変更)
+     *
+     * @details
+     *  **以前は 100 万体想定の 2^21 (8 MB) だった。** 1-2 で `MaxEntities` を
+     *  1,000,000 から 65,536 へ下げたとき、**この表が取り残された**。
+     *  20,000 体に対してバケットが 210 万個、つまり 1 体あたり 105 個あった。
+     *
+     *  埋めるだけで 1 フレームに約 1,170μs 使っていた(8 MB を 3 箇所で
+     *  埋め直していた。実測)。65,536 なら 256 KB で、約 3μs になる。
+     *
+     *  ## 減らしても近傍探索は遅くならない(実測)
+     *  バケットを 4,096 まで減らしても探索費用はほぼ変わらなかった。
+     *  1 セルに 35 体いるので、**バケットの衝突に行き当たる前に
+     *  `MAX_NEIGHBORS` の打ち切りに当たる**ためである
+     *  (20,000 体が実際に占めるセルは 572 個だった)。
+     *
+     *  ## なぜ 65,536 なのか
+     *  速度ではない(16,384 との差は 3μs)。**同じ事故を繰り返さないため**である。
+     */
+    static constexpr size_t TABLE_SIZE = 65536;
     static constexpr size_t TABLE_MASK = TABLE_SIZE - 1;
+
+    static_assert(TABLE_SIZE >= GLFD::ECS::MaxEntities,
+                  "occupied cells can never outnumber the entities, so this keeps the "
+                  "load factor at or below 1 even in the worst case. MaxEntities was "
+                  "lowered from 1,000,000 to 65,536 in 1-2 and this table was left "
+                  "behind for five phases - tie them together so it cannot drift again.");
+    static_assert((TABLE_SIZE & TABLE_MASK) == 0,
+                  "TABLE_MASK is used instead of a modulo, so the size must be a power of two");
 
     // 無効なインデックス
     static constexpr uint32_t NULL_INDEX = 0xFFFFFFFF;
