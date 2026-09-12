@@ -88,6 +88,8 @@ namespace {
 
   double g_samples[kStageCount][kMaxFrames];
   double g_frameTotal[kMaxFrames];
+  double g_published[kMaxFrames];   ///< 1-7: 1 フレームの発行数
+  double g_dropped[kMaxFrames];     ///< 1-7: 1 フレームの取りこぼし
 
   void SortAscending(double* values, int count) {
     // 挿入ソート。数百件なので十分で、<algorithm> を持ち込まずに済む
@@ -275,6 +277,14 @@ int main(int argc, char** argv) {
 
     eventBus.DispatchAll();
 
+    // 1-7: **走査費用と発行数は別の話**なので分けて出せるようにする
+    {
+      const GLFD::Events::BusCounters c = eventBus.Counters();
+      g_published[f] = static_cast<double>(c.published);
+      g_dropped[f]   = static_cast<double>(c.dropped);
+      eventBus.ResetCounters();
+    }
+
     const auto us = [](Clock::time_point a, Clock::time_point b) {
       return std::chrono::duration<double, std::micro>(b - a).count();
     };
@@ -306,6 +316,13 @@ int main(int argc, char** argv) {
   std::printf("%-18s %9.1fus %9.1fus %9.1fus %9.1fus\n",
               "frame (measured)", total.median, total.mean, total.min, total.p95);
   std::printf("(sum of the per-stage medians: %.1fus)\n", medianTotal);
+  const Summary pub  = Summarize(g_published + warmup, measured);
+  const Summary drop = Summarize(g_dropped + warmup, measured);
+  std::printf("\ncollision events published per frame: median %.0f  min %.0f  p95 %.0f\n",
+              pub.median, pub.min, pub.p95);
+  std::printf("collision events dropped   per frame: median %.0f  p95 %.0f\n",
+              drop.median, drop.p95);
+
   std::printf("\nnote: rendering, input and config reloading are NOT included.\n");
   std::fflush(stdout);
 
