@@ -345,6 +345,46 @@ namespace {
     CHECK(cleared.dropped == 0u);
   }
 
+  /**
+   * @brief T-ECS-19d: セルの境目をまたぐ組も見つかること
+   *
+   * @details
+   *  **変異テストで開いた穴が見つかった。** `Query` の 3x3x3 走査を
+   *  中央 1 セルだけに潰しても、既存のテストは 1 件も落ちなかった
+   *  (1-7 の M7)。理由は単純で、**どのテストも原点近くに置いていたので
+   *  組が必ず同じセルに入っていた**ためである。27 セルを見に行く部分は
+   *  一度も実行されていなかった。
+   *
+   *  `CELL_SIZE` は 1.8 で、セル番号は `floor(x / 1.8)` である。
+   *  x = 1.7 は セル 0、x = 1.9 は セル 1 に入る。距離は 0.2 しかないので
+   *  半径 0.5 同士なら確実に重なっている。**近いのにセルが違う**という、
+   *  実機では普通に起きる配置である。
+   */
+  void TestPairsAcrossACellBoundaryAreFound() {
+    GLFD::Test::BeginCase("T-ECS-19d: a colliding pair split across two cells is still found");
+
+    Harness      harness;
+    CollisionLog log;
+    harness.EventBus().Subscribe<CollisionEvent>(
+        [&log](const CollisionEvent& e) { log.Add(e); });
+
+    // セル 0 と セル 1 にまたがらせる (1.7 / 1.9 は 1.8 の両側)
+    const Entity a = harness.Spawn(1.7f, 0.0f, 0.5f);
+    const Entity b = harness.Spawn(1.9f, 0.0f, 0.5f);
+    CHECK(a.IsValid() && b.IsValid());
+
+    GLFD::GameContext ctx = harness.MakeContext();
+    GLFD::Systems::GridBuildSystem::Update(ctx);
+    CHECK(ctx.grid != nullptr);
+    GLFD::Systems::CollisionSystem::Update(ctx);
+    harness.EventBus().DispatchAll();
+
+    // **中央 1 セルしか見ないなら、ここが 0 になる**
+    CHECK(log.count == 2u);
+    CHECK(log.CountPair(a, b) == 2u);
+    CHECK(log.overflowed == 0u);
+  }
+
   // ===========================================================================
   // T-ECS-21 自己スキップ
   // ===========================================================================
@@ -402,6 +442,7 @@ int main() {
   TestCollisionsAreDetectedAndDelivered();
   TestTouchingPairsJustOutOfRangeAreNotReported();
   TestTheChannelCountsWhatItDrops();
+  TestPairsAcrossACellBoundaryAreFound();
 
   TestAnEntityNeverCollidesWithItself();
 
