@@ -1,23 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="Source\Core\FileManager.cpp" />
     <ClCompile Include="Source\Core\InputSystem.cpp" />
-    <ClCompile Include="Source\Core\Logger.cpp" />
-    <ClCompile Include="Source\Core\StackAllocator.cpp" />
     <ClCompile Include="Source\Engine.cpp" />
-    <ClCompile Include="Source\Graphics\DX11Renderer.cpp" />
-    <ClCompile Include="Source\Graphics\Shader.cpp" />
-    <ClCompile Include="Source\Graphics\SimpleWindow.cpp" />
     <ClCompile Include="Source\Graphics\Texture.cpp" />
     <ClCompile Include="Source\main.cpp" />
-    <ClCompile Include="Source\Physics\SpatialHashGrid.cpp" />
-    <ClCompile Include="Source\Threading\JobSystem.cpp" />
-    <ClCompile Include="Source\Threading\ThreadPool.cpp" />
-    <ClCompile Include="Source\Scene\SceneManager.cpp" />
-    <ClCompile Include="Source\Game\BoidDemoScene.cpp" />
-    <ClCompile Include="Source\Resource\ResourceManager.cpp" />
-    <ClCompile Include="Source\Resource\TextureLoader.cpp" />
     <ClCompile Include="Source\Core\Json\JsonArena.cpp">
       <Filter>Json</Filter>
     </ClCompile>
@@ -36,62 +23,55 @@
     <ClCompile Include="Source\Core\Json\JsonWriter.cpp">
       <Filter>Json</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Scene\SceneManager.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\Logger.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\FileManager.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Threading\ThreadPool.cpp">
+      <Filter>Threading</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Threading\JobSystem.cpp">
+      <Filter>Threading</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Graphics\DX11Renderer.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\StackAllocator.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Resource\ResourceManager.cpp">
+      <Filter>Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Resource\TextureLoader.cpp">
+      <Filter>Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Physics\SpatialHashGrid.cpp">
+      <Filter>Physics</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Graphics\Shader.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Graphics\SimpleWindow.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Game\BoidDemoScene.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Source\Core\DoubleStackAllocator.h" />
-    <ClInclude Include="Source\Core\DynamicArray.h" />
-    <ClInclude Include="Source\Core\FileManager.h" />
-    <ClInclude Include="Source\Core\GameConfig.h" />
-    <ClInclude Include="Source\Core\GameConfigLoad.h" />
-    <ClInclude Include="Source\Core\GameConfigLog.h" />
-    <ClInclude Include="Source\Core\GameContext.h" />
     <ClInclude Include="Source\Core\HashMap.h" />
     <ClInclude Include="Source\Core\InputSystem.h" />
-    <ClInclude Include="Source\Core\Logger.h" />
-    <ClInclude Include="Source\Core\FailureGate.h" />
-    <ClInclude Include="Source\Core\MemoryResource.h" />
-    <ClInclude Include="Source\Core\MemoryUtils.h" />
-    <ClInclude Include="Source\Core\StackAllocator.h" />
-    <ClInclude Include="Source\Core\StackResource.h" />
     <ClInclude Include="Source\Core\StringView.h" />
     <ClInclude Include="Source\Core\SystemSchedule.h" />
     <ClInclude Include="Source\Core\TypeInfo.h" />
-    <ClInclude Include="Source\ECS\CommandBuffer.h" />
-    <ClInclude Include="Source\ECS\Components.h" />
-    <ClInclude Include="Source\ECS\Entity.h" />
-    <ClInclude Include="Source\ECS\Registry.h" />
-    <ClInclude Include="Source\ECS\SparseSet.h" />
-    <ClInclude Include="Source\ECS\View.h" />
     <ClInclude Include="Source\Engine.h" />
-    <ClInclude Include="Source\Events\EventBus.h" />
-    <ClInclude Include="Source\Events\EventChannel.h" />
-    <ClInclude Include="Source\Events\Events.h" />
-    <ClInclude Include="Source\Game\BoidAgent.h" />
-    <ClInclude Include="Source\Game\BoidSystems.h" />
-    <ClInclude Include="Source\Game\EcsDiagnosticsLog.h" />
-    <ClInclude Include="Source\Game\GridBulidSystem.h" />
-    <ClInclude Include="Source\Game\InteractionSystem.h" />
-    <ClInclude Include="Source\Game\SimdSystem.h" />
     <ClInclude Include="Source\Graphics\ConstantBuffer.h" />
-    <ClInclude Include="Source\Graphics\DX11Renderer.h" />
-    <ClInclude Include="Source\Graphics\GraphicsType.h" />
-    <ClInclude Include="Source\Graphics\RenderSystem.h" />
-    <ClInclude Include="Source\Graphics\Shader.h" />
-    <ClInclude Include="Source\Graphics\SimpleWindow.h" />
     <ClInclude Include="Source\Graphics\Texture.h" />
-    <ClInclude Include="Source\Physics\CollisionComponents.h" />
-    <ClInclude Include="Source\Physics\CollisionSystem.h" />
-    <ClInclude Include="Source\Physics\SpatialHashGrid.h" />
-    <ClInclude Include="Source\Threading\JobSystem.h" />
-    <ClInclude Include="Source\Threading\LockFreeQueue.h" />
-    <ClInclude Include="Source\Threading\ThreadPool.h" />
-    <ClInclude Include="Source\Scene\IScene.h" />
-    <ClInclude Include="Source\Scene\SceneManager.h" />
-    <ClInclude Include="Source\Game\BoidDemoScene.h" />
-    <ClInclude Include="Source\Resource\ResourceHandle.h" />
-    <ClInclude Include="Source\Resource\IResourceLoader.h" />
-    <ClInclude Include="Source\Resource\ResourceManager.h" />
-    <ClInclude Include="Source\Resource\TextureLoader.h" />
     <ClInclude Include="Source\Core\Json\Json.h">
       <Filter>Json</Filter>
     </ClInclude>
@@ -137,13 +117,181 @@
     <ClInclude Include="Source\Core\Json\JsonWriter.h">
       <Filter>Json</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="Source\Shaders\Particle.hlsl" />
+    <ClInclude Include="Source\ECS\Components.h">
+      <Filter>ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\ECS\CommandBuffer.h">
+      <Filter>ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\MemoryUtils.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\ECS\Entity.h">
+      <Filter>ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\ECS\SparseSet.h">
+      <Filter>ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\ECS\Registry.h">
+      <Filter>ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\ECS\View.h">
+      <Filter>ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Scene\SceneManager.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Scene\IScene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Events\Events.h">
+      <Filter>Event</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Events\EventChannel.h">
+      <Filter>Event</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Events\EventBus.h">
+      <Filter>Event</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\MemoryResource.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\StackAllocator.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\StackResource.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\Logger.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\GameContext.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\GameConfigLog.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\GameConfigLoad.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\GameConfig.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\FailureGate.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\DoubleStackAllocator.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\FileManager.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\DynamicArray.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Threading\ThreadPool.h">
+      <Filter>Threading</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Threading\LockFreeQueue.h">
+      <Filter>Threading</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Threading\JobSystem.h">
+      <Filter>Threading</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\DX11Renderer.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Resource\IResourceLoader.h">
+      <Filter>Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Resource\ResourceHandle.h">
+      <Filter>Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Resource\ResourceManager.h">
+      <Filter>Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Resource\TextureLoader.h">
+      <Filter>Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Physics\SpatialHashGrid.h">
+      <Filter>Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Physics\CollisionSystem.h">
+      <Filter>Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Physics\CollisionComponents.h">
+      <Filter>Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\Shader.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\GraphicsType.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\RenderSystem.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\SimpleWindow.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\BoidDemoScene.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\BoidSystems.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\EcsDiagnosticsLog.h" />
+    <ClInclude Include="Source\Game\BoidAgent.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\GridBulidSystem.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\InteractionSystem.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\SimdSystem.h">
+      <Filter>Game</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Json">
       <UniqueIdentifier>{1e408f19-504c-4a07-b9aa-f69decb17172}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ECS">
+      <UniqueIdentifier>{9b2ac81c-8758-4892-8d10-76d30c108f96}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Core">
+      <UniqueIdentifier>{d8cdfe5b-c466-4c7e-b32e-dce0fa6fc1d0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scene">
+      <UniqueIdentifier>{8cb01846-e344-4f23-b1f5-acafeffc25ba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Event">
+      <UniqueIdentifier>{11188707-94f9-40ac-9058-b0491e730fe7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Threading">
+      <UniqueIdentifier>{810384ad-4564-45af-8bc7-cb9fdc053c83}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Graphics">
+      <UniqueIdentifier>{983f57a4-649f-4ffc-98cf-2f7ccfb221ed}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{b01ff433-0c26-4f86-a07b-f3dd2b661ab7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource">
+      <UniqueIdentifier>{8e13ad2b-f651-4e35-83fb-122c016712d3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Physics">
+      <UniqueIdentifier>{ff7df573-17a9-4b03-8fdf-c31a8f7929b4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game">
+      <UniqueIdentifier>{fbbde8be-2c60-466b-9584-3a37711130b1}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="Source\Shaders\Particle.hlsl">
+      <Filter>Shaders</Filter>
+    </Text>
   </ItemGroup>
 </Project>
