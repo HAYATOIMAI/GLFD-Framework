@@ -56,6 +56,7 @@ namespace GLFD {
     // GameConfig の StringView は Document のアリーナ上にあるため、
     // Document を先に捨てるとタイトルなどがダングリングする (R0-5)
     std::unique_ptr<Json::Document> m_configDoc = nullptr;
+
     // 2-3: 個人の上書き (.local.json)。これも同じ寿命で持つ
     // 上書きが文字列に及ぶと StringView はこちらを指す (R0-5)
     std::unique_ptr<Json::Document> m_configLocalDoc = nullptr;

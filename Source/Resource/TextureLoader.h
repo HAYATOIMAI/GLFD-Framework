@@ -1,6 +1,9 @@
 #pragma once
 #include "IResourceLoader.h"
 #include "../Graphics/Texture.h"
+#include "../Core/GameContext.h"
+#include <memory>
+#include <string>
 
 namespace GLFD::Resource {
 
