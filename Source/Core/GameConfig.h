@@ -264,6 +264,14 @@ namespace GLFD {
     BoidProfile               defaultBoid;
     /// エンティティへ順番に配る性格。空なら `defaultBoid` を全体に使う
     DynamicArray<BoidProfile> boidProfiles;
+
+    /**
+     * @brief 起動するシーン (ECS 1-8)。`"boids"`(既定)か `"survivor"`
+     * @note  **起動時にしか効かない**(`window.*` と同じ)。実行中のシーン切り替えは
+     *        無い(`EventBus` に購読解除が無く、抜けたシーンを購読者が呼ぶ。1-8 §1-A)。
+     *        個人で切り替えるなら `GameConfig.local.json` に書く。共有の既定を変えずに済む
+     */
+    StringView                startScene = StringView("boids");
   };
 
   /**
@@ -291,6 +299,9 @@ namespace GLFD {
     (void)ar.Member("interaction", v.interaction);
     (void)ar.Member("defaultBoid", v.defaultBoid);
     (void)ar.Member("boidProfiles", v.boidProfiles);
+    // **既定値を渡さない。** キーが無ければ初期化子 ("boids") のまま触らない (R3-4)。
+    // したがって古い設定ファイルも、この欄を持たない JSON のテストもそのまま読める
+    (void)ar.Member("startScene", v.startScene);
   }
 
 }

@@ -62,6 +62,9 @@
     <ClCompile Include="Source\Game\BoidDemoScene.cpp">
       <Filter>Game</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Game\SurvivorScene.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Core\HashMap.h" />
@@ -251,6 +254,21 @@
       <Filter>Game</Filter>
     </ClInclude>
     <ClInclude Include="Source\Game\SimdSystem.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\CommandReportGate.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\HitSystem.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\SurvivorComponents.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\SurvivorLoop.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\SurvivorScene.h">
       <Filter>Game</Filter>
     </ClInclude>
   </ItemGroup>

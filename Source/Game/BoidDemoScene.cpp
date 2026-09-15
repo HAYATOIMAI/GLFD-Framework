@@ -275,15 +275,15 @@ namespace GLFD {
     // まとめて効く。CollisionSystem の後に置いたのは、破棄を積む最有力の候補が
     // 衝突だからで、同じフレームのうちに適用しないと 2 フレーム遅れる。
     //
-    // **DispatchAll() との前後は決めきれていない。** 購読者が「衝突したら敵を
-    // 破棄する」を積むなら、この位置(DispatchAll の前)では 1 フレーム遅れる。
-    // ただし CollisionEvent の購読者は現在 0 件で、**どちらに置いても観測できる
-    // 差が無い**。1-7 で購読者が現れた時点で、DispatchAll の後へ移すか
-    // 2 回目の適用を足すかを決めること。観測できない仮定で選んだふりをしない
+    // **DispatchAll() との前後は 1-8 で決着した** (§17.1)。破棄を積む購読者が
+    // いるループ (`Game/SurvivorLoop.h`) では、配信を適用の前に置く。後ろだと
+    // 積んだ破棄が次のフレームの最後まで効かない(変異テスト M1 で実測)。
+    // このシーンの購読者は数えるだけで何も積まないので、どちらに置いても
+    // 観測できる差が無く、ここは据え置いている
     ctx.registry->ApplyCommands(*ctx.commands);
 
     // **出力は診断層が行う** (1-6)。ここは呼ぶだけ
-    Game::ReportAppliedCommands(ctx.commands->Report(), m_loggedFirstApply);
+    Game::ReportAppliedCommands(ctx.commands->Report(), m_loggedFirstApply, m_commandDropGate);
     Game::ReportFrameSteps(frameReport, m_frameGate);
   }
 

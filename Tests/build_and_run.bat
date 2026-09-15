@@ -77,6 +77,12 @@ rem  C4324 (alignas による詰め物の通知) は情報提供の警告で、ゲーム本体の
 rem  /W3 では出ない。LockFreeQueue / JobCounter の alignas は偽共有を
 rem  避けるための意図的なものなので、スレッド系を建てるスイートだけ抑制する
 if /i "%NAME%"=="EcsCollisionTests" set "EXTRA_FLAGS=/wd4324"
+rem  EcsSurvivorTests (1-8) は本番の RunSurvivorFrame を回す。EcsCollisionTests と同じ形
+if /i "%NAME%"=="EcsSurvivorTests" set "EXTRA_SOURCES=%ROOT%\Source\Physics\SpatialHashGrid.cpp %ROOT%\Source\Threading\JobSystem.cpp %ROOT%\Source\Threading\ThreadPool.cpp %ROOT%\Source\Core\StackAllocator.cpp"
+if /i "%NAME%"=="EcsSurvivorTests" set "EXTRA_FLAGS=/wd4324"
+rem  EcsGuideTests (1-8) は README の並列の例で JobSystem を使う
+if /i "%NAME%"=="EcsGuideTests" set "EXTRA_SOURCES=%ROOT%\Source\Threading\JobSystem.cpp %ROOT%\Source\Threading\ThreadPool.cpp"
+if /i "%NAME%"=="EcsGuideTests" set "EXTRA_FLAGS=/wd4324"
 set "OBJDIR=%OUTDIR%\%NAME%"
 if not exist "%OBJDIR%" mkdir "%OBJDIR%"
 

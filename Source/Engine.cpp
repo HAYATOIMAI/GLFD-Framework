@@ -27,6 +27,7 @@
 
 #include "Scene/SceneManager.h"
 #include "Game/BoidDemoScene.h"
+#include "Game/SurvivorScene.h"
 
 #include <chrono>
 #include <string>
@@ -152,7 +153,22 @@ namespace GLFD {
       return;
     }
 
-    m_sceneManager->PushScene(std::make_unique<BoidDemoScene>());
+    // **起動シーンは設定で選ぶ** (ECS 1-8)。実行中の切り替えは無い。EventBus に
+    // 購読解除が無く、シーンを抜けると購読者が解放済みのシーンを呼ぶため (1-8 §1-A)
+    const StringView startScene = m_config->startScene;
+    if (startScene == StringView("survivor")) {
+      LOG_INFO("start scene: survivor (ECS 1-8 loop)");
+      m_sceneManager->PushScene(std::make_unique<SurvivorScene>());
+    }
+    else {
+      if (!(startScene == StringView("boids"))) {
+        // **起動不能にしない。** 知らない名前は Boid で起動し、そう書き残す
+        LOG_WARN("start scene '%.*s' is not known (use \"boids\" or \"survivor\"). "
+                 "starting the boid demo",
+                 static_cast<int>(startScene.Size()), startScene.Data());
+      }
+      m_sceneManager->PushScene(std::make_unique<BoidDemoScene>());
+    }
     m_sceneManager->ProcessPendingTransitions(initCtx);
 
     m_isRunning = true;

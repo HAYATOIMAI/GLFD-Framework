@@ -31,7 +31,11 @@
 
 #include "Core/FailureGate.h"
 #include "Core/MemoryResource.h"
+#include "ECS/CommandBuffer.h"
 #include "ECS/Components.h"
+#include "ECS/Entity.h"
+#include "ECS/Registry.h"
+#include "Game/CommandReportGate.h"
 #include "Physics/SpatialHashGrid.h"
 
 #include "MockMemoryResource.h"
@@ -260,6 +264,142 @@ namespace {
     CHECK(everyRunSurvived);
   }
 
+  // ===========================================================================
+  // T-ECS-17f / 17g 適用結果の報告 (1-8 で R-46 を適用)
+  // ===========================================================================
+
+  /// 積むだけの小さな成分(`CommandBuffer::Add` の制約を満たす)
+  struct Tag { float v; };
+
+  /**
+   * @brief T-ECS-17f: 適用の報告は最初の 1 回と、取りこぼしの変わり目だけ
+   *
+   * @details
+   *  **1-4 の `ReportAppliedCommands` は、何か適用されたフレームに毎回 1 行出していた。**
+   *  「デモはコマンドを 1 つも積まない」前提で作ったためで、1-8 で破棄が毎フレーム
+   *  起きると毎秒 60 行以上になる。しかも **1-4 からこの判断にはテストが無かった**
+   *  (`Logger` と DX11 を引き込むヘッダの中にあったため)。
+   *
+   *  **静かなフレームが「何も適用しなかったので静か」ではないこと**を対にする。
+   *  毎フレーム実際に適用が起きている (`Applied() == 1`) 状態で黙ることを見る。
+   */
+  void TestAppliedCommandsSpeakOnlyWhenTheStateChanges() {
+    GLFD::Test::BeginCase("T-ECS-17f: applied commands are reported once, then only when dropping starts or stops");
+
+    MockMemoryResource       mock;
+    GLFD::ECS::Registry      registry(&mock);
+    GLFD::ECS::CommandBuffer commands(&mock);
+    bool                     loggedFirst = false;
+    FailureGate              gate;
+
+    const auto apply = [&]() {
+      registry.ApplyCommands(commands);
+      return GLFD::Game::DecideAppliedCommands(commands.Report(), loggedFirst, gate);
+    };
+
+    // 1 フレーム目: 何も積んでいなくても出す(1-4 の目的)
+    GLFD::Game::AppliedCommandsNotice n = apply();
+    CHECK(n.firstFlush);
+    CHECK(n.drops == Change::None);
+
+    // 2〜4 フレーム目: **毎フレーム実際に適用している**が、何も出さない
+    bool quiet   = true;
+    bool applied = true;
+    for (int i = 0; i < 3; ++i) {
+      const GLFD::ECS::Entity e = registry.CreateEntity();
+      CHECK(commands.Destroy(e));
+      n = apply();
+      quiet   = quiet && !n.firstFlush && n.drops == Change::None;
+      applied = applied && commands.Report().Applied() == 1u;
+    }
+    CHECK(applied);
+    CHECK(quiet);
+
+    // 5 フレーム目: 二重破棄が始まった。1 回だけ出し、WARN で足りる
+    GLFD::ECS::Entity twice = registry.CreateEntity();
+    CHECK(commands.Destroy(twice));
+    CHECK(commands.Destroy(twice));
+    n = apply();
+    CHECK(commands.Report().Dropped() == 1u);
+    CHECK(n.drops == Change::Started);
+    CHECK(n.onlyDoubleDestroys);
+
+    // 6〜7 フレーム目: 取りこぼしが続いている間は黙る
+    bool silentWhileDropping = true;
+    for (int i = 0; i < 2; ++i) {
+      twice = registry.CreateEntity();
+      CHECK(commands.Destroy(twice));
+      CHECK(commands.Destroy(twice));
+      n = apply();
+      silentWhileDropping = silentWhileDropping && n.drops == Change::None
+                         && commands.Report().Dropped() == 1u;
+    }
+    CHECK(silentWhileDropping);
+
+    // 8 フレーム目: 直った。1 回だけ出す
+    n = apply();
+    CHECK(n.drops == Change::Recovered);
+    CHECK(gate.LastStreakLength() == 3u);
+  }
+
+  /**
+   * @brief T-ECS-17g: 二重破棄ではない取りこぼしを、軽く扱わない
+   *
+   * @details
+   *  二重破棄は VS 型では起こり得るので WARN に留めるが、**それ以外の理由が 1 件でも
+   *  混ざれば ERROR** にする。また明細は 8 件で切れるので、**切れて理由が分からない
+   *  取りこぼしが残るなら「全部二重破棄」とは言わない**(残りも二重破棄である
+   *  可能性は高いが、見えていないものを軽く扱わない)。
+   */
+  void TestOtherDropsAreNotSoftened() {
+    GLFD::Test::BeginCase("T-ECS-17g: a drop that is not a double destroy, or an unseen one, is not softened");
+
+    {
+      MockMemoryResource       mock;
+      GLFD::ECS::Registry      registry(&mock);
+      GLFD::ECS::CommandBuffer commands(&mock);
+      bool                     loggedFirst = true;
+      FailureGate              gate;
+
+      const GLFD::ECS::Entity dead = registry.CreateEntity();
+      registry.DestroyEntity(dead);                  // 反復の外なので即時でよい
+
+      const GLFD::ECS::Entity twice = registry.CreateEntity();
+      CHECK(commands.Destroy(twice));
+      CHECK(commands.Destroy(twice));                // 二重破棄
+      CHECK(commands.Add(dead, Tag{ 1.0f }));        // 死んだハンドルへの追加
+
+      registry.ApplyCommands(commands);
+      const GLFD::Game::AppliedCommandsNotice n =
+          GLFD::Game::DecideAppliedCommands(commands.Report(), loggedFirst, gate);
+      CHECK(commands.Report().Dropped() == 2u);
+      CHECK(n.drops == Change::Started);
+      CHECK(!n.onlyDoubleDestroys);
+    }
+
+    {
+      MockMemoryResource       mock;
+      GLFD::ECS::Registry      registry(&mock);
+      GLFD::ECS::CommandBuffer commands(&mock);
+      bool                     loggedFirst = true;
+      FailureGate              gate;
+
+      // 9 件の二重破棄。明細は 8 件で切れる
+      for (int i = 0; i < 9; ++i) {
+        const GLFD::ECS::Entity e = registry.CreateEntity();
+        CHECK(commands.Destroy(e));
+        CHECK(commands.Destroy(e));
+      }
+      registry.ApplyCommands(commands);
+      const GLFD::Game::AppliedCommandsNotice n =
+          GLFD::Game::DecideAppliedCommands(commands.Report(), loggedFirst, gate);
+      CHECK(commands.Report().Dropped() == 9u);
+      CHECK(commands.Report().Truncated());
+      CHECK(n.drops == Change::Started);
+      CHECK(!n.onlyDoubleDestroys);
+    }
+  }
+
 }
 
 int main() {
@@ -270,6 +410,9 @@ int main() {
   TestGateHandlesFailureOnTheVeryFirstFrame();
   TestGridReportsAllocationFailureInsteadOfThrowing();
   TestGridSurvivesInjectedFailureAtAnyPoint();
+
+  TestAppliedCommandsSpeakOnlyWhenTheStateChanges();
+  TestOtherDropsAreNotSoftened();
 
   return GLFD::Test::Summarize();
 }

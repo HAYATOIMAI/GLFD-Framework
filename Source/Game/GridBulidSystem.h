@@ -9,7 +9,27 @@
 namespace GLFD::Systems {
   class GridBuildSystem {
   public:
+    /**
+     * @brief グリッドを組む
+     *
+     * @tparam Filter 空なら `Position` を持つ全員(Boid と 1-7 までの形)。
+     *                指定すると `View<Position, Filter...>` の組だけで組む (1-8)
+     *
+     * @note **型引数なしの呼び出し `Update(ctx)` はそのまま通る**(引数から推論されない
+     *       末尾のパックは空になる)。Boid / ベンチ / 1-7 のテストは書き換えていない
+     */
+    template <class... Filter>
     static void Update(GameContext& ctx) {
+      if constexpr (sizeof...(Filter) == 0) {
+        UpdateAll(ctx);
+      }
+      else {
+        UpdateFiltered<Filter...>(ctx);
+      }
+    }
+
+    /// `Position` を持つ全員で組む。**1-7 までの `Update` の本体をそのまま移した**
+    static void UpdateAll(GameContext& ctx) {
       // **グリッドの基準は Position プール 1 本**である (1-5)。
       // グリッドに入れるのはこの View の dense 添字で、引くときも同じ View から
       // 引く。単一型なので飛ばされる要素が無く、添字がそのまま並びになる
@@ -80,6 +100,68 @@ namespace GLFD::Systems {
             // 引く側も同じ View の dense 配列で引くので対応が取れている
             for (size_t i = start; i < end; ++i) {
               grid->Insert(static_cast<uint32_t>(i), pData[i]);
+            }
+          }, &handle);
+      }
+      jobSystem.WaitFor(handle);
+    }
+
+    /**
+     * @brief 組み合わせで絞ったグリッドを組む (1-8)
+     *
+     * @details
+     *  **グリッドに入る番号は `View<Position, Filter...>` の基準プールの dense 添字**
+     *  である。基準は最小のプールなので、`Position` の dense 配列を直接は使えない
+     *  (`BaseComponents` は単一型の View にしか無い)。位置は持ち主の `Entity` から
+     *  引く。
+     *
+     *  @warning **引く側は同じ型の並びの View で持ち主を引くこと。** 並びが違うと
+     *           基準プールが変わり得る(1-5 の「2 つの View は基準の添字が違う」)。
+     *           `HitSystem::BuildGrid` が組み方と引き方の対を 1 箇所に置いている
+     */
+    template <class... Filter>
+    static void UpdateFiltered(GameContext& ctx) {
+      auto view = ctx.registry->View<Components::Position, Filter...>();
+      const size_t count = view.BaseSize();
+
+      void* buf = ctx.frameResource->Allocate(sizeof(Physics::SpatialHashGrid), alignof(Physics::SpatialHashGrid));
+      if (buf == nullptr) {
+        ctx.grid = nullptr;         // 前フレームのものを残さない (R-47)
+        return;
+      }
+
+      auto* grid = new(buf) Physics::SpatialHashGrid(ctx.frameResource, count);
+      if (!grid->IsReady()) {
+        ctx.grid = nullptr;
+        return;
+      }
+
+      grid->SetBuildStamp(view.StructureVersion());
+      ctx.grid = grid;
+
+      if (count == 0) { return; }
+
+      const ECS::Entity* const owners = view.BaseEntities();
+      auto& jobSystem = *ctx.jobSystem;
+
+      size_t threadCount = System::WorkerThreadCount();
+      size_t batchSize = count / threadCount;
+      Thread::JobCounter counter;
+      auto handle = jobSystem.CreateHandle(counter);
+
+      for (size_t t = 0; t < threadCount; ++t) {
+        size_t start = t * batchSize;
+        size_t end = (t == threadCount - 1) ? count : start + batchSize;
+
+        jobSystem.KickJob([start, end, owners, grid, view]() {
+            for (size_t i = start; i < end; ++i) {
+              const ECS::Entity e = owners[i];
+              // 基準プールにいても組が揃っているとは限らない (R-22)
+              const Components::Position* const pos =
+                  view.template Find<Components::Position>(e);
+              if (pos == nullptr) { continue; }
+              if (((view.template Find<Filter>(e) == nullptr) || ...)) { continue; }
+              grid->Insert(static_cast<uint32_t>(i), *pos);
             }
           }, &handle);
       }
