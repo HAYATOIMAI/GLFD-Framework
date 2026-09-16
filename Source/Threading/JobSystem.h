@@ -2,7 +2,6 @@
 
 #include <vector>
 #include <thread>
-#include <future>
 #include <atomic>
 #include <functional>
 #include <cassert>

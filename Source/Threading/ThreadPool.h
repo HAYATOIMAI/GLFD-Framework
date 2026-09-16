@@ -3,7 +3,6 @@
 #include <thread>
 #include <vector>
 #include <functional>
-#include <future>
 #include <atomic>
 #include "LockFreeQueue.h"
 
