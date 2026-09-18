@@ -9,13 +9,14 @@
  *  いるのと同じ `RunSurvivorFrame` を呼ぶ。シーンが持つのは、シーンにしかできないこと
  *  (テクスチャ、描画、ログ)だけである。
  *
- *  ## 起動
- *  `GameConfig::startScene` が `"survivor"` のときだけ使われる。**実行中の切り替えは無い。**
+ *  ## 起動と切り替え
+ *  `GameConfig::startScene` が `"survivor"` のとき起動シーンになり、実行中は
+ *  `2` キーで入れる (`SceneCatalog.h`)。
  *
- *  @warning **このシーンは `EventBus` より先に破棄されてはならない。**
- *           `AttachSurvivor` が購読者に `m_state` への参照を渡し、`EventBus` には
- *           購読解除が無い(1-8 §1-A)。今は起動時に 1 度積まれて最後まで残るので
- *           成立している。シーン遷移を入れるときは、先に購読解除を作ること。
+ *  ## `OnExit` の契約 (2-1)
+ *  `DetachSurvivor` で購読を外し、`DestroyAll()` でエンティティを消す。
+ *  **1-8 ではどちらも無く、抜けた時点で use-after-free だった** (§1-A)。
+ *  守れているかは `SceneManager` が `TransitionReport` で照合する。
  */
 
 #include "../Core/FailureGate.h"

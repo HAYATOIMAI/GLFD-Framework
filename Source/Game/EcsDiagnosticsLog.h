@@ -41,6 +41,7 @@
 #include "../Events/EventBus.h"
 #include "../Events/Events.h"
 #include "../Graphics/RenderSystem.h"
+#include "../Scene/SceneManager.h"
 
 #include <cstdint>
 
@@ -359,6 +360,53 @@ namespace GLFD::Game {
                   ToText(dropped.kind), ToText(dropped.reason),
                   dropped.entity.Index(), dropped.entity.Generation());
       }
+    }
+  }
+
+}
+
+namespace GLFD::Game {
+
+  /**
+   * @brief シーン遷移の報告を出す (ECS 2-1)
+   *
+   * @details
+   *  **`SceneManager` は `Logger` を知らない** (§6.4)。数えるのは下、行を
+   *  組み立てて出すのはここである。2-2 の監査で `SceneManager.cpp` の行が
+   *  CLEAN になるのもこの分離のためで、**1 つ例外依存を許すと、その行は
+   *  以後何も検出しなくなる**。
+   *
+   *  @note 遷移は滅多に起きないので、**起きたときだけ 1 行出す** (R-46)。
+   *        契約違反があれば ERROR を足す。呼び出し側は読んだら
+   *        `ResetReport()` すること
+   */
+  inline void ReportTransitions(const Scene::TransitionReport& report,
+                                std::size_t depth) {
+    if (report.transitions == 0 && !report.HasProblem()) {
+      return;
+    }
+    LOG_INFO("scene: %u transition(s). stack depth %zu", report.transitions, depth);
+
+    if (report.refused != 0) {
+      LOG_ERROR("scene: %u transition(s) refused. the scene stack could not be sized, "
+                "so the previous scene kept running", report.refused);
+    }
+    if (report.leakedSubscriptions != 0) {
+      // **use-after-free を防いだのであって、直したわけではない**
+      LOG_ERROR("scene: %u subscription(s) were still registered after OnExit and were "
+                "removed by the safety net. the scene must unsubscribe itself "
+                "(see IScene.h)", report.leakedSubscriptions);
+    }
+    if (report.leakedEntities != 0) {
+      LOG_ERROR("scene: OnExit left the entity count %u away from what it was at OnEnter "
+                "(%u swept). the scene must destroy what it created (see IScene.h)",
+                report.leakedEntities, report.sweptEntities);
+    }
+    if (report.discardedCommands != 0) {
+      // 前のシーンのコマンドを次のシーンへ渡すと、死んだエンティティ宛てとして
+      // 次のシーンの取りこぼしに数えられる (§6.7)
+      LOG_WARN("scene: %u queued command(s) were discarded at the transition",
+               report.discardedCommands);
     }
   }
 

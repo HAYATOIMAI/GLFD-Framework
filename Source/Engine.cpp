@@ -27,6 +27,7 @@
 
 #include "Scene/SceneManager.h"
 #include "Game/BoidDemoScene.h"
+#include "Game/SceneCatalog.h"
 #include "Game/SurvivorScene.h"
 
 #include <chrono>
@@ -153,23 +154,28 @@ namespace GLFD {
       return;
     }
 
-    // **起動シーンは設定で選ぶ** (ECS 1-8)。実行中の切り替えは無い。EventBus に
-    // 購読解除が無く、シーンを抜けると購読者が解放済みのシーンを呼ぶため (1-8 §1-A)
+    // The start scene comes from the config (ECS 1-8); 2-1 added the runtime
+    // switch. Both read the same table in SceneCatalog.h, so a scene name
+    // never has to be written down twice.
     const StringView startScene = m_config->startScene;
-    if (startScene == StringView("survivor")) {
-      LOG_INFO("start scene: survivor (ECS 1-8 loop)");
-      m_sceneManager->PushScene(std::make_unique<SurvivorScene>());
+    auto scene = Game::MakeScene(startScene);
+    if (scene == nullptr) {
+      LOG_WARN("start scene '%.*s' is not known. starting '%s' instead",
+               static_cast<int>(startScene.Size()), startScene.Data(),
+               Game::DefaultSceneName());
+      scene = Game::MakeDefaultScene();
     }
     else {
-      if (!(startScene == StringView("boids"))) {
-        // **起動不能にしない。** 知らない名前は Boid で起動し、そう書き残す
-        LOG_WARN("start scene '%.*s' is not known (use \"boids\" or \"survivor\"). "
-                 "starting the boid demo",
-                 static_cast<int>(startScene.Size()), startScene.Data());
-      }
-      m_sceneManager->PushScene(std::make_unique<BoidDemoScene>());
+      LOG_INFO("start scene: %.*s", static_cast<int>(startScene.Size()), startScene.Data());
+    }
+    if (!m_sceneManager->PushScene(std::move(scene))) {
+      LOG_ERROR("could not queue the start scene. the engine has nothing to run");
+      m_isRunning = false;
+      return;
     }
     m_sceneManager->ProcessPendingTransitions(initCtx);
+    Game::ReportTransitions(m_sceneManager->Report(), m_sceneManager->Depth());
+    m_sceneManager->ResetReport();
 
     m_isRunning = true;
     LOG_INFO("=== Engine Systems Initialized === ");
@@ -231,11 +237,27 @@ namespace GLFD {
 
     m_inputSystem->Update(m_window->GetHWND());
 
+    // The scene switch is read before the scene runs (2-1). The table is the one
+    // in SceneCatalog.h that the start-scene selection above also uses. Pressing
+    // the key of the scene you are already in re-enters it, which is how the
+    // round trip gets exercised by hand.
+    for (std::size_t i = 0; i < Game::kSceneCount; ++i) {
+      if (!m_inputSystem->IsTriggered(Game::kSceneCatalog[i].key)) { continue; }
+      LOG_INFO("scene: '%c' pressed. changing to %s",
+               static_cast<char>(Game::kSceneCatalog[i].key), Game::kSceneCatalog[i].name);
+      if (!m_sceneManager->ChangeScene(Game::kSceneCatalog[i].make())) {
+        LOG_ERROR("scene: could not queue the change to %s", Game::kSceneCatalog[i].name);
+      }
+      break;
+    }
+
     m_sceneManager->Update(ctx);
 
     m_eventBus->DispatchAll();
 
     m_sceneManager->ProcessPendingTransitions(ctx);
+    Game::ReportTransitions(m_sceneManager->Report(), m_sceneManager->Depth());
+    m_sceneManager->ResetReport();
   }
 
   void GameEngine::Render() {

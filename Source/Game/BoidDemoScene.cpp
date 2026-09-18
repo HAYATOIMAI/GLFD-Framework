@@ -120,13 +120,22 @@ namespace GLFD {
 
     m_textureHandle = ctx.resourceManager->Load<Graphics::Texture>("Resource/particle.png", ctx);
 
-    ctx.eventBus->Register<Events::CollisionEvent>();
+    if (!ctx.eventBus->Register<Events::CollisionEvent>()) {
+      LOG_ERROR("BoidDemoScene: could not create the CollisionEvent channel");
+    }
 
     // **観測点** (1-7 / R-27)。ECS-0 で衝突が 1 件も動いていないことに誰も
     // 気づかなかったのは、**購読者が 0 件だった**ためである。
     // ここは数えるだけで、破棄は積まない(1-8 の仕事)
-    ctx.eventBus->Subscribe<Events::CollisionEvent>(
-        [this](const Events::CollisionEvent&) { ++m_collisionsDelivered; });
+    m_collisionsDelivered = 0;              // 入り直しても前回の数を持ち越さない
+    m_collisionSubscription = ctx.eventBus->Subscribe<Events::CollisionEvent>(
+        this, [](void* context, const Events::CollisionEvent&) {
+          ++static_cast<BoidDemoScene*>(context)->m_collisionsDelivered;
+        });
+    if (!m_collisionSubscription.IsValid()) {
+      LOG_ERROR("BoidDemoScene: could not subscribe to CollisionEvent. "
+                "collisions will not be observed");
+    }
 
     std::mt19937 gen(12345);
     std::uniform_real_distribution<float> posDist(config.world.spawnRange[0],
@@ -303,7 +312,13 @@ namespace GLFD {
   }
 
   void BoidDemoScene::OnExit(GameContext& ctx) {
-    LOG_INFO("BoidDemoScene: OnExit");
+    // `IScene.h` の契約。**購読を外してからエンティティを消す**
+    const bool removed = ctx.eventBus->Unsubscribe(m_collisionSubscription);
+    m_collisionSubscription = Events::SubscriptionId{};
+    const std::uint32_t destroyed = ctx.registry->DestroyAll();
+    LOG_INFO("BoidDemoScene: OnExit. subscription %s, %u entit%s destroyed",
+             removed ? "removed" : "was already gone",
+             destroyed, (destroyed == 1u) ? "y" : "ies");
   }
 
   void BoidDemoScene::ApplyWorldBounds(GameContext& ctx) {

@@ -136,7 +136,7 @@ int main(int argc, char** argv) {
 
   GLFD::Game::SurvivorState state;
   state.params = params;
-  GLFD::Game::AttachSurvivor(state, registry, commands, eventBus);
+  (void)GLFD::Game::AttachSurvivor(state, registry, commands, eventBus);
 
   std::printf("=== ECS survivor benchmark (baseline for phase 2) ===\n");
 #ifdef NDEBUG

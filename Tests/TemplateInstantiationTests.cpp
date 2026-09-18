@@ -286,9 +286,15 @@ namespace {
     = &GLFD::Memory::StackAllocator::New<NonTrivial, int>;
 
   // --- Events::EventBus::Subscribe<T> ---
-  void (GLFD::Events::EventBus::* const kSubscribePod)(std::function<void(const Pod&)>)
+  // 2-1: the callback is a plain function pointer now, not std::function.
+  // N-1 (18.5) targets types that own, allocate or throw, and std::function is one:
+  // a capture larger than MSVC's inline buffer allocates and can throw. Measured
+  // in the 2-2 audit, where no C4530 was produced by any of it.
+  GLFD::Events::SubscriptionId (GLFD::Events::EventBus::* const kSubscribePod)(
+      void*, GLFD::Events::EventChannel<Pod>::EventCallback)
     = &GLFD::Events::EventBus::Subscribe<Pod>;
-  void (GLFD::Events::EventBus::* const kSubscribeNonTrivial)(std::function<void(const NonTrivial&)>)
+  GLFD::Events::SubscriptionId (GLFD::Events::EventBus::* const kSubscribeNonTrivial)(
+      void*, GLFD::Events::EventChannel<NonTrivial>::EventCallback)
     = &GLFD::Events::EventBus::Subscribe<NonTrivial>;
 
   // --- Resource::ResourceManager::GetByKey<T> / Release<T> ---

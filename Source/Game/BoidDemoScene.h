@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "../Core/FailureGate.h"
+#include "../Events/EventChannel.h"
 
 #include <cstdint>
 
@@ -82,6 +83,9 @@ namespace GLFD {
      */
     std::uint32_t m_collisionsDelivered = 0;
     bool          m_loggedFirstCollision = false;
+
+    /// 2-1: `OnExit` Ç≈äOÇ∑ÇΩÇﬂÇÃçTÇ¶ÅB**éÃÇƒÇÈÇ∆ use-after-free Ç…Ç»ÇÈ**
+    Events::SubscriptionId m_collisionSubscription{};
   };
 
 }

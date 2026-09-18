@@ -238,10 +238,11 @@ namespace GLFD::Game {
   /**
    * @brief ループの状態
    *
-   * @warning **`EventBus` より長く生きること。** `AttachSurvivor` が購読者に
-   *          このオブジェクトへの参照を渡し、`EventBus` には購読解除が無い
-   *          (1-8 §1-A で記録した欠陥)。シーンが持つ場合、実行中のシーン切り替えを
-   *          入れた時点で use-after-free になる。
+   * @warning **`DetachSurvivor` を呼ぶまで、`EventBus` より長く生きること。**
+   *          `AttachSurvivor` が購読者にこのオブジェクトへの参照を渡す。
+   *          1-8 では `EventBus` に購読解除が無く、シーンを抜けた時点で
+   *          use-after-free になる欠陥だった (1-8 §1-A)。2-1 で解除を入れ、
+   *          `SceneManager` が外し忘れを検出して安全網として外すようにした
    */
   struct SurvivorState {
     SurvivorParams      params{};
@@ -255,6 +256,9 @@ namespace GLFD::Game {
 
     SurvivorCounts thisFrame{};
     SurvivorCounts total{};
+
+    /// `AttachSurvivor` が登録した購読 (2-1)。**`DetachSurvivor` が外す**
+    Events::SubscriptionId subscription{};
   };
 
   // ===========================================================================
@@ -655,8 +659,9 @@ namespace GLFD::Game {
    *    そこで初めてプールが作られるとフレームの途中で確保が起きる
    *  - 購読者は `s` を参照で掴む。`SurvivorState` の @warning を参照
    */
-  inline void AttachSurvivor(SurvivorState& s, ECS::Registry& registry,
-                             ECS::CommandBuffer& commands, Events::EventBus& bus) {
+  [[nodiscard]] inline bool AttachSurvivor(SurvivorState& s, ECS::Registry& registry,
+                                           ECS::CommandBuffer& commands,
+                                           Events::EventBus& bus) {
     s.registry = &registry;
     s.commands = &commands;
 
@@ -664,8 +669,32 @@ namespace GLFD::Game {
                         Components::Health, Components::Damage, Components::Lifetime,
                         Components::Pickup>();
 
-    bus.Register<Events::HitEvent>();
-    bus.Subscribe<Events::HitEvent>([&s](const Events::HitEvent& hit) { ResolveHit(s, hit); });
+    if (!bus.Register<Events::HitEvent>()) { return false; }
+
+    // **捕捉を持たない関数ポインタ + 文脈** (2-1 / 論点1)。`std::function` は
+    // 捕捉が大きいと黙って確保して投げる(2-2 の監査で実測)
+    s.subscription = bus.Subscribe<Events::HitEvent>(
+        &s, [](void* context, const Events::HitEvent& hit) {
+          ResolveHit(*static_cast<SurvivorState*>(context), hit);
+        });
+    return s.subscription.IsValid();
+  }
+
+  /**
+   * @brief `AttachSurvivor` の後始末 (ECS 2-1)
+   *
+   * @details
+   *  **対で呼ぶこと。** `SurvivorScene::OnExit` もヘッドレスのテストも、
+   *  同じこの関数を通る (§4.7)。外し忘れると、次の配信が解放済みの
+   *  `SurvivorState` を触る。
+   *
+   *  @note 二重に呼んでも安全である(ハンドルは無効化され、`Unsubscribe` は
+   *        見つからなければ false を返すだけ)
+   */
+  inline bool DetachSurvivor(SurvivorState& s, Events::EventBus& bus) noexcept {
+    const bool removed = bus.Unsubscribe(s.subscription);
+    s.subscription = Events::SubscriptionId{};
+    return removed;
   }
 
   /**

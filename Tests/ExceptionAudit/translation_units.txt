@@ -1,4 +1,7 @@
-﻿# Real translation units from Source\, audited as themselves.
+# NOTE: saved WITHOUT a BOM on purpose. cmd.exe's `for /f` hands the BOM to the
+# first line, so a leading `#` stops being the first character and the header
+# is parsed as a row. The BOM rule is for source files that a compiler reads.
+# Real translation units from Source\, audited as themselves.
 #
 # A probe can only audit what it can compile: templates and inline functions.
 # A function defined in a .cpp is an external symbol from everywhere else, so no
@@ -14,9 +17,9 @@
 # list becomes a pile of accepted red that nobody reads.
 
 Source/Physics/SpatialHashGrid.cpp|CLEAN|the one per-frame .cpp with no throw at all. it should stay that way.
-Source/Scene/SceneManager.cpp|THROW|EmplaceBack / PushBack are the throwing overloads. ECS 2-1 rewrites these - set CLEAN then.
+Source/Scene/SceneManager.cpp|CLEAN|2-1: Try* everywhere, and the Logger moved to Engine (6.4) so no row here is allowed to be dirty.
 Source/Game/SurvivorScene.cpp|THROW|LOG_* plus the job dispatch. see probe_root_logger and probe_root_job_dispatch.
 Source/Game/BoidDemoScene.cpp|THROW|LOG_* plus the job dispatch. the two root causes were not bisected apart here.
 Source/Threading/JobSystem.cpp|C4530+THROW|a real try/catch in the worker loop (JobSystem.cpp:96) and std::cerr. out of scope - 2-4.
 Source/Core/StackAllocator.cpp|THROW|throw std::bad_alloc at line 12. construction only, never per-frame. N-2 permits this.
-Source/Engine.cpp|C4530+THROW|includes <chrono> itself and builds std::wstring. startup path, not per-frame.
+Source/Engine.cpp|C4530+THROW|includes <chrono> itself, builds std::wstring, and make_unique's a scene on each key press. not per-frame.

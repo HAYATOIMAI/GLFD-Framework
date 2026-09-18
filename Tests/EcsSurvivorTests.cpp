@@ -129,7 +129,7 @@ namespace {
 
     explicit World(const SurvivorParams& params) {
       state.params = params;
-      GLFD::Game::AttachSurvivor(state, harness.Registry(), harness.Commands(),
+      (void)GLFD::Game::AttachSurvivor(state, harness.Registry(), harness.Commands(),
                                  harness.EventBus());
     }
     World(const World&) = delete;

@@ -101,8 +101,13 @@ namespace GLFD {
 
     m_textureHandle = ctx.resourceManager->Load<Graphics::Texture>("Resource/particle.png", ctx);
 
+    m_state = Game::SurvivorState{};          // 入り直しても前回の数を持ち越さない
     m_state.params = Game::SmallSurvivorParams();
-    Game::AttachSurvivor(m_state, *ctx.registry, *ctx.commands, *ctx.eventBus);
+    if (!Game::AttachSurvivor(m_state, *ctx.registry, *ctx.commands, *ctx.eventBus)) {
+      // **黙って進まない。** 購読できていなければ命中が誰にも届かず、
+      // 「動いているのに何も起きない」状態になる (1-7 / R-27)
+      LOG_ERROR("SurvivorScene: could not subscribe to HitEvent. hits will not resolve");
+    }
 
     const Game::SurvivorParams& p = m_state.params;
     LOG_INFO("SurvivorScene: small preset. %u enemies every %u frames at radius %.0f, "
@@ -150,9 +155,13 @@ namespace GLFD {
     Game::ReportRenderStep(status, m_renderGate);
   }
 
-  void SurvivorScene::OnExit(GameContext&) {
-    // 購読者は外せない (ファイル冒頭の @warning)。今はシーンが最後まで残るので問題ない
-    LOG_INFO("SurvivorScene: OnExit");
+  void SurvivorScene::OnExit(GameContext& ctx) {
+    // `IScene.h` の契約。**購読を外してからエンティティを消す**
+    const bool removed   = Game::DetachSurvivor(m_state, *ctx.eventBus);
+    const std::uint32_t destroyed = ctx.registry->DestroyAll();
+    LOG_INFO("SurvivorScene: OnExit. subscription %s, %u entit%s destroyed",
+             removed ? "removed" : "was already gone",
+             destroyed, (destroyed == 1u) ? "y" : "ies");
   }
 
 }

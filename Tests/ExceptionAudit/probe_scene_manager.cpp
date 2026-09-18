@@ -2,17 +2,16 @@
  * @file  probe_scene_manager.cpp
  * @brief `SceneManager` transitions - and a demonstration of the audit's blind spot.
  *
- * @warning **This row is CLEAN and that means almost nothing.**
+ * @warning **A CLEAN verdict here means almost nothing on its own.**
  *          `PushScene` / `PopScene` / `ChangeScene` / `ProcessPendingTransitions`
- *          are declared here but **defined in `SceneManager.cpp`**, so calling
- *          them from a probe emits a call to an external symbol and generates no
- *          code to audit. The throwing `EmplaceBack` / `PushBack` inside them is
- *          invisible from this TU.
+ *          are declared in the header but **defined in `SceneManager.cpp`**, so
+ *          calling them from a probe emits a call to an external symbol and
+ *          generates no code to audit.
  *
- *          The `translation_units.txt` list exists for exactly this: it audits
- *          `Source/Scene/SceneManager.cpp` itself, where those definitions live,
- *          and **that row is dirty**. Keep both - this one catches a throw moving
- *          into the header, that one catches the ones already in the .cpp.
+ *          `translation_units.txt` exists for exactly this: it compiles
+ *          `Source/Scene/SceneManager.cpp` as itself, where those definitions
+ *          live. Keep both rows - this one catches a throw moving into the
+ *          header, that one covers the bodies.
  */
 // EXPECT: CLEAN
 // WHY: only declarations live in the header. the real check is the .cpp row.
@@ -22,10 +21,13 @@
 
 void Drive(GLFD::Scene::SceneManager& sm, GLFD::GameContext& ctx,
            std::unique_ptr<GLFD::Scene::IScene> scene) {
-  sm.PushScene(std::move(scene));
-  sm.PopScene();
+  (void)sm.PushScene(std::move(scene));
+  (void)sm.PopScene();
   sm.ProcessPendingTransitions(ctx);
   sm.Update(ctx);
   sm.Render(ctx);
   (void)sm.HasActiveScene();
+  (void)sm.Depth();
+  (void)sm.Report().HasProblem();
+  sm.ResetReport();
 }

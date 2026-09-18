@@ -56,7 +56,8 @@ namespace GLFD::ECS {
       : m_resource(resource)
       , m_pools(resource)
       , m_generations(resource)
-      , m_freeIndices(resource) {
+      , m_freeIndices(resource)
+      , m_liveMarks(resource) {
     }
 
     /**
@@ -142,6 +143,76 @@ namespace GLFD::ECS {
         // 生存判定は狂わない — 引退として数える
         ++m_retiredCount;
       }
+    }
+
+    /**
+     * @brief 生きているエンティティを**全部**破棄する (ECS 2-1)
+     * @return 破棄した数。**`AliveCount()` が 0 にならない場合がある**(下記)
+     *
+     * @details
+     *  シーンを抜けるときに世界を空にするためのもの (2-1 / 論点2 案A)。
+     *  **`Registry` はエンジンが持ち続け、中身だけを入れ替える。**
+     *
+     *  ## なぜシーンごとに `Registry` を持たないのか
+     *  実測で決めた。`StackResource::Deallocate` は意図的な no-op なので、
+     *  **`Registry` を捨てても 1 バイトも戻らない**。Boid 20,000 体 ↔
+     *  Survivor 2,500 体で 1 往復 +11.45 MB、**約 45 往復で 512 MB を
+     *  使い切る**。こちらは 2 往復目以降 +0.00 MB で平らだった
+     *  (プールも空き番号も再利用されるため)。
+     *
+     *  ## 世代は 0 に戻さない
+     *  `DestroyEntity` を呼ぶだけなので、index ごとの世代は**上がる**。
+     *  前のシーンのハンドルを持ち越しても `IsAlive` が false を返す。
+     *  **戻すと古いハンドルが生き返る。**
+     *
+     *  ## 生きている index の集め方
+     *  `IsAlive` は世代の一致しか見ないので、**空き枠の現世代で組み立てた
+     *  ハンドルと本物を区別できない**(`IsAlive` の @note)。そのまま
+     *  端から `DestroyEntity` を呼ぶと、空き枠まで「破棄」して空き集合へ
+     *  二重に積む。そこで空き集合から印を付けて除く。
+     *
+     *  @warning **引退した index があるときは何もしない。** 引退は
+     *           「空き集合にも無く、生きてもいない」状態であり、印だけでは
+     *           生きている index と区別できない。破棄してしまうと R-9 が
+     *           避けた世代一周の index が循環に戻り、`AliveCount` も
+     *           二重に引く。起きるのは世代が一周したときか、空き集合を
+     *           伸ばす確保に失敗したときだけである。**戻り値と
+     *           `AliveCount()` の差で呼び出し側が気づける** (§3.7)
+     *
+     *  ## 費用
+     *  Boid 20,000 体 x 4 プールで 0.50〜0.65 ms(Release の実測)。
+     *  遷移したフレームだけの一度きりで、Boid の 1 フレームは約 1 ms。
+     *  **添字の大きい方から破棄する**。プールは swap-and-pop なので、
+     *  末尾から抜けば入れ替えが起きない(実測 0.65 -> 0.50 ms)。
+     *
+     *  @warning 反復中に呼んではならない(`DestroyEntity` と同じ)。遷移は
+     *           `SceneManager::ProcessPendingTransitions` から呼ばれ、
+     *           そこはどの `View` の反復の外である (2-1 / 論点3)
+     */
+    std::uint32_t DestroyAll() noexcept {
+      const std::size_t count = m_generations.GetSize();
+      if (count == 0 || m_retiredCount != 0) {
+        return 0;                      // 上の @warning
+      }
+      // 印は 1 度だけ確保して使い回す。**遷移のたびに確保しない**
+      if (!m_liveMarks.TryResize(count)) {
+        return 0;                      // 確保失敗。何もしない (N-2: 投げない)
+      }
+      for (std::size_t i = 0; i < count; ++i) { m_liveMarks[i] = 1u; }
+      for (std::size_t i = 0; i < m_freeIndices.GetSize(); ++i) {
+        m_liveMarks[m_freeIndices[i]] = 0u;
+      }
+
+      std::uint32_t destroyed = 0;
+      std::size_t   index     = count;
+      while (index > 0) {
+        --index;
+        if (m_liveMarks[index] == 0u) { continue; }
+        DestroyEntity(Entity::Make(static_cast<std::uint32_t>(index),
+                                   m_generations[index]));
+        ++destroyed;
+      }
+      return destroyed;
     }
 
     /**
@@ -368,6 +439,9 @@ namespace GLFD::ECS {
     DynamicArray<std::uint32_t> m_freeIndices;
     /// 生存でも空きでもない index の数。R-9 と空き集合の確保失敗でのみ増える
     std::uint32_t               m_retiredCount = 0;
+
+    /// `DestroyAll` の作業用。**1 度だけ確保して使い回す**(2-1)
+    DynamicArray<std::uint8_t>  m_liveMarks;
     /// 構造が変わった回数 (R-24)。**`CreateEntity` では増えない**
     std::uint32_t               m_structureVersion = 0;
   };

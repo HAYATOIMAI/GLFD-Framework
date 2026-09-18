@@ -86,7 +86,7 @@ namespace {
       , m_registry(&m_global)
       , m_commands(&m_global)
       , m_eventBus(&m_global) {
-      m_eventBus.Register<CollisionEvent>();
+      (void)m_eventBus.Register<CollisionEvent>();
     }
 
     [[nodiscard]] GLFD::GameContext MakeContext() {
@@ -251,8 +251,10 @@ namespace {
 
     Harness     harness;
     CollisionLog log;
-    harness.EventBus().Subscribe<CollisionEvent>(
-        [&log](const CollisionEvent& e) { log.Add(e); });
+    (void)harness.EventBus().Subscribe<CollisionEvent>(
+        &log, [](void* context, const CollisionEvent& e) {
+          static_cast<CollisionLog*>(context)->Add(e);
+        });
 
     // **既知の配置。** 半径 0.5 同士なので、距離 0.6 なら重なり、
     // 距離 20 なら 3x3x3 の近傍にも入らない
@@ -294,8 +296,10 @@ namespace {
 
     Harness     harness;
     CollisionLog log;
-    harness.EventBus().Subscribe<CollisionEvent>(
-        [&log](const CollisionEvent& e) { log.Add(e); });
+    (void)harness.EventBus().Subscribe<CollisionEvent>(
+        &log, [](void* context, const CollisionEvent& e) {
+          static_cast<CollisionLog*>(context)->Add(e);
+        });
 
     // 半径 0.25 同士 = 接触距離 0.5。**0.8 離す**(同じセルには居る)
     const Entity a = harness.Spawn(0.0f, 0.0f, 0.25f);
@@ -318,10 +322,13 @@ namespace {
 
     MockMemoryResource      mock;
     GLFD::Events::EventBus  bus(&mock);
-    bus.Register<CollisionEvent>();
+    (void)bus.Register<CollisionEvent>();
 
     std::size_t delivered = 0;
-    bus.Subscribe<CollisionEvent>([&delivered](const CollisionEvent&) { ++delivered; });
+    (void)bus.Subscribe<CollisionEvent>(
+        &delivered, [](void* context, const CollisionEvent&) {
+          ++*static_cast<std::uint32_t*>(context);
+        });
 
     constexpr std::uint32_t kCapacity =
         static_cast<std::uint32_t>(GLFD::Events::EventChannel<CollisionEvent>::QUEUE_CAPACITY);
@@ -365,8 +372,10 @@ namespace {
 
     Harness      harness;
     CollisionLog log;
-    harness.EventBus().Subscribe<CollisionEvent>(
-        [&log](const CollisionEvent& e) { log.Add(e); });
+    (void)harness.EventBus().Subscribe<CollisionEvent>(
+        &log, [](void* context, const CollisionEvent& e) {
+          static_cast<CollisionLog*>(context)->Add(e);
+        });
 
     // セル 0 と セル 1 にまたがらせる (1.7 / 1.9 は 1.8 の両側)
     const Entity a = harness.Spawn(1.7f, 0.0f, 0.5f);
@@ -394,8 +403,10 @@ namespace {
 
     Harness     harness;
     CollisionLog log;
-    harness.EventBus().Subscribe<CollisionEvent>(
-        [&log](const CollisionEvent& e) { log.Add(e); });
+    (void)harness.EventBus().Subscribe<CollisionEvent>(
+        &log, [](void* context, const CollisionEvent& e) {
+          static_cast<CollisionLog*>(context)->Add(e);
+        });
 
     // 1 体だけ。**自分しか近傍に居ない**
     const Entity alone = harness.Spawn(0.0f, 0.0f, 1.0f);

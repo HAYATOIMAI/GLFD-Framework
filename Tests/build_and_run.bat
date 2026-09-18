@@ -15,6 +15,10 @@ setlocal enabledelayedexpansion
 set "CONFIG=%~1"
 if "%CONFIG%"=="" set "CONFIG=debug"
 
+rem  2 番目の引数でスイートを 1 本に絞れる(変異テストが 1 本だけ回すため)。
+rem  **フラグの表はここ 1 つのまま**にしたいので、別のランナーを作らない
+set "ONLY=%~2"
+
 set "ROOT=%~dp0.."
 set "OUTDIR=%~dp0build"
 
@@ -44,7 +48,7 @@ set "SUITES=0"
 set "FAILED=0"
 set "FAILED_NAMES="
 
-for %%f in ("%~dp0*Tests.cpp") do call :build_and_run "%%~ff" "%%~nf"
+for %%f in ("%~dp0*Tests.cpp") do call :maybe_build "%%~ff" "%%~nf"
 
 echo ===========================================================
 if not "%FAILED%"=="0" (
@@ -54,6 +58,12 @@ if not "%FAILED%"=="0" (
 echo [OK] all %SUITES% suite^(s^) passed.
 exit /b 0
 
+
+rem ---------------------------------------------------------------------------
+:maybe_build
+if not "%ONLY%"=="" if /i not "%~2"=="%ONLY%" goto :eof
+call :build_and_run "%~1" "%~2"
+goto :eof
 
 rem ---------------------------------------------------------------------------
 rem  %1 = テストのソースファイル(フルパス) / %2 = 名前(拡張子なし)
@@ -79,6 +89,8 @@ rem  避けるための意図的なものなので、スレッド系を建てるスイートだけ抑制する
 if /i "%NAME%"=="EcsCollisionTests" set "EXTRA_FLAGS=/wd4324"
 rem  EcsSurvivorTests (1-8) は本番の RunSurvivorFrame を回す。EcsCollisionTests と同じ形
 if /i "%NAME%"=="EcsSurvivorTests" set "EXTRA_SOURCES=%ROOT%\Source\Physics\SpatialHashGrid.cpp %ROOT%\Source\Threading\JobSystem.cpp %ROOT%\Source\Threading\ThreadPool.cpp %ROOT%\Source\Core\StackAllocator.cpp"
+if /i "%NAME%"=="EcsSceneTransitionTests" set "EXTRA_SOURCES=%ROOT%\Source\Scene\SceneManager.cpp %ROOT%\Source\Core\StackAllocator.cpp"
+if /i "%NAME%"=="EcsSceneTransitionTests" set "EXTRA_FLAGS=/wd4324"
 if /i "%NAME%"=="EcsSurvivorTests" set "EXTRA_FLAGS=/wd4324"
 rem  EcsGuideTests (1-8) は README の並列の例で JobSystem を使う
 if /i "%NAME%"=="EcsGuideTests" set "EXTRA_SOURCES=%ROOT%\Source\Threading\JobSystem.cpp %ROOT%\Source\Threading\ThreadPool.cpp"
@@ -103,7 +115,15 @@ if errorlevel 1 (
 
 echo.
 "%OUTDIR%\%NAME%.exe"
-if errorlevel 1 (
+
+rem  **`if errorlevel 1` ではクラッシュを取り逃がす。** アクセス違反で落ちた
+rem  プロセスの終了コードは 0xC0000005 = 負の数で、`errorlevel 1` は
+rem  「1 以上か」なので **偽になる**。実際に踏んだ: 2-1 の変異 M5 で、
+rem  スイートがケース 3 で落ちて要約すら出していないのに、ランナーは
+rem  `[OK] all 1 suite(s) passed` と報告した。§4.4「ハングを合格と読まない」の
+rem  クラッシュ版である。**0 でないかを見る**
+if not "!ERRORLEVEL!"=="0" (
+  echo [ERROR] suite exited with !ERRORLEVEL!: %NAME%
   set /a FAILED+=1
   set "FAILED_NAMES=!FAILED_NAMES! %NAME%"
 )

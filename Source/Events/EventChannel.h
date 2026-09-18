@@ -1,16 +1,66 @@
-#pragma once
-#include "../Threading/LockFreeQueue.h"
+ï»¿#pragma once
+
+/**
+ * @file  EventChannel.h
+ * @brief å‹ã”ã¨ã®ã‚¤ãƒ™ãƒ³ãƒˆã‚­ãƒ¥ãƒ¼ã¨è³¼èª­è€…ã®ä¸€è¦§
+ *
+ * @details
+ *  ## è³¼èª­è€…ã¯ `std::function` ã§ã¯ãªã„ (ECS 2-1 / è«–ç‚¹1)
+ *  **é–¢æ•°ãƒã‚¤ãƒ³ã‚¿ + æ–‡è„ˆã® `void*`** ã§æŒã¤ã€‚ç†ç”±ã¯ 3 ã¤ã‚ã‚‹ã€‚
+ *
+ *   1. **N-1**(Â§18.5: æ‰€æœ‰ãƒ»ç¢ºä¿ãƒ»ä¾‹å¤–ã‚’ä¼´ã†å‹)ã« `std::function` ãŒå½“ãŸã‚‹ã€‚
+ *      2-2 ã®ç›£æŸ»ã§å®Ÿæ¸¬ã—ãŸã¨ãŠã‚Šã€æ•æ‰ãŒ MSVC ã®ã‚¤ãƒ³ãƒ©ã‚¤ãƒ³ãƒãƒƒãƒ•ã‚¡ã‚’è¶…ãˆã‚‹ã¨
+ *      **é»™ã£ã¦ç¢ºä¿ã—ã€`std::bad_alloc` ã‚’æŠ•ã’å¾—ã‚‹**ã€‚é–¢æ•°ãƒã‚¤ãƒ³ã‚¿ãªã‚‰
+ *      æ§‹é€ çš„ã«èµ·ããªã„
+ *   2. **`std::function` ã¯æ¯”è¼ƒã§ããªã„ã€‚** è³¼èª­è§£é™¤ã«è¦ã‚‹ã®ã¯åŒä¸€æ€§ã§ã‚ã‚Šã€
+ *      æ¯”è¼ƒã§ããªã„å‹ã§ã¯ã€Œã“ã®è³¼èª­ã‚’å¤–ã™ã€ãŒæ›¸ã‘ãªã„
+ *   3. æ•æ‰ã®å¤§ãã•ã§æŒ™å‹•ãŒå¤‰ã‚ã‚‰ãªã„ã€‚`[&s]` ã¨ `[=, &grid, &bus]` ãŒ
+ *      åˆ¥ç‰©ã«ãªã‚‹ã‚ˆã†ãªå·®ãŒã€è³¼èª­ã®ç™»éŒ²å´ã«å‡ºãªããªã‚‹
+ *
+ *  ## è³¼èª­ã®åŒä¸€æ€§ã¯**ãƒã‚¹å…¨ä½“ã§å˜èª¿ã«å¢—ãˆã‚‹é€šã—ç•ªå·**
+ *  `SceneManager` ãŒã€Œã‚·ãƒ¼ãƒ³ã«å…¥ã‚‹ç›´å‰ã®ç•ªå·ã€ã‚’æ§ãˆã€æŠœã‘ãŸå¾Œã«ãã‚Œä»¥é™ã®
+ *  è³¼èª­ãŒæ®‹ã£ã¦ã„ã‚Œã°**ãã®ã‚·ãƒ¼ãƒ³ã®å¤–ã—å¿˜ã‚Œ**ã ã¨åˆ¤å®šã™ã‚‹ (2-1 / è«–ç‚¹5)ã€‚
+ *  æŒã¡ä¸»ã‚’è¨˜éŒ²ã—ãªãã¦ã‚ˆãã€ã‚·ãƒ¼ãƒ³ã‚’ç©ã‚“ã å ´åˆã‚‚è‡ªç„¶ã«æˆã‚Šç«‹ã¤ã€‚
+ *
+ *  ## å¤–ã™ã¨ãã¯è©°ã‚ã‚‹ã€‚æœ«å°¾ã¨å…¥ã‚Œæ›¿ãˆãªã„
+ *  å…¥ã‚Œæ›¿ãˆã‚‹ã¨**æ®‹ã£ãŸè³¼èª­è€…ã®é…ä¿¡é †ãŒå¤‰ã‚ã‚‹**ã€‚è³¼èª­è€…ã¯ 1 ãƒãƒ£ãƒãƒ«ã‚ãŸã‚Š
+ *  æ•°ä»¶ãªã®ã§ã€è©°ã‚ã‚‹è²»ç”¨ã¯å•é¡Œã«ãªã‚‰ãªã„ã€‚
+ */
+
 #include "../Core/DynamicArray.h"
 #include "../Core/MemoryResource.h"
+#include "../Threading/LockFreeQueue.h"
+
 #include <atomic>
+#include <cassert>
+#include <cstddef>
 #include <cstdint>
-#include <functional>
-#include <vector>
 
 namespace GLFD::Events {
+
   /**
-   * @brief ƒCƒxƒ“ƒgƒ`ƒƒƒlƒ‹‚ÌŠî’êƒNƒ‰ƒX
-   * EventBus‚ªƒŠƒXƒg‚ÅŠÇ—‚·‚é‚½‚ß‚É•K—v
+   * @brief è³¼èª­ã®åŒä¸€æ€§ (ECS 2-1)
+   *
+   * @details
+   *  `serial` ã¯ `EventBus` å…¨ä½“ã§å˜èª¿ã«å¢—ãˆã‚‹ã€‚**0 ã¯ç„¡åŠ¹å€¤**ã§ã‚ã‚Šã€
+   *  `Subscribe` ãŒç¢ºä¿ã«å¤±æ•—ã—ãŸã¨ãã«è¿”ã‚‹ (N-2: æŠ•ã’ãªã„)ã€‚
+   *  `channel` ã¯è§£é™¤ã®ã¨ãã«æ¢ç´¢ã‚’çœããŸã‚ã®ã‚‚ã®ã§ã€å€¤ã®æ­£ã—ã•ã¯
+   *  `serial` å´ã ã‘ã§æ‹…ä¿ã—ã¦ã„ã‚‹(é£Ÿã„é•ãˆã°å˜ã«è¦‹ã¤ã‹ã‚‰ãªã„)ã€‚
+   */
+  struct SubscriptionId {
+    std::uint32_t channel = 0;
+    std::uint32_t serial  = 0;
+
+    [[nodiscard]] bool IsValid() const noexcept { return serial != 0u; }
+
+    [[nodiscard]] friend bool operator==(SubscriptionId a, SubscriptionId b) noexcept {
+      return a.channel == b.channel && a.serial == b.serial;
+    }
+  };
+
+  /**
+   * @brief ã‚¤ãƒ™ãƒ³ãƒˆãƒãƒ£ãƒãƒ«ã®åŸºåº•ã‚¯ãƒ©ã‚¹
+   * @note  `EventBus` ãŒãƒªã‚¹ãƒˆã§ç®¡ç†ã™ã‚‹ãŸã‚ã«å¿…è¦
    */
   class IEventChannel {
   public:
@@ -18,61 +68,71 @@ namespace GLFD::Events {
     virtual void Dispatch() = 0;
 
     /**
-     * @brief ”­s‚Ææ‚è‚±‚Ú‚µ‚ÌŠÏ‘ª (ECS 1-7 / R-28)
+     * @brief ç™ºè¡Œã¨å–ã‚Šã“ã¼ã—ã®è¦³æ¸¬ (ECS 1-7 / R-28)
      *
      * @details
-     *  **ƒLƒ…[‚ªˆì‚ê‚½‚ç–Ù‚Á‚ÄÌ‚Ä‚Ä‚¢‚½B** ‚µ‚©‚à’m‚ç‚¹‚é printf ‚Í
-     *  ƒRƒƒ“ƒgƒAƒEƒg‚³‚ê‚Ä‚¢‚½B**f’f‚Í‘«‚·‚æ‚èÁ‚³‚ê‚é•û‚ªŠÈ’P**‚Å‚ ‚éA
-     *  ‚Æ‚¢‚¤À—áB1-7 ‚ÅÕ“ËŒŸo‚ª“®‚«n‚ß‚é‚Æ–ˆƒtƒŒ[ƒ€ˆì‚ê“¾‚é‚Ì‚ÅA
-     *  Ì‚Ä‚½‚±‚Æ‚ª•ª‚©‚éŒ`‚É‚·‚éB
+     *  **ã‚­ãƒ¥ãƒ¼ãŒæº¢ã‚ŒãŸã‚‰é»™ã£ã¦æ¨ã¦ã¦ã„ãŸã€‚** ãã‚Œã‚’çŸ¥ã‚‰ã›ã‚‹ printf ãŒ
+     *  ã‚³ãƒ¡ãƒ³ãƒˆã‚¢ã‚¦ãƒˆã•ã‚Œã¦ã„ãŸã€‚**è¨ºæ–­ã¯è¶³ã™ã‚ˆã‚Šæ¶ˆã•ã‚Œã‚‹æ–¹ãŒç°¡å˜**ã§ã‚ã‚Šã€
+     *  ã¨ã‚Šã‚ã‘ 1-7 ã§è¡çªæ¤œå‡ºãŒå‹•ãå§‹ã‚ã‚‹ã¨æ¯ãƒ•ãƒ¬ãƒ¼ãƒ å¤§é‡ã«å‡ºå¾—ã‚‹ã®ã§ã€
+     *  æ¨ã¦ãŸã“ã¨ã‚’æ•°ãˆã‚‰ã‚Œã‚‹å½¢ã«ã—ãŸã€‚
      */
     [[nodiscard]] virtual std::uint32_t PublishedCount() const noexcept = 0;
     [[nodiscard]] virtual std::uint32_t DroppedCount() const noexcept = 0;
     virtual void ResetCounters() noexcept = 0;
+
+    /// è³¼èª­è€…ã®æ•°ã€‚**ãƒ†ã‚¹ãƒˆã‹ã‚‰æ•°ãˆã‚‰ã‚Œã‚‹ã‚ˆã†ã«ã™ã‚‹** (Â§4.12)
+    [[nodiscard]] virtual std::size_t SubscriberCount() const noexcept = 0;
+    /// é€šã—ç•ªå·ãŒ `serial` ä»¥ä¸Šã®è³¼èª­è€…ã®æ•°
+    [[nodiscard]] virtual std::size_t SubscriberCountSince(std::uint32_t serial) const noexcept = 0;
+
+    /// 1 ä»¶å¤–ã™ã€‚è¦‹ã¤ã‹ã‚‰ãªã‘ã‚Œã° false(äºŒé‡è§£é™¤ã¨å¤ã„ãƒãƒ³ãƒ‰ãƒ«ã¯å®‰å…¨)
+    virtual bool Unsubscribe(std::uint32_t serial) noexcept = 0;
+    /// é€šã—ç•ªå·ãŒ `serial` ä»¥ä¸Šã®è³¼èª­è€…ã‚’å…¨éƒ¨å¤–ã—ã€å¤–ã—ãŸæ•°ã‚’è¿”ã™
+    virtual std::size_t UnsubscribeSince(std::uint32_t serial) noexcept = 0;
   };
 
   /**
-   * @brief Œ^ T ê—p‚ÌƒCƒxƒ“ƒgƒ`ƒƒƒlƒ‹
+   * @brief å‹ T å°‚ç”¨ã®ã‚¤ãƒ™ãƒ³ãƒˆãƒãƒ£ãƒãƒ«
    */
   template <typename T>
   class EventChannel : public IEventChannel {
   public:
-    using EventCallback = std::function<void(const T&)>;
+    /// è³¼èª­è€…ã®æœ¬ä½“ã€‚**æ•æ‰ã‚’æŒãŸãªã„**(ãƒ•ã‚¡ã‚¤ãƒ«å†’é ­ã® @details)
+    using EventCallback = void (*)(void* context, const T& event);
 
     /**
-     * @brief ƒCƒxƒ“ƒgƒLƒ…[‚Ì—e—Ê (ECS 1-7 ‚Å 4096 ‚©‚ç•ÏX)
+     * @brief ã‚¤ãƒ™ãƒ³ãƒˆã‚­ãƒ¥ãƒ¼ã®å®¹é‡ (ECS 1-7 ã« 4096 ã‹ã‚‰å¤‰æ›´)
      *
      * @details
-     *  **À‘ª‚ÅŒˆ‚ß‚½B** 1-7 ‚ÅÕ“ËŒŸo‚ª“®‚«n‚ß‚½‚Æ‚«‚Ì”­s”‚ÍA
-     *  20,000 ‘Ì‚Ì Boid ƒfƒ‚‚Å **1 ƒtƒŒ[ƒ€‚ ‚½‚è 1,479 Œ(ŒQ‚ê‚ªU‚Á‚Ä‚¢‚é
-     *  ‰Šú)‚©‚ç 4,686 Œ(ŒQ‚ê‚ªŒÅ‚Ü‚Á‚½‚Æ‚«)** ‚¾‚Á‚½B4,096 ‚Å‚ÍÀÛ‚É
-     *  ˆì‚êA1 ‰ñ‚Å 590 Œ‚ğÌ‚Ä‚½B
+     *  **å®Ÿæ¸¬ã§æ±ºã‚ãŸã€‚** 1-7 ã§è¡çªæ¤œå‡ºãŒå‹•ãå§‹ã‚ãŸã¨ãã®ç™ºè¡Œæ•°ã¯ã€
+     *  20,000 ä½“ã® Boid ãƒ‡ãƒ¢ã§ **1 ãƒ•ãƒ¬ãƒ¼ãƒ ã‚ãŸã‚Š 1,479 ä»¶(ç¾¤ã‚ŒãŒæ•£ã£ã¦ã„ã‚‹
+     *  ã¨ã)ã‹ã‚‰ 4,686 ä»¶(ç¾¤ã‚ŒãŒã¾ã¨ã¾ã£ãŸã¨ã)**ã ã£ãŸã€‚4,096 ã§ã¯å®Ÿéš›ã«
+     *  æº¢ã‚Œã€1 å›ã§ 590 ä»¶ã‚’æ¨ã¦ã¦ã„ãŸã€‚
      *
-     *  16,384 ‚ÍŠÏ‘ª‚µ‚½Å‘å‚Ì–ñ 3.5 ”{B**ãŒÀ‚Ìª‹’‚ÍuãŒÀ‚ğ’´‚¦‚½‚ç
-     *  •ª‚©‚év‚±‚Æ‚Æ‘g‚Å‚µ‚©¬—§‚µ‚È‚¢**‚Ì‚ÅAˆì‚ê‚Í”‚¦‘±‚¯‚é
-     *  (`PublishedCount` / `DroppedCount`)B
+     *  16,384 ã¯è¦³æ¸¬ã—ãŸæœ€å¤§ã®ç´„ 3.5 å€ã€‚**ã“ã®ç¨®ã®æ ¹æ‹ ã¯ã€Œä¸Šé™ã‚’è¶…ãˆãŸã‚‰
+     *  åˆ†ã‹ã‚‹ã€ã“ã¨ã¨çµ„ã§ã—ã‹æ„å‘³ãŒãªã„**ã®ã§ã€æ•°ã¯æ•°ãˆç¶šã‘ã‚‹
+     *  (`PublishedCount` / `DroppedCount`)ã€‚
      *
-     *  @note Œ©Ï‚à‚è‚Å‚Í 20,000 x MAX_CHECKS(16) = 320,000 Œ/ƒtƒŒ[ƒ€‚Ü‚Å
-     *        ‚ ‚è“¾‚½‚ªAÀÛ‚Í‚»‚Ì 1/68 ‚¾‚Á‚½B**ãŒÀ‚ÌŒ©Ï‚à‚è‚ÅƒLƒ…[‚ğ
-     *        Œˆ‚ß‚Ä‚¢‚½‚ç 25 ”{‰ß‘å‚É‚È‚Á‚Ä‚¢‚½B**
+     *  @note æœºä¸Šã®è¦‹ç©ã‚‚ã‚Šã§ã¯ 20,000 x MAX_CHECKS(16) = 320,000 ä»¶/ãƒ•ãƒ¬ãƒ¼ãƒ ã¾ã§
+     *        ã‚ã‚Šå¾—ãŸãŒã€å®Ÿéš›ã¯ãã® 1/68 ã ã£ãŸã€‚**ã“ã®è¦‹ç©ã‚‚ã‚Šã§ã‚­ãƒ¥ãƒ¼ã‚’
+     *        æ±ºã‚ã¦ã„ãŸã‚‰ 25 å€éå¤§ã«ãªã£ã¦ã„ãŸã€‚**
      *
-     *  @note ‚±‚±‚Í‘Sƒ`ƒƒƒlƒ‹‹¤’Ê‚Å‚ ‚éBƒ`ƒƒƒlƒ‹‚²‚Æ‚É•Ï‚¦‚½‚­‚È‚Á‚½‚ç
-     *        ƒeƒ“ƒvƒŒ[ƒgˆø”‚É‚·‚é‚±‚Æ(¡‚Í—v‚ç‚È‚¢)
+     *  @note å®¹é‡ã¯å…¨ãƒãƒ£ãƒãƒ«å…±é€šã§ã‚ã‚‹ã€‚ãƒãƒ£ãƒãƒ«ã”ã¨ã«å¤‰ãˆãŸããªã£ãŸã‚‰
+     *        ãƒ†ãƒ³ãƒ—ãƒ¬ãƒ¼ãƒˆå¼•æ•°ã«ã™ã‚‹ã“ã¨(ä»Šã¯è¦ã‚‰ãªã„)
      */
-    static constexpr size_t QUEUE_CAPACITY = 16384;
+    static constexpr std::size_t QUEUE_CAPACITY = 16384;
 
     explicit EventChannel(Memory::IMemoryResource* resource)
-      : m_subscribers(resource)  { }
+      : m_subscribers(resource) { }
 
     /**
-     * @brief ƒCƒxƒ“ƒg‚ğƒLƒ…[‚ÉÏ‚Ş (Thread-Safe, Lock-Free)
-     * ƒ[ƒJ[ƒXƒŒƒbƒh‚©‚çŒÄ‚Î‚ê‚é
+     * @brief ã‚¤ãƒ™ãƒ³ãƒˆã‚’ã‚­ãƒ¥ãƒ¼ã«ç©ã‚€ (Thread-Safe, Lock-Free)
+     * @note  ãƒ¯ãƒ¼ã‚«ãƒ¼ã‚¹ãƒ¬ãƒƒãƒ‰ã‹ã‚‰å‘¼ã°ã‚Œã‚‹
      */
-    void Publish(const T& event)
-    {
-      // ƒLƒ…[‚ª–”t‚È‚çÌ‚Ä‚éBƒŠƒAƒ‹ƒ^ƒCƒ€ƒQ[ƒ€‚Å‚Í
-      // uŒÃ‚¢ƒCƒxƒ“ƒg‚ğÌ‚Ä‚év‚©u’ú‚ß‚év‚ªˆê”Ê“IB
-      // **‚½‚¾‚µ–Ù‚Á‚ÄÌ‚Ä‚È‚¢** (1-7 / R-28)B”‚¦‚Äã‘w‚ª•ñ‚·‚é
+    void Publish(const T& event) {
+      // ã‚­ãƒ¥ãƒ¼ãŒæº€æ¯ãªã‚‰æ¨ã¦ã‚‹ã€‚ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ ã‚²ãƒ¼ãƒ ã§ã¯
+      // ã€Œå¤ã„ã‚¤ãƒ™ãƒ³ãƒˆã‚’æ¨ã¦ã‚‹ã€ã‚‚ã€Œè«¦ã‚ã‚‹ã€ã‚‚ä¸€èˆ¬çš„ã€‚
+      // **æ•°ãˆãšã«æ¨ã¦ãªã„** (1-7 / R-28)ã€‚æ•°ãˆã¦ä¸Šå±¤ãŒå ±å‘Šã™ã‚‹
       m_published.fetch_add(1u, std::memory_order_relaxed);
       if (!m_queue.Push(event)) {
         m_dropped.fetch_add(1u, std::memory_order_relaxed);
@@ -90,42 +150,92 @@ namespace GLFD::Events {
       m_dropped.store(0u, std::memory_order_relaxed);
     }
 
-    /**
-     * @brief w“ÇÒ‚ğ“o˜^ (Main Thread Only)
-     */
-    void Subscribe(EventCallback callback) {
-      // std::function ‚Íƒ€[ƒu‰Â”\B
-      // DynamicArray ‚ªƒIƒuƒWƒFƒNƒg‚ğ“KØ‚ÉŠÇ—‚Å‚«‚é‘O’ñ
-      // ¦ DynamicArray ‚Ì PushBack(T&&) ‚ªÀ‘•Ï‚İ‚Å‚ ‚é‚±‚Æ
-      m_subscribers.PushBack(std::move(callback));
+    [[nodiscard]] std::size_t SubscriberCount() const noexcept override {
+      return m_subscribers.GetSize();
+    }
+
+    [[nodiscard]] std::size_t SubscriberCountSince(std::uint32_t serial) const noexcept override {
+      std::size_t count = 0;
+      for (std::size_t i = 0; i < m_subscribers.GetSize(); ++i) {
+        if (m_subscribers[i].serial >= serial) { ++count; }
+      }
+      return count;
     }
 
     /**
-     * @brief ’~Ï‚³‚ê‚½ƒCƒxƒ“ƒg‚ğ‘Sw“ÇÒ‚É”zM (Main Thread Only)
+     * @brief è³¼èª­è€…ã‚’ç™»éŒ² (Main Thread Only)
+     * @return ç¢ºä¿ã«å¤±æ•—ã—ãŸã‚‰ falseã€‚**å‘¼ã³å‡ºã—å´ãŒç¢ºèªã™ã‚‹ã“ã¨** (N-2)
      */
-    void Dispatch() override {
-      // ƒLƒ…[‚©‚ç‘S‚Ä‚ÌƒCƒxƒ“ƒg‚ğæ‚èo‚·
-      while (auto eventOpt = m_queue.Pop()) {
-        const T& event = *eventOpt;
+    [[nodiscard]] bool Subscribe(EventCallback callback, void* context,
+                                 std::uint32_t serial) noexcept {
+      assert(!m_dispatching && "Subscribe called from inside Dispatch");
+      assert(callback != nullptr && "Subscribe called with a null callback");
+      return m_subscribers.TryPushBack(Subscriber{ callback, context, serial });
+    }
 
-        // ‘S‚Ä‚Ìw“ÇÒ‚É’Ê’m
-        // DynamicArray‚ÌƒCƒeƒŒ[ƒ^‚ğg—p
-        for (auto& callback : m_subscribers) {
-          callback(event);
+    bool Unsubscribe(std::uint32_t serial) noexcept override {
+      assert(!m_dispatching && "Unsubscribe called from inside Dispatch");
+      for (std::size_t i = 0; i < m_subscribers.GetSize(); ++i) {
+        if (m_subscribers[i].serial == serial) {
+          m_subscribers.Erase(i);     // è©°ã‚ã‚‹ã€‚**å…¥ã‚Œæ›¿ãˆãªã„**(å†’é ­ã® @details)
+          return true;
         }
       }
+      return false;
+    }
+
+    std::size_t UnsubscribeSince(std::uint32_t serial) noexcept override {
+      assert(!m_dispatching && "UnsubscribeSince called from inside Dispatch");
+      std::size_t removed = 0;
+      std::size_t i = 0;
+      while (i < m_subscribers.GetSize()) {
+        if (m_subscribers[i].serial >= serial) {
+          m_subscribers.Erase(i);
+          ++removed;
+          continue;                   // è©°ã‚ãŸã®ã§åŒã˜æ·»å­—ã‚’è¦‹ç›´ã™
+        }
+        ++i;
+      }
+      return removed;
+    }
+
+    /**
+     * @brief æºœã‚ã‚‰ã‚ŒãŸã‚¤ãƒ™ãƒ³ãƒˆã‚’å…¨è³¼èª­è€…ã«é…ä¿¡ (Main Thread Only)
+     *
+     * @warning **é…ä¿¡ä¸­ã«è³¼èª­ã‚’è¶³ã—ãŸã‚Šå¤–ã—ãŸã‚Šã—ã¦ã¯ãªã‚‰ãªã„ã€‚** é…åˆ—ã‚’
+     *          è©°ã‚ãªãŒã‚‰å›ã‚‹ã“ã¨ã«ãªã‚Šã€1 ä»¶é£›ã¶ã€‚å‰ææ¡ä»¶é•åãªã®ã§
+     *          `assert` ã§æ­¢ã‚ã‚‹ (N-2)
+     */
+    void Dispatch() override {
+      m_dispatching = true;
+      while (auto eventOpt = m_queue.Pop()) {
+        const T& event = *eventOpt;
+        for (std::size_t i = 0; i < m_subscribers.GetSize(); ++i) {
+          const Subscriber& s = m_subscribers[i];
+          s.callback(s.context, event);
+        }
+      }
+      m_dispatching = false;
     }
 
   private:
-    // LockFreeQueue: ƒCƒxƒ“ƒg‚Ìƒoƒbƒtƒ@
+    struct Subscriber {
+      EventCallback callback = nullptr;
+      void*         context  = nullptr;
+      std::uint32_t serial   = 0;
+    };
+
+    // LockFreeQueue: ã‚¤ãƒ™ãƒ³ãƒˆã®ãƒãƒƒãƒ•ã‚¡
     Thread::LockFreeQueue<T, QUEUE_CAPACITY> m_queue;
 
-    // w“ÇÒƒŠƒXƒg: ƒR[ƒ‹ƒoƒbƒNŠÖ”‚Ì”z—ñ
-    // ‚±‚±‚Í•p”É‚É•ÏX‚³‚ê‚È‚¢‚½‚ßADynamicArray‚ÅŠÇ—
-    DynamicArray<EventCallback> m_subscribers;
+    /// è³¼èª­è€…ãƒªã‚¹ãƒˆã€‚**ç™»éŒ²é †ã‚’ä¿ã¤**(å¤–ã™ã¨ãã‚‚è©°ã‚ã‚‹ã ã‘)
+    DynamicArray<Subscriber> m_subscribers;
 
-    /// 1-7: ŠÏ‘ª—pB**ƒ[ƒJ[ƒXƒŒƒbƒh‚©‚ç‘‚¦‚é**‚Ì‚Å atomic
+    /// 1-7: è¦³æ¸¬ç”¨ã€‚**ãƒ¯ãƒ¼ã‚«ãƒ¼ã‚¹ãƒ¬ãƒƒãƒ‰ã‹ã‚‰å¢—ãˆã‚‹**ã®ã§ atomic
     std::atomic<std::uint32_t> m_published{ 0 };
     std::atomic<std::uint32_t> m_dropped{ 0 };
+
+    /// é…ä¿¡ä¸­ã‹ã€‚`assert` ç”¨ã§ã‚ã£ã¦æŒ¯ã‚‹èˆã„ã«ã¯ä½¿ã‚ãªã„ (2-1)
+    bool m_dispatching = false;
   };
 }
