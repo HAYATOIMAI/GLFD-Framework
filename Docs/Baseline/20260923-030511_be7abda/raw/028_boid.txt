@@ -1,0 +1,40 @@
+=== ECS benchmark (baseline for 1-5) ===
+(configuration: Release / NDEBUG)
+entities: 20000 (config asks for 20000)  frames: 300  warmup: 30
+workers: 20
+measured window: frames 30..299 (the flock keeps changing; there is no steady state)
+@meta bench=boid frames=300 warmup=30 measured=270 entities=20000 workers=20
+@meta hardware_concurrency=20 physical_cores=12 logical_processors=20 p_cores=8 p_logical=16 e_cores=4 e_logical=4
+@meta fail=none fail_at=5
+@meta msc_full_ver=195136257
+@meta configuration=Release
+
+stage                  median       mean        min        p95
+------------------------------------------------------------
+GridBuildSystem         87.2us      89.6us      68.6us     115.4us
+@stage name=GridBuildSystem median=87.20 mean=89.56 min=68.60 p95=115.40
+BoidSystem             451.8us     508.5us     431.3us     743.5us
+@stage name=BoidSystem median=451.80 mean=508.54 min=431.30 p95=743.50
+MovementSystem          38.4us      44.4us      23.0us      83.0us
+@stage name=MovementSystem median=38.40 mean=44.36 min=23.00 p95=83.00
+ApplyWorldBounds        50.1us      51.8us      49.4us      59.1us
+@stage name=ApplyWorldBounds median=50.10 mean=51.84 min=49.40 p95=59.10
+CollisionSystem        312.2us     322.6us     279.2us     383.6us
+@stage name=CollisionSystem median=312.20 mean=322.59 min=279.20 p95=383.60
+ApplyCommands            0.1us       0.1us       0.0us       0.1us
+@stage name=ApplyCommands median=0.10 mean=0.08 min=0.00 p95=0.10
+------------------------------------------------------------
+frame (measured)       954.1us    1017.0us     874.9us    1302.3us
+(sum of the per-stage medians: 939.8us)
+@frame name=frame median=954.10 mean=1016.98 min=874.90 p95=1302.30
+
+collision events published per frame: median 745  min 474  p95 985
+collision events dropped   per frame: median 0  p95 0
+@count name=events_published median=745.00 mean=766.40 min=474.00 p95=985.00
+@count name=events_dropped median=0.00 mean=0.00 min=0.00 p95=0.00
+
+average cores used while measuring: 10.05 (process times)  8.98 (cycles, approx)  over 0.277s
+@cpu wall_s=0.276805 cpu_s=2.781250 cores_by_times=10.048 cores_by_cycles=8.978
+
+note: rendering, input and config reloading are NOT included.
+@end

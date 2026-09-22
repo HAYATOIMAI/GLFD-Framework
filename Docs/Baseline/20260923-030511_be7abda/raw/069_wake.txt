@@ -1,0 +1,24 @@
+=== job wake benchmark (ECS 2-5) ===
+workers: 20  iterations: 2000  gap: 200us  chunks in C: 20
+@meta bench=wake iterations=2000 gap_us=200 chunks=20 workers=20
+@meta hardware_concurrency=20 physical_cores=12 logical_processors=20 p_cores=8 p_logical=16 e_cores=4 e_logical=4
+@meta fail=none fail_at=5
+@meta msc_full_ver=195136257
+@meta configuration=Release
+A_kick1_poll_total             median    4.30us  mean    8.44us  min    3.10us  p95    9.30us  max   360.60us
+@wake name=A_kick1_poll_total median=4.30 mean=8.44 min=3.10 p95=9.30
+A_kick1_poll_to_start          median    4.10us  mean    7.90us  min    1.80us  p95    8.00us  max   338.30us
+@wake name=A_kick1_poll_to_start median=4.10 mean=7.90 min=1.80 p95=8.00
+A_ran_on_main                  0 / 2000
+@ratio name=A_ran_on_main part=0 whole=2000
+B_kick1_waitfor                median    1.60us  mean    2.19us  min    0.90us  p95    3.80us  max   280.70us
+@wake name=B_kick1_waitfor median=1.60 mean=2.19 min=0.90 p95=3.80
+B_ran_on_main                  1914 / 2000
+@ratio name=B_ran_on_main part=1914 whole=2000
+C_kick20_waitfor_total         median   38.00us  mean   46.36us  min    6.00us  p95   87.90us  max   520.20us
+@wake name=C_kick20_waitfor_total median=38.00 mean=46.36 min=6.00 p95=87.90
+C_kick20_kick_part             median   37.50us  mean   45.05us  min    5.10us  p95   86.90us  max   520.00us
+@wake name=C_kick20_kick_part median=37.50 mean=45.05 min=5.10 p95=86.90
+C_ran_on_main                  2259 / 40000
+@ratio name=C_ran_on_main part=2259 whole=40000
+@end
