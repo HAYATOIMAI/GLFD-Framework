@@ -21,9 +21,8 @@
  *  同じ抑制を 2 箇所に置くと、片方を消したときに気づけない。
  *
  *  ## プロセスの終了について
- *  末尾で `std::_Exit` を使う。`JobSystem` の停止経路には取りこぼしがあり
- *  (要件書 §18.7)、デストラクタで固まることがある。**そのバグを消したのでは
- *  なく避けているだけ**で、スイートの結果は上で出し切っている。
+ *  `main` から普通に戻る。2-3 までは `JobSystem` の停止のハング (要件書 §18.7) を
+ *  避けるため末尾で `std::_Exit` を使っていた。2-4 で停止経路を直して回避を外した。
  *
  *  @note テストコードに非 ASCII の文字列リテラルを書かない (C5297)。
  */
@@ -31,7 +30,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 
 #include "Core/GameContext.h"
 #include "Game/GridBulidSystem.h"
@@ -68,10 +66,10 @@ namespace {
    * @brief スイート全体で 1 本だけ使うジョブシステム
    *
    * @details
-   *  **ケースごとに作らない。** `JobSystem` の停止経路には取りこぼしがあり
-   *  (要件書 §18.7)、**デストラクタで固まる**。ケースごとに作ると毎回
-   *  その賽を振ることになり、実際にこのスイートは最初それで止まった。
-   *  1 本だけ作り、**破棄しない**(`main` の末尾は `std::_Exit`)。
+   *  1 本だけ作り、`main` の末尾で破棄する。2-3 までは `JobSystem` の停止が
+   *  **デストラクタで固まった**(要件書 §18.7)ため、ケースごとに作ると毎回その賽を
+   *  振ることになり、実際にこのスイートは最初それで止まった。2-4 で直した。
+   *  1 本にしているのは今はその名残だが、ケースの意味は変わらないのでそのままにする
    */
   GLFD::Thread::JobSystem* g_jobs = nullptr;
 
@@ -441,7 +439,7 @@ namespace {
 int main() {
   GLFD::Test::BeginSuite("EcsCollision (ECS 1-7)");
 
-  // **意図的に解放しない。** 上の g_jobs の @details を参照
+  // main の末尾で破棄される (~JobSystem が Stop() を呼んで join する。2-4)
   GLFD::Thread::JobSystem jobs;
   g_jobs = &jobs;
 
@@ -457,11 +455,5 @@ int main() {
 
   TestAnEntityNeverCollidesWithItself();
 
-  const int code = GLFD::Test::Summarize();
-  std::fflush(stdout);
-
-  // **`return code` にしない。** JobSystem の停止経路に取りこぼしがあり
-  // (要件書 §18.7)、デストラクタで固まることがある。結果は上で出し切って
-  // いるので、ここで打ち切っても失われない。**避けているだけで直してはいない。**
-  std::_Exit(code);
+  return GLFD::Test::Summarize();
 }

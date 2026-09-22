@@ -31,6 +31,7 @@
 #include "Game/SurvivorScene.h"
 
 #include <chrono>
+#include <iostream>   // Initialize の std::cerr。以前は JobSystem.h 経由で届いていた (ECS 2-4)
 #include <string>
 
 namespace {
@@ -55,6 +56,23 @@ namespace GLFD {
   GameEngine::~GameEngine() {
     if (m_resourceManager) {
       m_resourceManager->ReleaseAll();
+    }
+    // **JobSystem を先に止めてから書く** (ECS 2-4)。以前は Logger を閉じた後、
+    // メンバの破棄で join していたので、"Engine Shutdown" は join より前に書かれ、
+    // **ハングしていてもログの最後の行は正常終了と同じだった** (9 回中 9 回ハングを実測)。
+    // Stop() は join まで終えて戻るので、下の行が本当に「終わった」を意味する。
+    // JobSystem は出力しないので、件数はここで読んで出す (構造は下層、出力は上層)
+    if (m_jobSystem) {
+      m_jobSystem->Stop();
+      const Thread::JobSystemStats jobs = m_jobSystem->Stats();
+      if (jobs.queueFullDrops != 0 || jobs.rejectedAfterStop != 0 || jobs.abandonedAtStop != 0) {
+        LOG_WARN("job system stopped. jobs not run: queue full %u (whole run), "
+                 "rejected after stop %u, left in the queue %u",
+                 jobs.queueFullDrops, jobs.rejectedAfterStop, jobs.abandonedAtStop);
+      }
+      else {
+        LOG_INFO("job system stopped. every worker joined, every job ran");
+      }
     }
     LOG_INFO("=== Engine Shutdown ===");
     Core::Logger::Get().Shutdown();
@@ -258,6 +276,25 @@ namespace GLFD {
     m_sceneManager->ProcessPendingTransitions(ctx);
     Game::ReportTransitions(m_sceneManager->Report(), m_sceneManager->Depth());
     m_sceneManager->ResetReport();
+
+    ReportJobDrops();
+  }
+
+  void GameEngine::ReportJobDrops() {
+    // 状態の変わり目だけ出す (開発手法 6.2)。捨て続けるフレームが続いても 2 行で済み、
+    // その間の沈黙は「捨て続けていた」を意味する
+    const std::uint32_t drops = m_jobSystem->Stats().queueFullDrops;
+    if (drops != m_jobDropsSeen) {
+      if (!m_droppingJobs) {
+        LOG_WARN("job queue full: dropping jobs (%u dropped so far)", drops);
+      }
+      m_droppingJobs = true;
+      m_jobDropsSeen = drops;
+    }
+    else if (m_droppingJobs) {
+      m_droppingJobs = false;
+      LOG_INFO("job queue stopped dropping (%u dropped in total)", drops);
+    }
   }
 
   void GameEngine::Render() {

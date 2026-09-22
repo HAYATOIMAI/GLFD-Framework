@@ -11,8 +11,8 @@
  *  **片方を変えたらもう片方も変えること。**
  *
  *  ## プロセスの終了
- *  節 2 の並列の例が `JobSystem` を使う。末尾で `std::_Exit` を使うのは
- *  停止経路の取りこぼし (§18.7) を避けているだけで、直してはいない。
+ *  節 2 の並列の例が `JobSystem` を使う。`main` から普通に戻る (2-3 までは停止の
+ *  ハング (§18.7) を避けるため `std::_Exit` を使っていた。2-4 で直して回避を外した)。
  *
  *  @note テストコードに非 ASCII の文字列リテラルを書かない (C5297)。
  */
@@ -20,7 +20,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <tuple>
 
 #include "ECS/CommandBuffer.h"
@@ -238,7 +237,7 @@ namespace GLFD {
 int main() {
   GLFD::Test::BeginSuite("EcsGuide (ECS 1-8)");
 
-  // **意図的に解放しない。** ファイル冒頭の「プロセスの終了」を参照
+  // main の末尾で破棄される (~JobSystem が Stop() を呼んで join する。2-4)
   GLFD::Thread::JobSystem jobs;
   GLFD::g_jobs = &jobs;
 
@@ -247,7 +246,5 @@ int main() {
   GLFD::GuideChangeStructureWhileIterating();
   GLFD::GuideDeadHandles();
 
-  const int code = GLFD::Test::Summarize();
-  std::fflush(stdout);
-  std::_Exit(code);
+  return GLFD::Test::Summarize();
 }

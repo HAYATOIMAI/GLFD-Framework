@@ -32,8 +32,8 @@
  *  (`CELL_SIZE` 1.8 の両側)。
  *
  *  ## プロセスの終了
- *  末尾で `std::_Exit` を使う。`JobSystem` の停止経路の取りこぼし (§18.7) を
- *  **避けているだけ**で、直してはいない。
+ *  `main` から普通に戻る (2-3 までは `JobSystem` の停止のハング (§18.7) を避けるため
+ *  `std::_Exit` を使っていた。2-4 で直して回避を外した)。
  *
  *  @note テストコードに非 ASCII の文字列リテラルを書かない (C5297)。
  */
@@ -41,7 +41,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <tuple>
 
 #include "Core/FailureGate.h"
@@ -78,7 +77,7 @@ namespace {
   // 足場
   // ===========================================================================
 
-  /// スイート全体で 1 本だけ使う。**ケースごとに作らない**(停止経路で固まる。§18.7)
+  /// スイート全体で 1 本だけ使う (2-3 までは停止で固まったための形。2-4 で直した。§18.7)
   GLFD::Thread::JobSystem* g_jobs = nullptr;
 
   /// ウィンドウも DX11 も使わない。ループに要るものだけを実物で持つ
@@ -760,7 +759,7 @@ namespace {
 int main() {
   GLFD::Test::BeginSuite("EcsSurvivor (ECS 1-8)");
 
-  // **意図的に解放しない。** g_jobs の説明を参照
+  // main の末尾で破棄される (~JobSystem が Stop() を呼んで join する。2-4)
   GLFD::Thread::JobSystem jobs;
   g_jobs = &jobs;
 
@@ -780,8 +779,5 @@ int main() {
   TestRegistryFullIsSurvivable();
   TestPickupCapCountsWhatIsStillQueued();
 
-  const int code = GLFD::Test::Summarize();
-  std::fflush(stdout);
-  // **`return code` にしない。** `JobSystem` の停止経路で固まることがある (§18.7)
-  std::_Exit(code);
+  return GLFD::Test::Summarize();
 }

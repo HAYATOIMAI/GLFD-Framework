@@ -12,6 +12,7 @@ namespace GLFD::Scene { class SceneManager; }
 // 設定は JSON から読む。ヘッダに Document を持ち込まない
 namespace GLFD::Json { class Document; }
 
+#include <cstdint>
 #include <memory>
 
 namespace GLFD {
@@ -65,7 +66,13 @@ namespace GLFD {
     bool m_isRunning = false;
     float m_totalTime = 0.0f;
 
+    // ECS 2-4: JobSystem がキュー満杯で捨てた件数。**JobSystem は出力しない**ので
+    // ここで読み、捨て始めと止んだときだけ出す(毎フレーム出さない。開発手法 6.2)
+    std::uint32_t m_jobDropsSeen = 0;
+    bool          m_droppingJobs = false;
+
     void Update(float dt);
     void Render();
+    void ReportJobDrops();
   };
 }

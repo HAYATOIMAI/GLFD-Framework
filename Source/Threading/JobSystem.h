@@ -8,8 +8,6 @@
 #include <cassert>
 #include "LockFreeQueue.h"
 #include "../Core/HardwareConstants.h"
-#include <iostream> // エラー出力用
-#include <stdexcept> // std::runtime_error
 
 
 namespace GLFD::Thread {
@@ -38,10 +36,12 @@ namespace GLFD::Thread {
   };
 
   /**
-   * @brief 停止の経路で「実行しなかった」ジョブの件数(ECS 2-4)
-   * @details JobSystem は出力しない(構造は下層、出力は上層)。上層が Stop() の後に読んで出す
+   * @brief 積まなかった / 実行しなかったジョブの件数(ECS 2-4)
+   * @details **JobSystem は出力しない**(構造は下層、出力は上層)。std::cerr には書かない。
+   *  上層(Engine)が毎フレームと Stop() の後に読んで Logger へ出す
    */
   struct JobSystemStats {
+    std::uint32_t queueFullDrops = 0;      // キューが満杯のまま再試行の上限に達し、捨てた件数
     std::uint32_t rejectedAfterStop = 0;   // Stop() の開始後に KickJob された件数(積んでいない)
     std::uint32_t abandonedAtStop = 0;     // join の後にキューに残っていた件数(実行していない)
   };
@@ -75,6 +75,8 @@ namespace GLFD::Thread {
      *  - **呼んでよいのは所有スレッドとワーカー(実行中のジョブ)だけ**(Debug で assert)。
      *    それ以外のスレッドが Stop() と並行して積むと、回収の後に積まれたジョブを誰も数えられない
      *  - Stop() の開始後は積まない。親ハンドルの件数も増やさず、rejectedAfterStop に数える
+     *  - キューが満杯のまま再試行の上限に達したら捨て、親ハンドルの件数を戻して queueFullDrops に数える
+     *  - **ジョブは投げないこと**(N-2)。ワーカー上で投げれば std::terminate で落ちる
      */
     void KickJob(JobFunction job, JobHandle* parentHandle = nullptr);
     /**
@@ -133,6 +135,7 @@ namespace GLFD::Thread {
     // 64 ビットなので、1 回の確認のあいだに一周して同じ値に戻ることは無い
     std::atomic<std::uint64_t> m_wakeGeneration{ 0 };
 
+    std::atomic<std::uint32_t> m_queueFullDrops{ 0 };
     std::atomic<std::uint32_t> m_rejectedAfterStop{ 0 };
     std::atomic<std::uint32_t> m_abandonedAtStop{ 0 };
 

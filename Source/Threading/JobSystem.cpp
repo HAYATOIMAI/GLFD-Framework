@@ -27,7 +27,13 @@ namespace GLFD::Thread {
   }
 
   void JobSystem::KickJob(JobFunction job, JobHandle* parentHandle) {
-    // 呼んでよいのは所有スレッドとワーカーだけ(ECS 2-4 論点5 の前提を機械的に確かめる)
+    // 呼んでよいのは所有スレッドとワーカーだけ(ECS 2-4 論点5 の前提を機械的に確かめる)。
+    // **帳簿のためだけではなく、Stop() の回収ループが完全であることの根拠である。**
+    //  - 所有スレッドからの KickJob は Stop() と逐次(同じスレッドなので並行しない)
+    //  - ワーカーからの KickJob は、そのワーカーの join が戻る前に起きる
+    // どちらも回収ループより前にあるので、積まれたジョブは必ず実行されるか回収される。
+    // **第三のスレッドが呼ぶと回収の後に積まれ得る。** そのジョブは誰にも実行も回収も
+    // されず、親ハンドルの件数が戻らないので WaitFor が永久に待ち得る
     assert(IsOwnerOrWorker() && "KickJob: call from the owner thread or from a job on a worker");
 
     // 停止を始めた後は積まない。親ハンドルの件数も増やさない
@@ -56,12 +62,10 @@ namespace GLFD::Thread {
           counter->count.fetch_sub(1, std::memory_order_relaxed);
         }
 
-        // 致命的なエラーとして通知
-        // ゲーム開発中はここでアサートが落ち、キューサイズを増やすか負荷分散を検討する
-        std::cerr << "[JobSystem] CRITICAL: Queue Full. Dropping Job." << std::endl;
+        // 捨てた件数を数える。**ここでは出力しない**(構造は下層、出力は上層)。
+        // Engine が毎フレーム読み、捨て始めと止んだときに Logger へ出す
+        m_queueFullDrops.fetch_add(1, std::memory_order_relaxed);
         return;
-        //std::cerr << "[JobSystem] Error: Job Queue Overflow!" << std::endl;
-        //throw std::runtime_error("JobQueue Overflow: System is overloaded.");
       }
 
       // 少しCPUを譲って再試行
@@ -129,25 +133,18 @@ namespace GLFD::Thread {
 
   JobSystemStats JobSystem::Stats() const {
     JobSystemStats stats;
+    stats.queueFullDrops = m_queueFullDrops.load(std::memory_order_relaxed);
     stats.rejectedAfterStop = m_rejectedAfterStop.load(std::memory_order_relaxed);
     stats.abandonedAtStop = m_abandonedAtStop.load(std::memory_order_relaxed);
     return stats;
   }
 
   void JobSystem::ExecuteJob(const JobWrapper& wrapper) {
-    // ジョブ実行
-    try {
-      if (wrapper.task) wrapper.task();
-    }
-    catch (const std::exception e) {
-      std::cerr << "[JobSystem] Exception in worker thread: " << e.what() << std::endl;
-      // デバッグビルドでは即座に停止させて気づかせる
-      assert(false && "Exception thrown in Job");
-    }
-    catch (...) {
-      std::cerr << "[JobSystem] Unknown exception in worker thread." << std::endl;
-      assert(false && "Unknown Exception thrown in Job");
-    }
+    // ジョブ実行。**catch しない**(ECS 2-4 / N-2: ジョブは投げない前提)。
+    // 投げれば、ワーカー上では std::terminate で即座に落ちる。所有スレッドが WaitFor の
+    // 中で肩代わりしたジョブなら、WaitFor の呼び出し元へ伝わる。**黙って握りつぶさない**
+    // (以前の catch は値で受けて派生型を切り落とし、std::cerr に書いて続行していた)
+    if (wrapper.task) wrapper.task();
     // 完了通知
     if (wrapper.counter) {
       // カウンターを減らす

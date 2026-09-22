@@ -118,6 +118,47 @@ namespace {
     return g_caseFailures;
   }
 
+  // キューが満杯で積めなかったジョブは捨てられ、数えられ、親ハンドルの件数に残らない。
+  // 以前は std::cerr に 1 行書くだけで、Game.log にも件数にも残らなかった (手順5)
+  int CaseQueueFullIsCounted() {
+    JobSystem js(1);                                        // 1 本を塞げば、キューは容量ちょうどまで溜まる
+    JobCounter counter;
+    JobHandle handle = js.CreateHandle(counter);
+    std::atomic<bool> blockerStarted{ false };
+    std::atomic<bool> release{ false };
+    std::atomic<bool> blockerTimedOut{ false };
+    std::atomic<int>  ran{ 0 };
+
+    js.KickJob([&] {
+      blockerStarted.store(true, std::memory_order_release);
+      const auto deadline = Clock::now() + std::chrono::seconds(10);
+      while (!release.load(std::memory_order_acquire)) {
+        if (Clock::now() > deadline) { blockerTimedOut.store(true); break; }
+        std::this_thread::yield();
+      }
+    }, &handle);
+    const auto deadline = Clock::now() + std::chrono::seconds(5);
+    while (!blockerStarted.load(std::memory_order_acquire) && Clock::now() < deadline) std::this_thread::yield();
+    CASE_EXPECT(blockerStarted.load());                     // 塞ぐジョブはキューから出ている
+
+    // 容量を 3 件超えて積む(1 件だと「数えた」と「偶然 1」が区別できない)
+    constexpr int kOver = 3;
+    constexpr int kKicks = static_cast<int>(JobSystem::QUEUE_CAPACITY) + kOver;
+    for (int i = 0; i < kKicks; ++i) {
+      js.KickJob([&ran] { ran.fetch_add(1, std::memory_order_relaxed); }, &handle);
+    }
+    CASE_EXPECT(js.Stats().queueFullDrops == static_cast<std::uint32_t>(kOver));
+    CASE_EXPECT(js.Stats().rejectedAfterStop == 0);
+
+    release.store(true, std::memory_order_release);
+    js.WaitFor(handle);                                     // 捨てた分が件数に残っていれば戻らない
+    CASE_EXPECT(!blockerTimedOut.load());
+    CASE_EXPECT(ran.load() == static_cast<int>(JobSystem::QUEUE_CAPACITY));
+    js.Stop();
+    CASE_EXPECT(js.Stats().abandonedAtStop == 0);
+    return g_caseFailures;
+  }
+
   // ~JobSystem は Stop() を呼ぶ(明示的に呼ばずに破棄しても全員が抜ける)
   int CaseDestructorStops() {
     ResetProbes();
@@ -156,6 +197,7 @@ namespace {
   int RunCase(const char* name) {
     if (std::strcmp(name, "kick_after_stop") == 0)          return CaseKickAfterStop();
     if (std::strcmp(name, "abandoned_at_stop") == 0)        return CaseAbandonedAtStop();
+    if (std::strcmp(name, "queue_full_is_counted") == 0)    return CaseQueueFullIsCounted();
     if (std::strcmp(name, "destructor_stops") == 0)         return CaseDestructorStops();
     if (std::strcmp(name, "kick_from_foreign_thread") == 0) return CaseKickFromForeignThread();
     if (std::strcmp(name, "stop_from_foreign_thread") == 0) return CaseStopFromForeignThread();
@@ -223,6 +265,8 @@ int main(int argc, char** argv) {
   CheckCase("kick_after_stop", 0);
   GLFD::Test::BeginCase("T-ECS-31 jobs left in the queue are not run, are counted, and release the handle");
   CheckCase("abandoned_at_stop", 0);
+  GLFD::Test::BeginCase("T-ECS-31 a job the full queue cannot take is dropped, counted, and releases the handle");
+  CheckCase("queue_full_is_counted", 0);
   GLFD::Test::BeginCase("~JobSystem calls Stop (no explicit Stop, every worker joined)");
   CheckCase("destructor_stops", 0);
 

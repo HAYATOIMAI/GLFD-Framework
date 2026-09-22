@@ -246,6 +246,6 @@ int main(int argc, char** argv) {
               notRan, droppedEvents, t.gridMismatches, t.createFailures, t.queueFailures);
   std::fflush(stdout);
 
-  // **`return 0` にしない。** `JobSystem` の停止経路で固まることがある (§18.7)
-  std::_Exit(0);
+  // 通常の終了で抜ける (2-4 で `JobSystem` の停止経路を直し、`std::_Exit` の回避を外した)
+  return 0;
 }
