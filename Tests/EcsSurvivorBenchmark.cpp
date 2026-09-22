@@ -22,7 +22,13 @@
  *  `run_survivor_benchmark.bat`。**ゲーム本体と同じフラグ (/W3 /sdl)** で建てる
  *  (`run_ecs_benchmark.bat` の @note と同じ理由)。
  *
- *  usage: EcsSurvivorBenchmark.exe [frames] [warmup] [small|large]   (既定: 600 900 small)
+ *  usage: EcsSurvivorBenchmark.exe [frames] [warmup] [small|large] [--fail=...]
+ *         (既定: 600 900 small)
+ *
+ *  ## 基準線のための出力 (2-5)
+ *  `@` で始まる行と、計測区間だけの平均使用コア数を出す(BenchMeasure.h)。
+ *  **最小値は標本数で動く**(極値の統計量)。計測フレーム数の違う最小値どうしは比べない。
+ *  `--fail=...` は `run_baseline.ps1` の歯の確認に使う。
  */
 
 #include <chrono>
@@ -50,6 +56,8 @@
 
 #include "Threading/JobSystem.h"
 
+#include "BenchMeasure.h"
+
 namespace {
 
   using Clock = std::chrono::steady_clock;
@@ -61,6 +69,10 @@ namespace {
   enum Metric { kCreated, kDestroyed, kApplied, kHits, kAlive, kMetricCount };
   const char* const kMetricNames[kMetricCount] = {
     "created", "destroyed", "commands applied", "hits delivered", "alive",
+  };
+  /// `@count` 行の名前(空白を含めない)
+  const char* const kMetricKeys[kMetricCount] = {
+    "created", "destroyed", "commands_applied", "hits_delivered", "alive",
   };
 
   double g_steps[kSteps][kMaxFrames];
@@ -114,9 +126,11 @@ namespace {
 }
 
 int main(int argc, char** argv) {
-  int frames = (argc > 1) ? std::atoi(argv[1]) : 600;
-  int warmup = (argc > 2) ? std::atoi(argv[2]) : 900;
-  const char* const preset = (argc > 3) ? argv[3] : "small";
+  const GLFD::Bench::Args args = GLFD::Bench::ParseArgs(argc, argv);
+  if (args.bad) { return 2; }
+  int frames = GLFD::Bench::IntArg(args, 0, 600);
+  int warmup = GLFD::Bench::IntArg(args, 1, 900);
+  const char* const preset = (args.positionalCount > 2) ? args.positional[2] : "small";
   if (frames < 1)          { frames = 1; }
   if (frames > kMaxFrames) { frames = kMaxFrames; }
   if (warmup < 0)          { warmup = 0; }
@@ -147,6 +161,10 @@ int main(int argc, char** argv) {
   std::printf("preset: %s  frames: %d  warmup: %d  workers: %u\n",
               large ? "large" : "small", frames, warmup,
               static_cast<unsigned>(GLFD::System::WorkerThreadCount()));
+  std::printf("@meta bench=survivor preset=%s frames=%d warmup=%d measured=%d workers=%u\n",
+              large ? "large" : "small", frames, warmup, frames,
+              static_cast<unsigned>(GLFD::System::WorkerThreadCount()));
+  GLFD::Bench::PrintCommonMeta(args);
   std::fflush(stdout);
 
   const auto us = [](Clock::time_point a, Clock::time_point b) {
@@ -158,8 +176,13 @@ int main(int argc, char** argv) {
   std::uint32_t droppedEvents    = 0;
   std::size_t   maxEnemies = 0, maxBullets = 0, maxPickups = 0;
 
+  GLFD::Bench::CpuSample cpuBegin;
   const int total = warmup + frames;
   for (int f = 0; f < total; ++f) {
+    // 2-5: **計測区間だけ**の CPU 時間を取る(助走と準備を含めない)
+    if (f == warmup) { cpuBegin = GLFD::Bench::SampleCpu(); }
+    if (f >= warmup) { GLFD::Bench::MaybeFail(args, f - warmup); }
+
     frameAllocator.SwapAndReset();
     GLFD::Memory::StackResource frameResource(frameAllocator.GetCurrent());
 
@@ -211,6 +234,7 @@ int main(int argc, char** argv) {
     if (p > maxPickups) { maxPickups = p; }
     if (m == 0) { scrambledAtStart = DenseOrderScrambled(registry); }
   }
+  const GLFD::Bench::CpuWindow cpu = GLFD::Bench::Diff(cpuBegin, GLFD::Bench::SampleCpu());
 
   std::printf("\n%-18s %10s %10s %10s %10s\n", "step", "median", "mean", "min", "p95");
   std::printf("------------------------------------------------------------\n");
@@ -220,17 +244,21 @@ int main(int argc, char** argv) {
     medianTotal += s.median;
     std::printf("%-18s %9.1fus %9.1fus %9.1fus %9.1fus\n",
                 GLFD::Game::kSurvivorOrder[i].name, s.median, s.mean, s.min, s.p95);
+    GLFD::Bench::PrintRow("stage", GLFD::Game::kSurvivorOrder[i].name,
+                          s.median, s.mean, s.min, s.p95);
   }
   const Summary frame = Summarize(g_frame, frames);
   std::printf("------------------------------------------------------------\n");
   std::printf("%-18s %9.1fus %9.1fus %9.1fus %9.1fus\n",
               "frame (measured)", frame.median, frame.mean, frame.min, frame.p95);
   std::printf("(sum of the per-step medians: %.1fus)\n", medianTotal);
+  GLFD::Bench::PrintRow("frame", "frame", frame.median, frame.mean, frame.min, frame.p95);
 
   std::printf("\n%-18s %8s %8s %8s\n", "per frame", "median", "min", "max");
   for (int k = 0; k < kMetricCount; ++k) {
     const Summary s = Summarize(g_metrics[k], frames);
     std::printf("%-18s %8.0f %8.0f %8.0f\n", kMetricNames[k], s.median, s.min, s.max);
+    GLFD::Bench::PrintRow("count", kMetricKeys[k], s.median, s.mean, s.min, s.p95);
   }
 
   const GLFD::Game::SurvivorCounts& t = state.total;
@@ -244,8 +272,16 @@ int main(int argc, char** argv) {
   std::printf("problems while measuring: steps not ran %u, events dropped %u; whole run: "
               "grid mismatches %u, create failures %u, queue failures %u\n",
               notRan, droppedEvents, t.gridMismatches, t.createFailures, t.queueFailures);
+  std::printf("\naverage cores used while measuring: %.2f (process times)  %.2f (cycles, approx)"
+              "  over %.3fs\n", cpu.coresByTimes, cpu.coresByCycles, cpu.wallSec);
+  std::printf("@meta scrambled=%s\n", scrambledAtStart ? "yes" : "no");
+  std::printf("@problems steps_not_ran=%u events_dropped=%u grid_mismatches=%u "
+              "create_failures=%u queue_failures=%u\n",
+              notRan, droppedEvents, t.gridMismatches, t.createFailures, t.queueFailures);
+  GLFD::Bench::PrintCpu(cpu);
   std::fflush(stdout);
 
   // 通常の終了で抜ける (2-4 で `JobSystem` の停止経路を直し、`std::_Exit` の回避を外した)
-  return 0;
+  GLFD::Bench::PrintEnd();
+  return GLFD::Bench::ExitCode(args);
 }

@@ -50,7 +50,7 @@ echo ----- building EcsSurvivorBenchmark (%CONFIG%) -----
 cl %COMMON_FLAGS% %CFG_FLAGS% ^
    /I "%ROOT%\Source" /I "%~dp0." ^
    /Fo"%OBJDIR%\\" /Fd"%OBJDIR%\EcsSurvivorBenchmark.pdb" ^
-   "%~dp0EcsSurvivorBenchmark.cpp" %ENGINE_SOURCES% ^
+   "%~dp0EcsSurvivorBenchmark.cpp" "%~dp0BenchMeasure.cpp" %ENGINE_SOURCES% ^
    /Fe"%OUTDIR%\EcsSurvivorBenchmark.exe"
 if errorlevel 1 (
   echo [ERROR] build failed

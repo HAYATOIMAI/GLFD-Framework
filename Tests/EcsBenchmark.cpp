@@ -35,8 +35,17 @@
  *  JSON の N-6 と同じ位置づけで、**最適化の前後で比較できればよい**。
  *  値は機械と負荷で変わる。
  *
- *  usage: EcsBenchmark.exe [frames] [warmup]     (既定: 300 30)
+ *  usage: EcsBenchmark.exe [frames] [warmup] [--fail=...]     (既定: 300 30)
  *         **リポジトリのルートから実行すること**(Resource/GameConfig.jsonc を読む)
+ *
+ *  ## 定常状態は無い (2-5)
+ *  群れは時間とともに固まり、衝突イベントが増え続ける(捨てる分 30 で約 680 件 /
+ *  フレーム、3000 で 2200〜4000 件)。**数字は「何フレーム目を測ったか」で決まる。**
+ *  比べるときは区間(warmup〜frames)をそろえること。
+ *
+ *  ## 基準線のための出力 (2-5)
+ *  `@` で始まる行と、計測区間だけの平均使用コア数を出す(BenchMeasure.h)。
+ *  `--fail=...` は `run_baseline.ps1` の歯の確認に使う。
  */
 
 #include <chrono>
@@ -69,6 +78,8 @@
 #include "Physics/CollisionSystem.h"
 
 #include "Threading/JobSystem.h"
+
+#include "BenchMeasure.h"
 
 namespace {
 
@@ -186,8 +197,10 @@ namespace {
 }
 
 int main(int argc, char** argv) {
-  int frames = (argc > 1) ? std::atoi(argv[1]) : 300;
-  int warmup = (argc > 2) ? std::atoi(argv[2]) : 30;
+  const GLFD::Bench::Args args = GLFD::Bench::ParseArgs(argc, argv);
+  if (args.bad) { return 2; }
+  int frames = GLFD::Bench::IntArg(args, 0, 300);
+  int warmup = GLFD::Bench::IntArg(args, 1, 30);
   if (frames < 1)          { frames = 1; }
   if (frames > kMaxFrames) { frames = kMaxFrames; }
   if (warmup < 0)          { warmup = 0; }
@@ -232,6 +245,13 @@ int main(int argc, char** argv) {
               created, config->simulation.entityCount, frames, warmup);
   std::printf("workers: %u\n",
               static_cast<unsigned>(GLFD::System::WorkerThreadCount()));
+  std::printf("measured window: frames %d..%d (the flock keeps changing; there is no steady state)\n",
+              warmup, frames - 1);
+
+  std::printf("@meta bench=boid frames=%d warmup=%d measured=%d entities=%zu workers=%u\n",
+              frames, warmup, frames - warmup, created,
+              static_cast<unsigned>(GLFD::System::WorkerThreadCount()));
+  GLFD::Bench::PrintCommonMeta(args);
 
   std::fflush(stdout);   // 出口で固まっても、ここまでは必ず見えるようにする
 
@@ -239,7 +259,12 @@ int main(int argc, char** argv) {
   const float by = config->world.halfExtent[1];
   const float maxSpeed = config->simulation.maxSpeed;
 
+  GLFD::Bench::CpuSample cpuBegin;
   for (int f = 0; f < frames; ++f) {
+    // 2-5: **計測区間だけ**の CPU 時間を取る(助走と準備を含めない)
+    if (f == warmup) { cpuBegin = GLFD::Bench::SampleCpu(); }
+    if (f >= warmup) { GLFD::Bench::MaybeFail(args, f - warmup); }
+
     frameAllocator.SwapAndReset();
     GLFD::Memory::StackResource frameResource(frameAllocator.GetCurrent());
 
@@ -297,6 +322,7 @@ int main(int argc, char** argv) {
     g_samples[5][f] = us(t5, t6);
     g_frameTotal[f] = us(t0, t6);
   }
+  const GLFD::Bench::CpuWindow cpu = GLFD::Bench::Diff(cpuBegin, GLFD::Bench::SampleCpu());
 
   const int measured = frames - warmup;
 
@@ -309,6 +335,8 @@ int main(int argc, char** argv) {
     medianTotal += summary.median;
     std::printf("%-18s %9.1fus %9.1fus %9.1fus %9.1fus\n",
                 kStageNames[s], summary.median, summary.mean, summary.min, summary.p95);
+    GLFD::Bench::PrintRow("stage", kStageNames[s],
+                          summary.median, summary.mean, summary.min, summary.p95);
   }
 
   const Summary total = Summarize(g_frameTotal + warmup, measured);
@@ -316,12 +344,19 @@ int main(int argc, char** argv) {
   std::printf("%-18s %9.1fus %9.1fus %9.1fus %9.1fus\n",
               "frame (measured)", total.median, total.mean, total.min, total.p95);
   std::printf("(sum of the per-stage medians: %.1fus)\n", medianTotal);
+  GLFD::Bench::PrintRow("frame", "frame", total.median, total.mean, total.min, total.p95);
   const Summary pub  = Summarize(g_published + warmup, measured);
   const Summary drop = Summarize(g_dropped + warmup, measured);
   std::printf("\ncollision events published per frame: median %.0f  min %.0f  p95 %.0f\n",
               pub.median, pub.min, pub.p95);
   std::printf("collision events dropped   per frame: median %.0f  p95 %.0f\n",
               drop.median, drop.p95);
+  GLFD::Bench::PrintRow("count", "events_published", pub.median, pub.mean, pub.min, pub.p95);
+  GLFD::Bench::PrintRow("count", "events_dropped", drop.median, drop.mean, drop.min, drop.p95);
+
+  std::printf("\naverage cores used while measuring: %.2f (process times)  %.2f (cycles, approx)"
+              "  over %.3fs\n", cpu.coresByTimes, cpu.coresByCycles, cpu.wallSec);
+  GLFD::Bench::PrintCpu(cpu);
 
   std::printf("\nnote: rendering, input and config reloading are NOT included.\n");
   std::fflush(stdout);
@@ -329,5 +364,6 @@ int main(int argc, char** argv) {
   // 通常の終了で抜ける。1-5 から 2-3 までは、ここで `std::_Exit(0)` を使って
   // `~JobSystem` の停止のハングを避けていた。2-4 で停止経路を直したので回避を外した。
   // **このツールが自分で終わること自体が、本番の停止経路が直ったことの確認になる**
-  return 0;
+  GLFD::Bench::PrintEnd();
+  return GLFD::Bench::ExitCode(args);
 }
