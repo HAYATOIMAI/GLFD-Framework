@@ -111,6 +111,7 @@
     <ClInclude Include="Source\Physics\CollisionSystem.h" />
     <ClInclude Include="Source\Physics\SpatialHashGrid.h" />
     <ClInclude Include="Source\Threading\JobSystem.h" />
+    <ClInclude Include="Source\Threading\JobSystemProbe.h" />
     <ClInclude Include="Source\Threading\LockFreeQueue.h" />
     <ClInclude Include="Source\Threading\ThreadPool.h" />
     <ClInclude Include="Source\Scene\IScene.h" />

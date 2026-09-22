@@ -95,6 +95,11 @@ if /i "%NAME%"=="EcsSurvivorTests" set "EXTRA_FLAGS=/wd4324"
 rem  EcsGuideTests (1-8) は README の並列の例で JobSystem を使う
 if /i "%NAME%"=="EcsGuideTests" set "EXTRA_SOURCES=%ROOT%\Source\Threading\JobSystem.cpp %ROOT%\Source\Threading\ThreadPool.cpp"
 if /i "%NAME%"=="EcsGuideTests" set "EXTRA_FLAGS=/wd4324"
+rem  JobSystemStopTests (2-4) は差し込み点を有効にした本物の JobSystem を使う。
+rem  **GLFD_JOBSYSTEM_PROBE を定義するのはこのスイートとハーネスだけ。** ゲーム本体と
+rem  他のスイートは定義しないので、差し込み点は ((void)0) に消える
+if /i "%NAME%"=="JobSystemStopTests" set "EXTRA_SOURCES=%ROOT%\Source\Threading\JobSystem.cpp"
+if /i "%NAME%"=="JobSystemStopTests" set "EXTRA_FLAGS=/wd4324 /DGLFD_JOBSYSTEM_PROBE"
 set "OBJDIR=%OUTDIR%\%NAME%"
 if not exist "%OBJDIR%" mkdir "%OBJDIR%"
 

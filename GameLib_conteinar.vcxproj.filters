@@ -201,6 +201,9 @@
     <ClInclude Include="Source\Threading\JobSystem.h">
       <Filter>Threading</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Threading\JobSystemProbe.h">
+      <Filter>Threading</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Graphics\DX11Renderer.h">
       <Filter>Graphics</Filter>
     </ClInclude>
