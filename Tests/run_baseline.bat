@@ -7,7 +7,8 @@ rem          run_baseline.bat                                   main run (20 rou
 rem          run_baseline.bat -Rounds 2 -SlowRuns 1 -WakeRuns 1  trial
 rem          run_baseline.bat -Inject crash -Rounds 1 -SlowRuns 0 -WakeRuns 0
 rem                                                             teeth check
-rem                          (-Inject: build, launch, crash, hang, noend, exitcode)
+rem                          (-Inject: build, stale, nobuild, launch, crash, hang,
+rem                                    noend, exitcode)
 rem
 rem  The record goes to Docs\Baseline\<date>_<commit>\baseline.md (+ runs.csv,
 rem  rows.csv, raw\). Teeth checks go to %TEMP%\glfd_baseline_teeth\.

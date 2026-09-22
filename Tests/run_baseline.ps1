@@ -31,7 +31,7 @@ param(
   [int]$BackgroundSec = 10,
   [string]$OutRoot = "",
   [string]$Label = "",
-  [ValidateSet("", "build", "launch", "crash", "hang", "noend", "exitcode")]
+  [ValidateSet("", "build", "stale", "nobuild", "launch", "crash", "hang", "noend", "exitcode")]
   [string]$Inject = ""
 )
 
@@ -85,6 +85,9 @@ function Measure-Background([int]$seconds) {
     try { $before[$p.Id] = $p.TotalProcessorTime.TotalSeconds } catch { }
   }
   $samples = New-Object System.Collections.Generic.List[double]
+  # 最初の 1 回は捨てる。整形済みの性能カウンタは前の値との差なので、初回は 0 を返し得る
+  # (歯の確認で 1 秒だけ取ったとき「計測の前 0.0%」になった)
+  $null = Get-CimInstance -ClassName Win32_PerfFormattedData_PerfOS_Processor -Filter "Name='_Total'"
   $sw = [Diagnostics.Stopwatch]::StartNew()
   for ($i = 0; $i -lt $seconds; ++$i) {
     Start-Sleep -Seconds 1
@@ -264,16 +267,25 @@ $BgBefore = Measure-Background $BackgroundSec
 # ----------------------------------------------------------------- ビルド
 $BuildLog = Join-Path $OutDir "build.log"
 $Exes = @("EcsBenchmark.exe", "EcsSurvivorBenchmark.exe", "JobWakeBenchmark.exe")
-foreach ($e in $Exes) {
-  $p = Join-Path $BuildDir $e
-  if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force }   # 古い exe を測らない
+# 古い exe を測らないための守りは 2 段ある。
+#   1 段目: ビルドの前に exe を消す(ビルドが何も作らなければ「exe が無い」で止まる)
+#   2 段目: ビルドの後に更新時刻を確かめる(1 段目が効かなかったときに「古い exe」で止まる)
+# 歯の確認: -Inject stale は 1 段目を外し、ビルドを「何もせず 0 で終わる」にする -> 2 段目が拾う。
+#           -Inject nobuild は 1 段目を残し、同じくビルドを空にする -> 1 段目が拾う
+if ($Inject -ne "stale") {
+  foreach ($e in $Exes) {
+    $p = Join-Path $BuildDir $e
+    if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force }
+  }
 }
 $BuildStart = Get-Date
 if ($Inject -eq "build") { $env:GLFD_BENCH_INJECT_BUILD_FAILURE = "1" }
+if ($Inject -eq "stale" -or $Inject -eq "nobuild") { $env:GLFD_BENCH_INJECT_SKIP_BUILD = "1" }
 Write-Host "building..."
 & cmd.exe /c "`"$PSScriptRoot\build_benchmarks.bat`" > `"$BuildLog`" 2>&1"
 $BuildExit = $LASTEXITCODE
 $env:GLFD_BENCH_INJECT_BUILD_FAILURE = $null
+$env:GLFD_BENCH_INJECT_SKIP_BUILD = $null
 $BuildStatus = "OK"
 if ($BuildExit -ne 0) { $BuildStatus = "BUILD_FAILED (exit $BuildExit)" }
 else {

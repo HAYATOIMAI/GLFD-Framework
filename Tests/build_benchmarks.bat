@@ -14,9 +14,18 @@ rem  NOTE: GLFD_BENCH_INJECT_BUILD_FAILURE=1 force-includes a header that does
 rem        not exist, so the build fails. run_baseline.ps1 uses it to check that
 rem        a failed build is recorded as a failure (the teeth check).
 rem
+rem  NOTE: GLFD_BENCH_INJECT_SKIP_BUILD=1 builds NOTHING and exits 0, i.e. a
+rem        build that "succeeded" without producing an exe. run_baseline.ps1
+rem        uses it to check that an old exe is never measured (STALE_EXE).
+rem
 rem  This file is ASCII only, so it reads the same as cp932.
 rem ---------------------------------------------------------------------------
 setlocal
+
+if "%GLFD_BENCH_INJECT_SKIP_BUILD%"=="1" (
+  echo [INJECTED] build skipped, exiting with 0
+  exit /b 0
+)
 
 set "ROOT=%~dp0.."
 set "OUTDIR=%~dp0build"
