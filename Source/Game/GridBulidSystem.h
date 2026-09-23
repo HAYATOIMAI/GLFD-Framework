@@ -10,10 +10,16 @@
 namespace GLFD::Systems {
   class GridBuildSystem {
   public:
-    /// 1 本あたりの最小の対象数 (ECS 2-6、Threading/ParallelFor.h)。
-    /// **3a では 1**(今までと同じ本数 = ワーカーの数)。3b で実測から決める
-    /// UpdateAll と UpdateFiltered で共有する(同じ挿入の処理)
-    static constexpr size_t kGrain = 1;
+    /// 1 体あたりの費用 [us]。UpdateAll(Boid の 20000 体)をメインだけで回して測った値
+    /// (ECS 2-6 手順2、i7-12700KF、Release)。粒度 = 1 本あたりの目標の仕事 / これ
+    /// (Threading/ParallelFor.h の GrainFor)。**機械が変わったら測り直す値**
+    static constexpr double kCostAllUs = 0.0064;
+    static constexpr size_t kGrainAll = Thread::GrainFor(kCostAllUs);
+    /// 1 体あたりの費用 [us]。UpdateFiltered(Survivor small / large の 2 点の傾き。Find を 2 回引く分だけ重い)をメインだけで回して測った値
+    /// (ECS 2-6 手順2、i7-12700KF、Release)。粒度 = 1 本あたりの目標の仕事 / これ
+    /// (Threading/ParallelFor.h の GrainFor)。**機械が変わったら測り直す値**
+    static constexpr double kCostFilteredUs = 0.0075;
+    static constexpr size_t kGrainFiltered = Thread::GrainFor(kCostFilteredUs);
 
     /**
      * @brief グリッドを組む
@@ -92,7 +98,7 @@ namespace GLFD::Systems {
       auto& jobSystem = *ctx.jobSystem;
 
       // 並列でインサート。分け方は ParallelFor.h の 1 か所 (ECS 2-6)
-      Thread::ParallelForChunks(jobSystem, count, kGrain, [&](size_t start, size_t end) {
+      Thread::ParallelForChunks(jobSystem, count, kGrainAll, [&](size_t start, size_t end) {
             // **入れているのは基準プールの dense 添字**である (1-5 論点3)。
             // 引く側も同じ View の dense 配列で引くので対応が取れている
             for (size_t i = start; i < end; ++i) {
@@ -140,7 +146,7 @@ namespace GLFD::Systems {
       auto& jobSystem = *ctx.jobSystem;
 
       // 分け方は ParallelFor.h の 1 か所 (ECS 2-6)
-      Thread::ParallelForChunks(jobSystem, count, kGrain, [&](size_t start, size_t end) {
+      Thread::ParallelForChunks(jobSystem, count, kGrainFiltered, [&](size_t start, size_t end) {
             for (size_t i = start; i < end; ++i) {
               const ECS::Entity e = owners[i];
               // 基準プールにいても組が揃っているとは限らない (R-22)

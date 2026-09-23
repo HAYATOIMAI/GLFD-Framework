@@ -52,9 +52,11 @@ namespace GLFD::Systems {
     /// 1 発の弾が見る候補の上限。**候補は敵だけ**なので、敵以外に消費されない
     static constexpr int kMaxChecks = 16;
 
-    /// 1 本あたりの最小の対象数 (ECS 2-6、Threading/ParallelFor.h)。
-    /// **3a では 1**(今までと同じ本数 = ワーカーの数)。3b で実測から決める
-    static constexpr std::size_t kGrain = 1;
+    /// 1 体あたりの費用 [us]。Hit(弾 1 発あたり。Survivor small / large の 2 点の傾き)をメインだけで回して測った値
+    /// (ECS 2-6 手順2、i7-12700KF、Release)。粒度 = 1 本あたりの目標の仕事 / これ
+    /// (Threading/ParallelFor.h の GrainFor)。**機械が変わったら測り直す値**
+    static constexpr double kCostPerEntityUs = 0.128;
+    static constexpr std::size_t kGrain = Thread::GrainFor(kCostPerEntityUs);
 
     /**
      * @brief 標的のグリッドを組む。**組み方と引き方の対はここ 1 箇所で決める**

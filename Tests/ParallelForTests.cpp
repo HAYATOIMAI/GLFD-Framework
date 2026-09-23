@@ -14,6 +14,7 @@
  *   4. **1 本のときは積まない。** 停止済みの `JobSystem` で呼ぶ。もし `KickJob` を呼べば
  *      `rejectedAfterStop` が増え、body は実行されない。増えず、body が呼んだスレッドで
  *      1 回だけ動いたなら、積んでいない
+ *   6. `GrainFor`: 粒度 = ceil(目標の仕事 / 1 体あたりの費用)、1 未満にしない(3b)
  *   5. **窓を広げても取り残されない。** ワーカーが眠る直前(`WorkerBeforeWait`)で
  *      空回りさせ、確認と `wait` の間に積まれる形を増やしても、全添字がちょうど 1 回
  *
@@ -111,6 +112,27 @@ namespace {
     CHECK(combos > 5000);   // 回したことの確認(ループが空でない)
   }
 
+  // ------------------------------------------------------------------ 6 (3b)
+  void TestGrainFor() {
+    GLFD::Test::BeginCase("T-ECS-33f: GrainFor = ceil(target / cost), never below 1");
+    using GLFD::Thread::GrainFor;
+    // 割り切れない値で切り上げを見る(境界の丸めに頼らない入力を選ぶ)
+    CHECK(GrainFor(0.3, 1.0) == 4);          // 3.33 -> 4
+    CHECK(GrainFor(0.25, 1.0) == 4);         // 4.0 ちょうど(0.25 は 2 進で正確)
+    CHECK(GrainFor(0.0023, 8.0) == 3479);    // Movement の形。3478.26 -> 3479
+    CHECK(GrainFor(0.128, 8.0) == 63);       // Hit の形。62.5 -> 63
+    CHECK(GrainFor(3.0, 1.0) == 1);          // 1 体で目標を超えるなら 1
+    CHECK(GrainFor(0.0, 8.0) == 1);          // 費用 0 以下は 1
+    CHECK(GrainFor(-1.0, 8.0) == 1);
+    CHECK(GrainFor(0.5, 0.0) == 1);          // 目標 0 以下は 1
+    CHECK(GrainFor(1.0e-30, 8.0) > 1000000000u);   // 極端に安くても溢れず大きな値
+    // 既定の目標は kTargetChunkUs
+    CHECK(GrainFor(0.01) == GrainFor(0.01, GLFD::Thread::kTargetChunkUs));
+    // 変異 M6(切り捨て)はここでビルドが止まる。値 3 != 4 で落ちる(捕まえた、と数えてよい)
+    static_assert(GrainFor(0.3, 1.0) == 4,
+                  "GrainFor(0.3, 1.0) must be 4: it rounds UP (ceil), and it must work in a constant expression");
+  }
+
   // ------------------------------------------------------------------ 3
   struct RunResult {
     bool eachOnce = true;
@@ -202,6 +224,7 @@ int main() {
   GLFD::Test::BeginSuite("ParallelFor (ECS 2-6)");
   TestPlanChunks();
   TestChunkBegin();
+  TestGrainFor();
   {
     JobSystem js;
     TestEveryIndexOnce(js);

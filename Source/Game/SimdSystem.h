@@ -9,9 +9,11 @@
 namespace GLFD::Systems {
   class MovementSystem {
   public:
-    /// 1 本あたりの最小の対象数 (ECS 2-6、Threading/ParallelFor.h)。
-    /// **3a では 1**(今までと同じ本数 = ワーカーの数)。3b で実測から決める
-    static constexpr size_t kGrain = 1;
+    /// 1 体あたりの費用 [us]。Movement(Survivor small / large の 2 点の傾き。Boid の 20000 体でも同じ値)をメインだけで回して測った値
+    /// (ECS 2-6 手順2、i7-12700KF、Release)。粒度 = 1 本あたりの目標の仕事 / これ
+    /// (Threading/ParallelFor.h の GrainFor)。**機械が変わったら測り直す値**
+    static constexpr double kCostPerEntityUs = 0.0023;
+    static constexpr size_t kGrain = Thread::GrainFor(kCostPerEntityUs);
 
     /**
      * @brief 全エンティティの位置をSIMDで高速更新

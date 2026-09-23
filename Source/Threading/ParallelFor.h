@@ -81,6 +81,35 @@ namespace GLFD::Thread {
   }
 
   /**
+   * @brief 1 本あたりの目標の仕事 [us](ECS 2-6 手順3b)。**全段で 1 つ**
+   * @details 1 本起こす費用は約 1.5 us で起こす側が払い、積んでからワーカーで走り始めるまで
+   *  約 4.3 us かかる(2-6 手順1)。1 本の仕事がこれより小さくなる分け方はしない。
+   *
+   *  **8 us は 4 / 8 / 16 / 32 us を振って決めた**(手順3b、3a と交互に各 30 回):
+   *   - Survivor small は 4〜32 のどれでも全段が 1 本になり、差が無い(中央値 12.0〜12.1 us)
+   *   - Survivor large の中央値: 4 = 79.3、8 = 66.9、16 = 67.3、32 = 72.6 us。
+   *     8 は 4 と 32 より明確に良い(ブロックの範囲が重ならない)。8 と 16 は見分けられない
+   *     (中央値も p95 も範囲が重なる)ので、**本数の変化が少ない方(8)**を選んだ
+   *   - Boid は BoidSystem / CollisionSystem が 20 本のまま。Movement / GridBuild だけ本数が減る
+   *  1 体あたりの費用と同じく、**機械が変わったら振り直す値**
+   */
+  inline constexpr double kTargetChunkUs = 8.0;
+
+  /**
+   * @brief 粒度 = ceil(targetChunkUs / 1 体あたりの費用)。**1 未満にはしない**
+   * @param costPerEntityUs 段ごとに測った 1 体あたりの費用 [us]。0 以下なら 1 を返す
+   */
+  [[nodiscard]] constexpr std::size_t GrainFor(double costPerEntityUs,
+                                              double targetChunkUs = kTargetChunkUs) noexcept {
+    if (!(costPerEntityUs > 0.0) || !(targetChunkUs > 0.0)) { return 1; }
+    const double q = targetChunkUs / costPerEntityUs;
+    if (!(q > 1.0)) { return 1; }
+    if (q >= 1.0e15) { return static_cast<std::size_t>(1.0e15); }   // 実体の数より十分大きい
+    const std::size_t n = static_cast<std::size_t>(q);
+    return (static_cast<double>(n) < q) ? n + 1 : n;
+  }
+
+  /**
    * @brief body(start, end) を [0, count) の上で呼ぶ
    * @details 1 本ならその場で呼ぶ(何も起こさない)。2 本以上なら積んで WaitFor する。
    *          **所有スレッドから呼ぶこと**(KickJob と同じ前提。Debug で assert される)
