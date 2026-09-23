@@ -92,6 +92,10 @@ namespace GLFD::Thread {
    *     (中央値も p95 も範囲が重なる)ので、**本数の変化が少ない方(8)**を選んだ
    *   - Boid は BoidSystem / CollisionSystem が 20 本のまま。Movement / GridBuild だけ本数が減る
    *  1 体あたりの費用と同じく、**機械が変わったら振り直す値**
+   *
+   *  @note **CPU の予算が問題になったら、w を上げる(16 us)のが候補。** large では 8 と 16 で
+   *        時間は見分けられなかったが、平均使用コア数は 16 の方が少なかった(2.21 と 1.57)。
+   *        同じ時間で使うコアが少ない。今は時間を主にして、本数の変化が少ない 8 を選んでいる
    */
   inline constexpr double kTargetChunkUs = 8.0;
 
