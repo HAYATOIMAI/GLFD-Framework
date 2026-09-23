@@ -100,6 +100,9 @@ rem  **GLFD_JOBSYSTEM_PROBE ‚ğ’è‹`‚·‚é‚Ì‚Í‚±‚ÌƒXƒC[ƒg‚Æƒn[ƒlƒX‚¾‚¯B** ƒQ[ƒ€–
 rem  ‘¼‚ÌƒXƒC[ƒg‚Í’è‹`‚µ‚È‚¢‚Ì‚ÅA·‚µ‚İ“_‚Í ((void)0) ‚ÉÁ‚¦‚é
 if /i "%NAME%"=="JobSystemStopTests" set "EXTRA_SOURCES=%ROOT%\Source\Threading\JobSystem.cpp"
 if /i "%NAME%"=="JobSystemStopTests" set "EXTRA_FLAGS=/wd4324 /DGLFD_JOBSYSTEM_PROBE"
+rem  ParallelForTests (2-6) ‚Í–{•¨‚Ì JobSystem ‚Å•ª‚¯•û‚ÆÏ‚İ•û‚ğŠm‚©‚ß‚é
+if /i "%NAME%"=="ParallelForTests" set "EXTRA_SOURCES=%ROOT%\Source\Threading\JobSystem.cpp"
+if /i "%NAME%"=="ParallelForTests" set "EXTRA_FLAGS=/wd4324 /DGLFD_JOBSYSTEM_PROBE"
 set "OBJDIR=%OUTDIR%\%NAME%"
 if not exist "%OBJDIR%" mkdir "%OBJDIR%"
 

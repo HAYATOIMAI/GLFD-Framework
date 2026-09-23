@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Threading/JobSystem.h"
+#include "Threading/ParallelFor.h"
 #include "ECS/Registry.h"
 #include "ECS/Components.h"
 #include "CollisionComponents.h"
@@ -17,6 +18,10 @@
 namespace GLFD::Systems {
   class CollisionSystem {
   public:
+    /// 1 本あたりの最小の対象数 (ECS 2-6、Threading/ParallelFor.h)。
+    /// **3a では 1**(今までと同じ本数 = ワーカーの数)。3b で実測から決める
+    static constexpr size_t kGrain = 1;
+
     // メイン処理
     static void Update(GameContext& context) {
 
@@ -44,25 +49,15 @@ namespace GLFD::Systems {
       // 組んだ人(`GridBuildSystem`)と読む人(ここ)が別なのに、読む側が
       // 消していた。**このシステムは読むだけである。**
 
-      // バッチ処理設定
-      size_t threadCount = System::WorkerThreadCount();   // 0 を返し得るので丸める (ECS-0 3-7)
-      size_t batchSize = count / threadCount;
-
       // グリッドを使って近傍を検索し、衝突応答を行う
-
-      Thread::JobCounter solveCounter;
-      auto solveHandle = context.jobSystem->CreateHandle(solveCounter);
 
       // 並列ループへ入る前に 1 回だけ突き合わせる (1-5 / R-24)
       assert(grid.BuildStamp() == context.registry->StructureVersion()
              && "CollisionSystem: the registry changed shape after the grid was built. "
                 "The dense indices stored in the grid no longer mean what they meant (1-5).");
 
-      for (size_t t = 0; t < threadCount; ++t) {
-        size_t start = t * batchSize;
-        size_t end = (t == threadCount - 1) ? count : start + batchSize;
-
-        context.jobSystem->KickJob([=, &grid, &eventBus]() {
+      // 分け方は ParallelFor.h の 1 か所 (ECS 2-6)
+      Thread::ParallelForChunks(*context.jobSystem, count, kGrain, [&](size_t start, size_t end) {
           for (auto entry : view.Slice(start, end)) {
             const ECS::Entity     self = std::get<0>(entry);
             Components::Position& posA = std::get<1>(entry);
@@ -140,9 +135,7 @@ namespace GLFD::Systems {
               return true;
               });
           }
-          }, &solveHandle);
-      }
-      context.jobSystem->WaitFor(solveHandle);
+          });
     }
   };
 }

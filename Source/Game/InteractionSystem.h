@@ -2,6 +2,7 @@
 #include "../ECS/Registry.h"
 #include "../ECS/View.h"
 #include "../Threading/JobSystem.h"
+#include "../Threading/ParallelFor.h"
 #include "../Core/InputSystem.h"
 #include "../ECS/Components.h"
 #include "../Graphics/SimpleWindow.h" // 座標変換用
@@ -10,6 +11,11 @@
 namespace GLFD::Systems {
   class InteractionSystem {
   public:
+    /// 1 本あたりの最小の対象数 (ECS 2-6、Threading/ParallelFor.h)。**未計測。**
+    /// 左クリックしないと動かないので、ベンチで 1 体あたりの費用を測れていない。
+    /// 今までと同じ本数(1 = ワーカーの数)のまま置いている
+    static constexpr size_t kGrain = 1;
+
     /// @param explosionRadius / explosionForce / screenScale 設定由来 (interaction)
     static void Update(ECS::Registry& registry,
                        Thread::JobSystem& jobSystem,
@@ -41,17 +47,8 @@ namespace GLFD::Systems {
         const size_t count = view.BaseSize();
         if (count == 0) { return; }
 
-        size_t threadCount = System::WorkerThreadCount();   // 0 を返し得るので丸める (ECS-0 3-7)
-        size_t batchSize = count / threadCount;
-        Thread::JobCounter counter;
-        auto handle = jobSystem.CreateHandle(counter);
-
-        for (size_t t = 0; t < threadCount; ++t) {
-          size_t start = t * batchSize;
-          size_t end = (t == threadCount - 1) ? count : start + batchSize;
-
-          jobSystem.KickJob([view, start, end, worldX, worldY,
-                             explosionRadius, explosionForce]() {
+        // 分け方は ParallelFor.h の 1 か所 (ECS 2-6)
+        Thread::ParallelForChunks(jobSystem, count, kGrain, [&](size_t start, size_t end) {
               for (auto [entity, pos, vel] : view.Slice(start, end)) {
                 (void)entity;
                 float dx = pos.x - worldX;
@@ -69,9 +66,7 @@ namespace GLFD::Systems {
                   vel.vy += (dy / dist) * power;
                 }
               }
-            }, &handle);
-        }
-        jobSystem.WaitFor(handle);
+            });
       }
     }
   };

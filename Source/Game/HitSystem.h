@@ -36,6 +36,7 @@
 #include "../Physics/CollisionComponents.h"
 #include "../Physics/SpatialHashGrid.h"
 #include "../Threading/JobSystem.h"
+#include "../Threading/ParallelFor.h"
 #include "GridBulidSystem.h"
 #include "SurvivorComponents.h"
 
@@ -50,6 +51,10 @@ namespace GLFD::Systems {
   public:
     /// 1 発の弾が見る候補の上限。**候補は敵だけ**なので、敵以外に消費されない
     static constexpr int kMaxChecks = 16;
+
+    /// 1 本あたりの最小の対象数 (ECS 2-6、Threading/ParallelFor.h)。
+    /// **3a では 1**(今までと同じ本数 = ワーカーの数)。3b で実測から決める
+    static constexpr std::size_t kGrain = 1;
 
     /**
      * @brief 標的のグリッドを組む。**組み方と引き方の対はここ 1 箇所で決める**
@@ -99,17 +104,8 @@ namespace GLFD::Systems {
              && "HitSystem: the registry changed shape after the target grid was built. "
                 "Spawning with the immediate API belongs before GridBuild (1-8).");
 
-      const std::size_t threadCount = System::WorkerThreadCount();
-      const std::size_t batchSize   = count / threadCount;
-
-      Thread::JobCounter counter;
-      auto handle = ctx.jobSystem->CreateHandle(counter);
-
-      for (std::size_t t = 0; t < threadCount; ++t) {
-        const std::size_t start = t * batchSize;
-        const std::size_t end   = (t == threadCount - 1) ? count : start + batchSize;
-
-        ctx.jobSystem->KickJob([=, &grid, &bus]() {
+      // 分け方は ParallelFor.h の 1 か所 (ECS 2-6)
+      Thread::ParallelForChunks(*ctx.jobSystem, count, kGrain, [&](std::size_t start, std::size_t end) {
           for (auto entry : bullets.Slice(start, end)) {
             const ECS::Entity           self = std::get<0>(entry);
             const Components::Position& posA = std::get<1>(entry);
@@ -145,9 +141,7 @@ namespace GLFD::Systems {
               return true;
             });
           }
-        }, &handle);
-      }
-      ctx.jobSystem->WaitFor(handle);
+        });
     }
   };
 

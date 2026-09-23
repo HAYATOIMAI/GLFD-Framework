@@ -2,14 +2,17 @@
  * @file  probe_survivor_loop.cpp
  * @brief The whole 1-8 loop, through the same entry points the scene uses.
  *
- * @warning **Dirty, and not because of anything 1-8 wrote.** The loop reaches
- *          `HitSystem::Update`, which kicks jobs, and the kick builds a
- *          `std::function` big enough to allocate. See
- *          `probe_root_job_dispatch.cpp`. Nothing in `SurvivorLoop.h` itself
- *          throws: `probe_survivor_loop_steps.cpp` covers that part and is CLEAN.
+ * @note Was dirty until ECS 2-6, and not because of anything 1-8 wrote: the loop
+ *       reaches `HitSystem::Update`, whose kick built a `std::function` big enough
+ *       to allocate. Nothing in `SurvivorLoop.h` itself throws
+ *       (`probe_survivor_loop_steps.cpp`).
+ *  **ECS 2-6 3a:** the kick now goes through `Thread::ParallelForChunks`, whose job
+ *  captures only `&body` and the range (24 bytes). That fits `std::function`'s
+ *  inline buffer, so the conversion no longer allocates. The body itself is
+ *  unchanged. `probe_root_job_dispatch.cpp` keeps the tooth (it still THROWs).
  */
-// EXPECT: THROW
-// WHY: reaches HitSystem -> JobSystem::KickJob. See probe_root_job_dispatch.
+// EXPECT: CLEAN
+// WHY: 2-6 3a - every kick on this path goes through ParallelForChunks (&body + range). was THROW.
 
 #include "Core/GameContext.h"
 #include "Game/SurvivorLoop.h"

@@ -4,11 +4,17 @@
 #include "../Core/GameContext.h"
 #include "../Physics/SpatialHashGrid.h"
 #include "../Core/HardwareConstants.h"
+#include "../Threading/ParallelFor.h"
 #include <thread>
 
 namespace GLFD::Systems {
   class GridBuildSystem {
   public:
+    /// 1 本あたりの最小の対象数 (ECS 2-6、Threading/ParallelFor.h)。
+    /// **3a では 1**(今までと同じ本数 = ワーカーの数)。3b で実測から決める
+    /// UpdateAll と UpdateFiltered で共有する(同じ挿入の処理)
+    static constexpr size_t kGrain = 1;
+
     /**
      * @brief グリッドを組む
      *
@@ -85,25 +91,14 @@ namespace GLFD::Systems {
       const Components::Position* const pData = view.BaseComponents();
       auto& jobSystem = *ctx.jobSystem;
 
-      // 並列でインサート
-      size_t threadCount = System::WorkerThreadCount();   // 0 を返し得るので丸める (ECS-0 3-7)
-      size_t batchSize = count / threadCount;
-      Thread::JobCounter counter;
-      auto handle = jobSystem.CreateHandle(counter);
-
-      for (size_t t = 0; t < threadCount; ++t) {
-        size_t start = t * batchSize;
-        size_t end = (t == threadCount - 1) ? count : start + batchSize;
-
-        jobSystem.KickJob([start, end, pData, grid]() {
+      // 並列でインサート。分け方は ParallelFor.h の 1 か所 (ECS 2-6)
+      Thread::ParallelForChunks(jobSystem, count, kGrain, [&](size_t start, size_t end) {
             // **入れているのは基準プールの dense 添字**である (1-5 論点3)。
             // 引く側も同じ View の dense 配列で引くので対応が取れている
             for (size_t i = start; i < end; ++i) {
               grid->Insert(static_cast<uint32_t>(i), pData[i]);
             }
-          }, &handle);
-      }
-      jobSystem.WaitFor(handle);
+          });
     }
 
     /**
@@ -144,16 +139,8 @@ namespace GLFD::Systems {
       const ECS::Entity* const owners = view.BaseEntities();
       auto& jobSystem = *ctx.jobSystem;
 
-      size_t threadCount = System::WorkerThreadCount();
-      size_t batchSize = count / threadCount;
-      Thread::JobCounter counter;
-      auto handle = jobSystem.CreateHandle(counter);
-
-      for (size_t t = 0; t < threadCount; ++t) {
-        size_t start = t * batchSize;
-        size_t end = (t == threadCount - 1) ? count : start + batchSize;
-
-        jobSystem.KickJob([start, end, owners, grid, view]() {
+      // 分け方は ParallelFor.h の 1 か所 (ECS 2-6)
+      Thread::ParallelForChunks(jobSystem, count, kGrain, [&](size_t start, size_t end) {
             for (size_t i = start; i < end; ++i) {
               const ECS::Entity e = owners[i];
               // 基準プールにいても組が揃っているとは限らない (R-22)
@@ -163,9 +150,7 @@ namespace GLFD::Systems {
               if (((view.template Find<Filter>(e) == nullptr) || ...)) { continue; }
               grid->Insert(static_cast<uint32_t>(i), *pos);
             }
-          }, &handle);
-      }
-      jobSystem.WaitFor(handle);
+          });
     }
   };
 }

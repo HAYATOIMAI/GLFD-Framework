@@ -8,6 +8,7 @@
 #include "BoidAgent.h"
 #include "../Core/GameContext.h"
 #include "../Core/HardwareConstants.h"
+#include "../Threading/ParallelFor.h"
 #include <cassert>
 #include <cmath>
 #include <tuple>
@@ -15,6 +16,10 @@
 namespace GLFD::Systems {
   class BoidSystem {
   public:
+    /// 1 本あたりの最小の対象数 (ECS 2-6、Threading/ParallelFor.h)。
+    /// **3a では 1**(今までと同じ本数 = ワーカーの数)。3b で実測から決める
+    static constexpr size_t kGrain = 1;
+
     /// @param maxSpeed 設定由来の速度上限 (simulation.maxSpeed)
     static void Update(GameContext& context, float maxSpeed) {
 
@@ -35,11 +40,6 @@ namespace GLFD::Systems {
       const size_t count = view.BaseSize();
       if (count == 0 || gridCount == 0 || gridPositions == nullptr) return;
       
-      size_t threadCount = System::WorkerThreadCount();   // 0 を返し得るので丸める (ECS-0 3-7)
-      size_t batchSize = count / threadCount;
-      Thread::JobCounter counter;
-      auto handle = context.jobSystem->CreateHandle(counter);
-
       // **1-7: ここでは組まない。読むだけである。**
       //
       // 以前はこの位置で `Clear()` してから組み直していた。直前に
@@ -58,11 +58,8 @@ namespace GLFD::Systems {
                 "The dense indices stored in the grid no longer mean what they meant "
                 "(1-5). Structural changes belong in a CommandBuffer.");
 
-      for (size_t t = 0; t < threadCount; ++t) {
-        size_t start = t * batchSize;
-        size_t end = (t == threadCount - 1) ? count : start + batchSize;
-
-        context.jobSystem->KickJob([=, &grid]() {
+      // 分け方は ParallelFor.h の 1 か所 (ECS 2-6)
+      Thread::ParallelForChunks(*context.jobSystem, count, kGrain, [&](size_t start, size_t end) {
           for (auto entry : view.Slice(start, end)) {
             // 構造化束縛を内側のラムダで捕まえない形にしておく
             const ECS::Entity            self  = std::get<0>(entry);
@@ -165,9 +162,7 @@ namespace GLFD::Systems {
               }
             }
           }
-          }, & handle);
-      }
-      context.jobSystem->WaitFor(handle);
+          });
     }
   };
 }

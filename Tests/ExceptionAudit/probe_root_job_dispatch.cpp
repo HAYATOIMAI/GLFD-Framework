@@ -21,6 +21,12 @@
  *    - `probe_survivor_loop`       reaches both of the above
  *  **Fix this row and those three go CLEAN together.** Out of scope for 2-2:
  *  the repair is a non-allocating job payload, which is a phase of its own.
+ *
+ *  **ECS 2-6 3a: those three went CLEAN while this row stays THROW.** The call
+ *  sites now go through `Thread::ParallelForChunks`, whose job captures only
+ *  `&body` and the range (24 bytes, inside the inline buffer). `KickJob` itself
+ *  is unchanged: a large capture still allocates, which is what this row checks.
+ *  It stays THROW on purpose - it is the tooth for the other three.
  */
 // EXPECT: THROW
 // WHY: root cause 1 - std::function heap-allocates a large lambda. Pre-existing, not ECS 2-2.

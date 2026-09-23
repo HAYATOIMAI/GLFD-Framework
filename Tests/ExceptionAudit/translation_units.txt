@@ -18,8 +18,8 @@
 
 Source/Physics/SpatialHashGrid.cpp|CLEAN|the one per-frame .cpp with no throw at all. it should stay that way.
 Source/Scene/SceneManager.cpp|CLEAN|2-1: Try* everywhere, and the Logger moved to Engine (6.4) so no row here is allowed to be dirty.
-Source/Game/SurvivorScene.cpp|THROW|LOG_* plus the job dispatch. see probe_root_logger and probe_root_job_dispatch.
-Source/Game/BoidDemoScene.cpp|THROW|LOG_* plus the job dispatch. the two root causes were not bisected apart here.
+Source/Game/SurvivorScene.cpp|THROW|LOG_* (see probe_root_logger). the job dispatch part went away in 2-6 3a (ParallelForChunks); the rest was not re-bisected.
+Source/Game/BoidDemoScene.cpp|THROW|LOG_* (see probe_root_logger). the job dispatch part went away in 2-6 3a (ParallelForChunks); the rest was not re-bisected.
 Source/Threading/JobSystem.cpp|THROW|2-4 removed the try/catch and std::cerr (C4530 gone). measured: the only throw is construction time, vector<thread>::reserve/emplace_back -> _Throw_bad_array_new_length. KickJob/WaitFor/Stop/worker loop reach none. N-2 permits this.
 Source/Core/StackAllocator.cpp|THROW|throw std::bad_alloc at line 12. construction only, never per-frame. N-2 permits this.
 Source/Engine.cpp|C4530+THROW|includes <chrono> itself, builds std::wstring, and make_unique's a scene on each key press. not per-frame.
