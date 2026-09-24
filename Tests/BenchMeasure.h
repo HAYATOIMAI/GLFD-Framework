@@ -98,6 +98,15 @@ namespace GLFD::Bench {
   void PrintRow(const char* kind, const char* name, double median, double mean,
                 double min, double p95);
 
+  /**
+   * @brief 計測した各フレームの時間を、フレームの順に 1 行で出す(`@framevals n=N v1 v2 ...`)
+   * @details **p99 と最大は、1 回ごとではなく全回のフレームをまとめてから取る**(ECS 2-7)。
+   *  1 回 270 フレームの p99 は下から約 3 番目の値で、最大は 1 フレームだけの値になり、
+   *  最小値と同じく標本数で動く(開発手法 §5.3)。**並べ替える前に呼ぶこと**(Summarize は
+   *  配列をその場で並べ替える)
+   */
+  void PrintFrameValues(const double* values, int count);
+
   /// 最後の行。これが無い出力は失敗として扱われる
   void PrintEnd();
 

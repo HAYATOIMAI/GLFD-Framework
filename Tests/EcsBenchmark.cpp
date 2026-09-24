@@ -339,6 +339,7 @@ int main(int argc, char** argv) {
                           summary.median, summary.mean, summary.min, summary.p95);
   }
 
+  GLFD::Bench::PrintFrameValues(g_frameTotal + warmup, measured);   // 並べ替える前に(2-7)
   const Summary total = Summarize(g_frameTotal + warmup, measured);
   std::printf("------------------------------------------------------------\n");
   std::printf("%-18s %9.1fus %9.1fus %9.1fus %9.1fus\n",

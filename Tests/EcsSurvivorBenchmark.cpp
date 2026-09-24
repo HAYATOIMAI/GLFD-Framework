@@ -247,6 +247,7 @@ int main(int argc, char** argv) {
     GLFD::Bench::PrintRow("stage", GLFD::Game::kSurvivorOrder[i].name,
                           s.median, s.mean, s.min, s.p95);
   }
+  GLFD::Bench::PrintFrameValues(g_frame, frames);   // 並べ替える前に(2-7)
   const Summary frame = Summarize(g_frame, frames);
   std::printf("------------------------------------------------------------\n");
   std::printf("%-18s %9.1fus %9.1fus %9.1fus %9.1fus\n",

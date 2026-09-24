@@ -158,6 +158,12 @@ namespace GLFD::Bench {
                 kind, name, median, mean, min, p95);
   }
 
+  void PrintFrameValues(const double* values, int count) {
+    std::printf("@framevals n=%d", count);
+    for (int i = 0; i < count; ++i) { std::printf(" %.1f", values[i]); }
+    std::printf("\n");
+  }
+
   void PrintEnd() {
     std::printf("@end\n");
     std::fflush(stdout);
