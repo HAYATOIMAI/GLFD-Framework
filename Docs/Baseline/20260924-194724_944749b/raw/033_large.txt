@@ -1,0 +1,58 @@
+=== ECS survivor benchmark (baseline for phase 2) ===
+(configuration: Release / NDEBUG)
+preset: large  frames: 3000  warmup: 900  workers: 20
+@meta bench=survivor preset=large frames=3000 warmup=900 measured=3000 workers=20
+@meta hardware_concurrency=20 physical_cores=12 logical_processors=20 p_cores=8 p_logical=16 e_cores=4 e_logical=4
+@meta fail=none fail_at=5
+@meta msc_full_ver=195136257
+@meta configuration=Release
+
+step                   median       mean        min        p95
+------------------------------------------------------------
+SpawnEnemies             0.0us       0.2us       0.0us       1.3us
+@stage name=SpawnEnemies median=0.00 mean=0.24 min=0.00 p95=1.30
+FireBullets              0.5us       0.4us       0.0us       0.9us
+@stage name=FireBullets median=0.50 mean=0.40 min=0.00 p95=0.90
+Movement                10.7us      11.1us       7.8us      14.0us
+@stage name=Movement median=10.70 mean=11.09 min=7.80 p95=14.00
+GridBuild               26.6us      27.4us      24.2us      30.1us
+@stage name=GridBuild median=26.60 mean=27.40 min=24.20 p95=30.10
+Hit                     20.1us      22.7us      17.5us      35.7us
+@stage name=Hit median=20.10 mean=22.66 min=17.50 p95=35.70
+DispatchEvents           0.4us       0.5us       0.0us       0.9us
+@stage name=DispatchEvents median=0.40 mean=0.46 min=0.00 p95=0.90
+Lifetime                 0.9us       0.9us       0.6us       1.1us
+@stage name=Lifetime median=0.90 mean=0.92 min=0.60 p95=1.10
+Collect                  0.2us       0.2us       0.1us       0.3us
+@stage name=Collect median=0.20 mean=0.20 min=0.10 p95=0.30
+Reach                    6.6us       6.8us       6.4us       7.0us
+@stage name=Reach median=6.60 mean=6.84 min=6.40 p95=7.00
+ApplyCommands            0.8us       0.8us       0.0us       1.5us
+@stage name=ApplyCommands median=0.80 mean=0.82 min=0.00 p95=1.50
+------------------------------------------------------------
+frame (measured)        67.6us      71.3us      60.5us      92.0us
+(sum of the per-step medians: 66.8us)
+@frame name=frame median=67.60 mean=71.33 min=60.50 p95=92.00
+
+per frame            median      min      max
+created                  10        0       34
+@count name=created median=10.00 mean=9.27 min=0.00 p95=31.00
+destroyed                 8        0       27
+@count name=destroyed median=8.00 mean=9.27 min=0.00 p95=20.00
+commands applied         12        0       42
+@count name=commands_applied median=12.00 mean=13.00 min=0.00 p95=27.00
+hits delivered            5        0       29
+@count name=hits_delivered median=5.00 mean=5.66 min=0.00 p95=13.00
+alive                  2246     2224     2281
+@count name=alive median=2246.00 mean=2247.97 min=2224.00 p95=2267.00
+
+alive peaks while measuring: enemies 1917 / 4000, bullets 362 / 4000, experience 16 / 4000
+dense order scrambled when measuring started: yes
+totals (whole run): spawned 13000 fired 19500 hits 19755 kills 3919 collected 3004 xpExpired 911 bulletsExpired 9144 reached 7203
+problems while measuring: steps not ran 0, events dropped 0; whole run: grid mismatches 0, create failures 0, queue failures 0
+
+average cores used while measuring: 1.82 (process times)  2.32 (cycles, approx)  over 0.215s
+@meta scrambled=yes
+@problems steps_not_ran=0 events_dropped=0 grid_mismatches=0 create_failures=0 queue_failures=0
+@cpu wall_s=0.214773 cpu_s=0.390625 cores_by_times=1.819 cores_by_cycles=2.322
+@end

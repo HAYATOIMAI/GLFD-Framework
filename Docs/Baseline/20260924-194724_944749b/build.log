@@ -1,0 +1,37 @@
+----- building EcsBenchmark (release, game flags) -----
+EcsBenchmark.cpp
+C:\Users\cunko\source\repos\TestMiniGameProject\GameLib_conteinar\Tests\EcsBenchmark.cpp(234): warning C4834: discarding return value of function with [[nodiscard]] attribute
+JsonArena.cpp
+JsonReader.cpp
+JsonValue.cpp
+JsonFileIO.cpp
+JsonDocument.cpp
+JsonWriter.cpp
+StackAllocator.cpp
+Logger.cpp
+SpatialHashGrid.cpp
+JobSystem.cpp
+ThreadPool.cpp
+BenchMeasure.cpp
+Generating Code...
+----- building EcsSurvivorBenchmark (release, game flags) -----
+EcsSurvivorBenchmark.cpp
+JsonArena.cpp
+JsonReader.cpp
+JsonValue.cpp
+JsonFileIO.cpp
+JsonDocument.cpp
+JsonWriter.cpp
+StackAllocator.cpp
+Logger.cpp
+SpatialHashGrid.cpp
+JobSystem.cpp
+ThreadPool.cpp
+BenchMeasure.cpp
+Generating Code...
+----- building JobWakeBenchmark (release, game flags) -----
+JobWakeBenchmark.cpp
+JobSystem.cpp
+BenchMeasure.cpp
+Generating Code...
+[OK] all three benchmarks built
