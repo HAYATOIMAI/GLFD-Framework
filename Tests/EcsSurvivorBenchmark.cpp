@@ -29,6 +29,11 @@
  *  `@` で始まる行と、計測区間だけの平均使用コア数を出す(BenchMeasure.h)。
  *  **最小値は標本数で動く**(極値の統計量)。計測フレーム数の違う最小値どうしは比べない。
  *  `--fail=...` は `run_baseline.ps1` の歯の確認に使う。
+ *
+ *  ## 頂点を組む費用 (2-3)
+ *  シーンの `OnRender` と同じ `Game::BuildSurvivorVertices` を毎フレーム呼び、その時間と
+ *  頂点の数を `@render` 行に出す。**フレームの計測区間の外で**測るので、frame と段の数字は
+ *  2-3 の前と同じ意味のまま。**GPU 側(シェーダー・合成)の費用はここでは測れない。**
  */
 
 #include <chrono>
@@ -53,6 +58,10 @@
 
 #include "Game/SurvivorComponents.h"
 #include "Game/SurvivorLoop.h"
+#include "Game/SurvivorRender.h"
+
+#include "Graphics/RenderStatus.h"
+#include "Graphics/SimpleVertex.h"
 
 #include "Threading/JobSystem.h"
 
@@ -77,6 +86,8 @@ namespace {
 
   double g_steps[kSteps][kMaxFrames];
   double g_frame[kMaxFrames];
+  double g_buildVertices[kMaxFrames];   ///< BuildSurvivorVertices の us (2-3)
+  double g_vertices[kMaxFrames];        ///< 組んだ頂点の数
   double g_metrics[kMetricCount][kMaxFrames];
 
   void SortAscending(double* values, int count) {
@@ -174,6 +185,7 @@ int main(int argc, char** argv) {
   bool          scrambledAtStart = false;
   std::uint32_t notRan           = 0;
   std::uint32_t droppedEvents    = 0;
+  std::uint32_t renderFailures   = 0;
   std::size_t   maxEnemies = 0, maxBullets = 0, maxPickups = 0;
 
   GLFD::Bench::CpuSample cpuBegin;
@@ -209,6 +221,12 @@ int main(int argc, char** argv) {
       }
     }
     const auto frameEnd = Clock::now();
+
+    // **頂点を組む**(シーンの OnRender と同じ関数)。frame の区間の外で測る (2-3)
+    GLFD::DynamicArray<GLFD::Graphics::SimpleVertex> vertices(&frameResource);
+    const auto vb0 = Clock::now();
+    const GLFD::Systems::RenderStatus built = GLFD::Game::BuildSurvivorVertices(registry, vertices);
+    const auto vb1 = Clock::now();
     GLFD::Game::EndSurvivorFrame(state);
 
     const GLFD::Events::BusCounters bus = eventBus.Counters();
@@ -218,6 +236,9 @@ int main(int argc, char** argv) {
 
     const GLFD::Game::SurvivorCounts& c = state.thisFrame;
     g_frame[m] = us(frameStart, frameEnd);
+    g_buildVertices[m] = us(vb0, vb1);
+    g_vertices[m]      = static_cast<double>(vertices.GetSize());
+    if (built.outcome != GLFD::Systems::RenderStatus::Outcome::Drawn) { ++renderFailures; }
     g_metrics[kCreated][m]   = c.enemiesSpawned + c.bulletsFired + c.pickupsCreated;
     g_metrics[kDestroyed][m] = c.kills + c.enemiesReached + c.bulletsSpent + c.bulletsExpired
                              + c.pickupsExpired + c.pickupsCollected;
@@ -255,6 +276,15 @@ int main(int argc, char** argv) {
   std::printf("(sum of the per-step medians: %.1fus)\n", medianTotal);
   GLFD::Bench::PrintRow("frame", "frame", frame.median, frame.mean, frame.min, frame.p95);
 
+  {
+    const Summary vb = Summarize(g_buildVertices, frames);
+    const Summary vn = Summarize(g_vertices, frames);
+    std::printf("%-18s %9.1fus %9.1fus %9.1fus %9.1fus  (outside the frame; %0.f vertices median, %u failures)\n",
+                "build vertices", vb.median, vb.mean, vb.min, vb.p95, vn.median, renderFailures);
+    GLFD::Bench::PrintRow("render", "build_vertices", vb.median, vb.mean, vb.min, vb.p95);
+    GLFD::Bench::PrintRow("render", "vertices", vn.median, vn.mean, vn.min, vn.p95);
+  }
+
   std::printf("\n%-18s %8s %8s %8s\n", "per frame", "median", "min", "max");
   for (int k = 0; k < kMetricCount; ++k) {
     const Summary s = Summarize(g_metrics[k], frames);
@@ -279,6 +309,7 @@ int main(int argc, char** argv) {
   std::printf("@problems steps_not_ran=%u events_dropped=%u grid_mismatches=%u "
               "create_failures=%u queue_failures=%u\n",
               notRan, droppedEvents, t.gridMismatches, t.createFailures, t.queueFailures);
+  std::printf("@render_problems build_failures=%u\n", renderFailures);
   GLFD::Bench::PrintCpu(cpu);
   std::fflush(stdout);
 
