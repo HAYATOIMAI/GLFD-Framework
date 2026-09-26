@@ -1,8 +1,6 @@
 #pragma once
 
 #include "../Scene/IScene.h"
-#include "../Resource/ResourceHandle.h"
-#include "../Graphics/Texture.h"
 
 #include <memory>
 
@@ -48,8 +46,6 @@ namespace GLFD {
      */
     void ReloadConfig(GameContext& ctx);
 
-
-    Resource::ResourceHandle<Graphics::Texture> m_textureHandle;
 
     // Document と GameConfig は同じ寿命で持つ。GameConfig の StringView が
     // Document のアリーナ上にあるため (R0-5)

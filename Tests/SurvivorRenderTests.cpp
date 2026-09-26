@@ -64,7 +64,7 @@ namespace {
   enum class Kind : std::uint8_t { Player, Enemy, Bullet, Pickup, Unknown };
 
   /// 描く順(後が上)。**この表が仕様**。種類の並びを変えるときはここを変える
-  constexpr Kind kDrawOrder[] = { Kind::Player, Kind::Enemy, Kind::Bullet, Kind::Pickup };
+  constexpr Kind kDrawOrder[] = { Kind::Enemy, Kind::Pickup, Kind::Bullet, Kind::Player };   // 2-3 (2)
 
   int OrderOf(Kind k) {
     for (int i = 0; i < 4; ++i) {

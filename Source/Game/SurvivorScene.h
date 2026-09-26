@@ -21,8 +21,6 @@
 
 #include "../Core/FailureGate.h"
 #include "../Core/SystemSchedule.h"
-#include "../Graphics/Texture.h"
-#include "../Resource/ResourceHandle.h"
 #include "../Scene/IScene.h"
 #include "EcsDiagnosticsLog.h"
 #include "SurvivorLoop.h"
@@ -43,8 +41,6 @@ namespace GLFD {
     void OnExit(GameContext& ctx) override;
 
   private:
-    Resource::ResourceHandle<Graphics::Texture> m_textureHandle;
-
     /// ループの状態。**購読者が参照で掴んでいる**(ファイル冒頭の @warning)
     Game::SurvivorState m_state;
     Core::FrameReport   m_frameReport;

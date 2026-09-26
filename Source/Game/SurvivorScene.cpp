@@ -7,7 +7,6 @@
 #include "../ECS/View.h"
 #include "../Graphics/DX11Renderer.h"
 #include "../Graphics/RenderSystem.h"
-#include "../Resource/ResourceManager.h"
 
 #include "EcsDiagnosticsLog.h"
 #include "SurvivorComponents.h"
@@ -27,7 +26,7 @@ namespace {
    *
    * @details
    *  - `RenderSystem` は変更しない。**`Graphics` が `Game` の成分を知る形にしない**
-   *  - シェーダーには触らない。ピクセルシェーダーが頂点色を掛けているので色だけで分かる
+   *  - 色は頂点に入れる。PS はテクスチャを使わず、頂点色の丸を描く (2-3)
    *  - 種類ごとの `View` から 1 本の頂点配列に集め、`DrawPoints` は 1 回
    *  - **頂点を組む部分は `Game::BuildSurvivorVertices` (`SurvivorRender.h`) に切り出した** (2-3)。
    *    ここに残るのは DX11 の呼び出しだけ
@@ -67,8 +66,6 @@ namespace GLFD {
 
   void SurvivorScene::OnEnter(GameContext& ctx) {
     LOG_INFO("SurvivorScene: OnEnter");
-
-    m_textureHandle = ctx.resourceManager->Load<Graphics::Texture>("Resource/particle.png", ctx);
 
     m_state = Game::SurvivorState{};          // 入り直しても前回の数を持ち越さない
     m_state.params = Game::SmallSurvivorParams();
@@ -115,9 +112,6 @@ namespace GLFD {
   }
 
   void SurvivorScene::OnRender(GameContext& ctx) {
-    if (auto* tex = ctx.resourceManager->Get(m_textureHandle)) {
-      ctx.renderer->SetTexture(tex);
-    }
     const Systems::RenderStatus status =
         DrawSurvivor(*ctx.registry, *ctx.renderer, ctx.frameResource, ctx.totalTime,
                      ctx.window->GetWidth(), ctx.window->GetHeight());

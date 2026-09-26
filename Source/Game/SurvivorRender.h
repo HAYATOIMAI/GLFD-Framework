@@ -25,6 +25,11 @@
  *  | 弾 | `Position` + `Damage` | 黄 |
  *  | 経験値 | `Position` + `Pickup` | 緑 |
  *
+ *  ## 描く順(後が上)
+ *  **敵 → 経験値 → 弾 → プレイヤー。** 合成は通常のα合成なので、後から描いたものが上に
+ *  重なる (2-3)。数の多い敵を一番下に、回収点のプレイヤーを一番上に置く。経験値は敵の上に
+ *  落ちるので敵より上、弾は敵に当たる瞬間に見えるよう経験値より上にした。
+ *
  *  **色はハードコードする。** 色は実装の一部であって調整する設定ではない。
  *  調整したくなったら `GameConfig` の `$version` を上げて移す(A-2 の手順)。
  */
@@ -87,19 +92,20 @@ namespace GLFD::Game {
       ++count;
     };
 
-    emit(0.0f, 0.0f, kSurvivorPlayerColor);
+    // 描く順: 敵 → 経験値 → 弾 → プレイヤー(後が上)
     for (auto [e, pos, hp] : enemies) {
       (void)e; (void)hp;
       emit(pos.x, pos.y, kSurvivorEnemyColor);
-    }
-    for (auto [e, pos, dmg] : bullets) {
-      (void)e; (void)dmg;
-      emit(pos.x, pos.y, kSurvivorBulletColor);
     }
     for (auto [e, pos, pick] : pickups) {
       (void)e; (void)pick;
       emit(pos.x, pos.y, kSurvivorPickupColor);
     }
+    for (auto [e, pos, dmg] : bullets) {
+      (void)e; (void)dmg;
+      emit(pos.x, pos.y, kSurvivorBulletColor);
+    }
+    emit(0.0f, 0.0f, kSurvivorPlayerColor);
 
     (void)vertices.TryResize(count);   // 縮小は確保を伴わないので必ず成功する
     return Systems::RenderStatus{ Systems::RenderStatus::Outcome::Drawn, count };

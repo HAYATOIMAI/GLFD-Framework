@@ -19,7 +19,6 @@
 #include "../Graphics/RenderSystem.h"
 #include "../Graphics/DX11Renderer.h"
 
-#include "../Resource/ResourceManager.h"
 
 #include "../Physics/CollisionSystem.h"
 
@@ -117,8 +116,6 @@ namespace GLFD {
     // アプリを再起動せずに反映される
     ReloadConfig(ctx);
     const GameConfig& config = *m_config;
-
-    m_textureHandle = ctx.resourceManager->Load<Graphics::Texture>("Resource/particle.png", ctx);
 
     if (!ctx.eventBus->Register<Events::CollisionEvent>()) {
       LOG_ERROR("BoidDemoScene: could not create the CollisionEvent channel");
@@ -297,10 +294,6 @@ namespace GLFD {
   }
 
   void BoidDemoScene::OnRender(GameContext& ctx) {
-    auto* tex = ctx.resourceManager->Get(m_textureHandle);
-    if (tex) {
-      ctx.renderer->SetTexture(tex);
-    }
     // 設定の型に依存させないため、実際のウィンドウサイズを値で渡す。
     // **戻り値で受ける** (1-6)。1-1 からの借りの返済で、それまでは確保に
     // 失敗しても黙って 1 フレーム描かずに戻っていた

@@ -200,7 +200,7 @@ namespace GLFD::Graphics {
   }
 
   bool DX11Renderer::CreateBlendState() {
-    // ブレンドステート作成 (加算合成)
+    // ブレンドステート作成 (通常のα合成。ECS 2-3 で加算合成から変えた)
     D3D11_BLEND_DESC bd = {};
     bd.AlphaToCoverageEnable = FALSE;
     bd.IndependentBlendEnable = FALSE; // 全てのレンダーターゲットで同じ設定
@@ -208,11 +208,13 @@ namespace GLFD::Graphics {
     // 0番目のレンダーターゲットの設定
     bd.RenderTarget[0].BlendEnable = TRUE;
 
-    // 色の合成式: (Source * SrcAlpha) + (Dest * 1.0)
+    // 色の合成式: (Source * SrcAlpha) + (Dest * (1 - SrcAlpha))
     // Source: これから描く色, Dest: 既に描かれている色
-    // これにより、透明度を考慮しつつ、色がどんどん足し算されていく（発光する）
+    // **後から描いたものが上に重なる。** 以前の加算合成 (Dest * 1.0) では、重なると色が
+    // 足されて混ざり、緑の経験値が赤い敵に重なると弾の黄に近づいた (ECS 2-3 で画面を撮って確認)。
+    // 全体で 1 つの設定にし、シーンごとの切り替えは作らない
     bd.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-    bd.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
+    bd.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
     bd.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
 
     // アルファの合成式（今回はあまり重要ではないが設定しておく）

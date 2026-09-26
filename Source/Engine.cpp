@@ -165,12 +165,9 @@ namespace GLFD {
         m_resourceManager.get()
     };
 
-    auto texHandle = m_resourceManager->Load<Graphics::Texture>("Resource/particle.png", initCtx);
-    if (!texHandle.IsValid()) {
-      LOG_ERROR("Failed to load particle texture via ResourceManager");
-      m_isRunning = false;
-      return;
-    }
+    // 2-3: 描画はテクスチャを使わなくなった(PS が丸を描く)ので、particle.png は読まない。
+    // 以前はここで読み、読めなければ起動を止めていた。TextureLoader の登録と型は残す
+    // (利用者 0。開発手法 3.11 の削除候補として記録した)
 
     // The start scene comes from the config (ECS 1-8); 2-1 added the runtime
     // switch. Both read the same table in SceneCatalog.h, so a scene name

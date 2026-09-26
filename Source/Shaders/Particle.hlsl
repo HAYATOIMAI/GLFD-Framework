@@ -7,9 +7,7 @@ cbuffer GlobalConstants : register(b0)
     float2 Padding;
 };
 
-// テクスチャとサンプラー
-Texture2D g_Texture : register(t0);
-SamplerState g_Sampler : register(s0);
+// テクスチャは使わない (ECS 2-3)。PS が四角の中に丸を描く
 
 struct VS_INPUT
 {
@@ -75,8 +73,14 @@ void GS(point GS_INPUT input[1], inout TriangleStream<PS_INPUT> outputStream)
     outputStream.RestartStrip();
 }
 
+// [PS] 四角の中に丸を描く (ECS 2-3)
+// UV の中心からの距離が 1 を超えるところは捨てる。縁は 1 画素ぶんだけαでぼかす
 float4 PS(PS_INPUT input) : SV_TARGET
 {
-    float4 texColor = g_Texture.Sample(g_Sampler, input.UV);
-    return input.Color * texColor;
+    float2 d     = input.UV * 2.0 - 1.0;
+    float  r     = length(d);
+    float  edge  = max(fwidth(r), 1e-4);
+    float  alpha = 1.0 - smoothstep(1.0 - edge, 1.0, r);
+    clip(alpha - 0.001);
+    return float4(input.Color.rgb, input.Color.a * alpha);
 }
