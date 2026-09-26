@@ -146,6 +146,14 @@ namespace GLFD::Graphics {
 
     m_deviceContext->IASetVertexBuffers(0, 1, m_vertexBuffer.GetAddressOf(), &stride, &offset);
 
+    // **点の並びとして描く。描くたびに自分で設定する** (ECS 2-3)。
+    // 2-3 まで一度も設定しておらず、頂点が 3 つに 1 つしか描かれていなかった
+    // (点ではなく三角形の並びとして読まれ、三角形ごとに先頭の 1 点だけが GS に渡った)。
+    // 起動時に 1 度だけ設定する形にしないのは、ほかの描画がトポロジーを変えたとき、
+    // 点の描画がまた黙って壊れるため。描く直前に設定すれば他の描画の状態に左右されない。
+    // 画面での歯: Tests\render_point_check.ps1(決まった位置に置いた点がすべて描かれるか)
+    m_deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
+
     if (m_currentTexture) {
       m_deviceContext->PSSetShaderResources(0, 1, m_currentTexture->GetAddress());
     }
