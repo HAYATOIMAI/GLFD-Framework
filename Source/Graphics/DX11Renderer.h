@@ -14,6 +14,7 @@
 #include "Shader.h"
 #include "ConstantBuffer.h"
 #include "Texture.h"
+#include "SimpleVertex.h"   // 頂点の型は d3d11.h を引き込まない軽いヘッダへ移した (ECS 2-3)
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -26,12 +27,6 @@ namespace GLFD::Graphics {
     float AspectRatio;  // 画面のアスペクト比 (Width / Height)
     float Time;         // ゲーム経過時間 (秒)
     float Padding[2];   // 16バイトに揃えるための詰め物
-  };
-
-  // GPUに送る頂点の形式
-  struct SimpleVertex {
-    DirectX::XMFLOAT4 Pos;   // 位置 (x, y, z)
-    DirectX::XMFLOAT4 Color; // 色   (r, g, b, a)
   };
 
   class DX11Renderer {

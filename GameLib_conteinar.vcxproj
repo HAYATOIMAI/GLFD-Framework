@@ -98,12 +98,15 @@
     <ClInclude Include="Source\Game\HitSystem.h" />
     <ClInclude Include="Source\Game\SurvivorComponents.h" />
     <ClInclude Include="Source\Game\SurvivorLoop.h" />
+    <ClInclude Include="Source\Game\SurvivorRender.h" />
     <ClInclude Include="Source\Game\SurvivorScene.h" />
     <ClInclude Include="Source\Game\SceneCatalog.h" />
     <ClInclude Include="Source\Graphics\ConstantBuffer.h" />
     <ClInclude Include="Source\Graphics\DX11Renderer.h" />
     <ClInclude Include="Source\Graphics\GraphicsType.h" />
     <ClInclude Include="Source\Graphics\RenderSystem.h" />
+    <ClInclude Include="Source\Graphics\RenderStatus.h" />
+    <ClInclude Include="Source\Graphics\SimpleVertex.h" />
     <ClInclude Include="Source\Graphics\Shader.h" />
     <ClInclude Include="Source\Graphics\SimpleWindow.h" />
     <ClInclude Include="Source\Graphics\Texture.h" />

@@ -240,6 +240,12 @@
     <ClInclude Include="Source\Graphics\RenderSystem.h">
       <Filter>Graphics</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Graphics\RenderStatus.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\SimpleVertex.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Graphics\SimpleWindow.h">
       <Filter>Graphics</Filter>
     </ClInclude>
@@ -272,6 +278,9 @@
       <Filter>Game</Filter>
     </ClInclude>
     <ClInclude Include="Source\Game\SurvivorLoop.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\SurvivorRender.h">
       <Filter>Game</Filter>
     </ClInclude>
     <ClInclude Include="Source\Game\SurvivorScene.h">

@@ -103,6 +103,10 @@ if /i "%NAME%"=="JobSystemStopTests" set "EXTRA_FLAGS=/wd4324 /DGLFD_JOBSYSTEM_P
 rem  ParallelForTests (2-6) は本物の JobSystem で分け方と積み方を確かめる
 if /i "%NAME%"=="ParallelForTests" set "EXTRA_SOURCES=%ROOT%\Source\Threading\JobSystem.cpp"
 if /i "%NAME%"=="ParallelForTests" set "EXTRA_FLAGS=/wd4324 /DGLFD_JOBSYSTEM_PROBE"
+rem  RenderDiagnosticsTests (2-3) は本物の ReportRenderStep と Logger で診断の行を読む。
+rem  EcsDiagnosticsLog.h が GameContext.h 経由で EcsSurvivorTests と同じものを引き込む
+if /i "%NAME%"=="RenderDiagnosticsTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp %ROOT%\Source\Physics\SpatialHashGrid.cpp %ROOT%\Source\Threading\JobSystem.cpp %ROOT%\Source\Threading\ThreadPool.cpp %ROOT%\Source\Core\StackAllocator.cpp"
+if /i "%NAME%"=="RenderDiagnosticsTests" set "EXTRA_FLAGS=/wd4324"
 set "OBJDIR=%OUTDIR%\%NAME%"
 if not exist "%OBJDIR%" mkdir "%OBJDIR%"
 
