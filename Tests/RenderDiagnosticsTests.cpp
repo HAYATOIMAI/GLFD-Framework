@@ -1,6 +1,6 @@
 ﻿/**
  * @file  RenderDiagnosticsTests.cpp
- * @brief T-ECS-38d: 頂点を組めないときの診断の行 (ECS 2-3)
+ * @brief T-ECS-38d: 頂点を組めないときの診断の行 / T-ECS-38f: 描く大きさと当たり判定 (ECS 2-3)
  *
  * @details
  *  **1-6 から「報告の形は実機の動作確認が受け持つ」としてきた部分を、テストで押さえる。**
@@ -15,6 +15,9 @@
  *   - 描けなくなった最初のフレームで ERROR が 1 行だけ出る(理由と要求した数を含む)
  *   - 描けないフレームが続いても黙っている
  *   - 直ったフレームで INFO が 1 行だけ出る(続いたフレーム数と累計を含む)
+ *   - 38f: **本物の生成の経路**(`SpawnEnemy` / `FireBullet` / `QueuePickup`)で作ったものが、
+ *     付いた `Collider` の半径の大きさで描かれる。プレイヤーは `reachRadius`。
+ *     `SurvivorLoop.h` を引き込むので、`SurvivorRenderTests` ではなくここに置く (2-3 (3))
  *
  *  ## 押さえないもの
  *   - Boid の経路(`RenderSystem::Update`)は DX11 を要求するので呼べない。
@@ -26,6 +29,7 @@
  *  @note テストコードに非 ASCII の文字列リテラルを書かない (C5297)。
  */
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -103,7 +107,8 @@ namespace {
       const bool failing = (f >= 3 && f < 8);
       if (failing) { frame.SetFailAfter(0); } else { frame.ClearFailure(); }
       GLFD::DynamicArray<GLFD::Graphics::SimpleVertex> vertices(&frame);
-      const RenderStatus status = GLFD::Game::BuildSurvivorVertices(registry, vertices);
+      const RenderStatus status = GLFD::Game::BuildSurvivorVertices(
+          registry, GLFD::Game::SurvivorDrawRadiiOf(GLFD::Game::SmallSurvivorParams()), 0.0f, vertices);
       if (status.outcome == RenderStatus::Outcome::Drawn) { ++drawn; } else { ++failed; requestedWhenFailing = status.requestedVertices; }
       GLFD::Game::ReportRenderStep(status, gate);   // シーンと同じ呼び方
     }
@@ -129,10 +134,77 @@ namespace {
     CHECK(requestedWhenFailing >= 5u);   // 4 体 + プレイヤー
   }
 
+  /// 描いた頂点のうち、NDC の位置が (x, y) のものの z。無ければ -1
+  float ZAt(const GLFD::DynamicArray<GLFD::Graphics::SimpleVertex>& v, float x, float y) {
+    for (std::size_t i = 0; i < v.GetSize(); ++i) {
+      if (std::fabs(v[i].Pos.x - x * GLFD::Game::kSurvivorScaleX) <= 1e-6f
+          && std::fabs(v[i].Pos.y - y * GLFD::Game::kSurvivorScaleY) <= 1e-6f) {
+        return v[i].Pos.z;
+      }
+    }
+    return -1.0f;
+  }
+
+  /**
+   * @brief 本物の生成の経路で作ったものの大きさが、**付いた `Collider` の半径**と一致する
+   * @details `SurvivorRenderTests` は `SurvivorLoop.h` を引き込めない(`d3d11.h` まで入る)。
+   *          このスイートは診断のために既に引き込んでいるので、ここで生成の経路とつなぐ
+   */
+  void TestDrawnSizeFollowsTheColliders() {
+    GLFD::Test::BeginCase("T-ECS-38f: entities made by the real spawn paths are drawn with the radius of their Collider");
+
+    MockMemoryResource world;
+    GLFD::ECS::Registry registry(&world);
+    MockMemoryResource commandMemory;
+    GLFD::ECS::CommandBuffer commands(&commandMemory);
+
+    GLFD::Game::SurvivorState s;
+    s.params   = GLFD::Game::SmallSurvivorParams();
+    s.registry = &registry;
+    s.commands = &commands;
+
+    const GLFD::ECS::Entity enemy  = GLFD::Game::SpawnEnemy(s, 6.5f, -3.25f, 0.0f, 0.0f);
+    const GLFD::ECS::Entity bullet = GLFD::Game::FireBullet(s, -2.75f, 4.5f, 0.0f, 0.0f);
+    GLFD::Game::QueuePickup(s, GLFD::Components::Position{ 9.25f, 7.75f, 0.0f, 0.0f });
+    CHECK(enemy.IsValid());
+    CHECK(bullet.IsValid());
+    CHECK(s.thisFrame.pickupsCreated == 1u);
+    registry.ApplyCommands(commands);
+
+    // 経験値は遅延で作られるので、Pickup を持つものを探す
+    GLFD::ECS::Entity pickup = GLFD::ECS::Entity::Invalid();
+    for (auto [e, pos, pick] : registry.View<GLFD::Components::Position, GLFD::Components::Pickup>()) {
+      (void)pos; (void)pick;
+      pickup = e;
+    }
+    CHECK(pickup.IsValid());
+
+    const GLFD::Components::Collider* ce = registry.GetComponent<GLFD::Components::Collider>(enemy);
+    const GLFD::Components::Collider* cb = registry.GetComponent<GLFD::Components::Collider>(bullet);
+    const GLFD::Components::Collider* cp = registry.GetComponent<GLFD::Components::Collider>(pickup);
+    CHECK(ce != nullptr && cb != nullptr && cp != nullptr);
+    if (ce == nullptr || cb == nullptr || cp == nullptr) { return; }
+
+    // 下限なし: z = Collider の半径 x 縦の縮尺。プレイヤーは reachRadius
+    MockMemoryResource frame;
+    GLFD::DynamicArray<GLFD::Graphics::SimpleVertex> v(&frame);
+    const RenderStatus status = GLFD::Game::BuildSurvivorVertices(
+        registry, GLFD::Game::SurvivorDrawRadiiOf(s.params), 0.0f, v);
+    CHECK(status.outcome == RenderStatus::Outcome::Drawn);
+    CHECK(v.GetSize() == 4u);
+    CHECK(ZAt(v, 6.5f, -3.25f)  == ce->radius * GLFD::Game::kSurvivorScaleY);
+    CHECK(ZAt(v, -2.75f, 4.5f)  == cb->radius * GLFD::Game::kSurvivorScaleY);
+    CHECK(ZAt(v, 9.25f, 7.75f)  == cp->radius * GLFD::Game::kSurvivorScaleY);
+    CHECK(ZAt(v, 0.0f, 0.0f)    == s.params.reachRadius * GLFD::Game::kSurvivorScaleY);
+    // 実際の値(1-8 の small): 敵 0.8 / 弾 0.3 / 経験値 0.3 / プレイヤー 1.5
+    CHECK(ce->radius == 0.8f && cb->radius == 0.3f && cp->radius == 0.3f && s.params.reachRadius == 1.5f);
+  }
+
 }
 
 int main() {
   GLFD::Test::BeginSuite("RenderDiagnostics (ECS 2-3)");
   TestRenderFailureIsReportedOnlyWhenTheStateChanges();
+  TestDrawnSizeFollowsTheColliders();
   return GLFD::Test::Summarize();
 }

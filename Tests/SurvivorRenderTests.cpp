@@ -15,6 +15,10 @@
  *          増減しても、消えたものは描かず、残ったものは正しい色で描く
  *   - 38c: **確保に失敗したとき**、黙らず `VertexBufferUnavailable` と要求した数を返し、
  *          配列は空で、何も残さない。確保できるようになれば元に戻る
+ *   - 38a〜c は毎回、**種類ごとの大きさ**(`Pos.z` = 半径 × 縦の縮尺)も見る (2-3 (3))。
+ *     半径は 4 種類とも違う値にする(実際の値は弾と経験値が同じ 0.3 で、取り違えが見えない)
+ *   - 38e: **最小の大きさ**。下限より小さいものだけが下限に引き上がる。
+ *          `SurvivorDrawRadiiOf` が正しい項目を取る(プレイヤーは `reachRadius`)
  *
  *  1-6 の診断の**行**(状態の変わり目だけ出ること)は、`Logger` を引き込むので
  *  別のスイート(`RenderDiagnosticsTests`)で見る。
@@ -55,6 +59,7 @@ using GLFD::Components::Position;
 using GLFD::ECS::Entity;
 using GLFD::ECS::Registry;
 using GLFD::Game::SurvivorColor;
+using GLFD::Game::SurvivorDrawRadii;
 using GLFD::Graphics::SimpleVertex;
 using GLFD::Systems::RenderStatus;
 using GLFD::Test::MockMemoryResource;
@@ -62,6 +67,31 @@ using GLFD::Test::MockMemoryResource;
 namespace {
 
   enum class Kind : std::uint8_t { Player, Enemy, Bullet, Pickup, Unknown };
+
+  /// 4 種類とも違う半径(ワールドの単位)。取り違えると z が変わる
+  constexpr SurvivorDrawRadii kRadii{ 1.5f, 0.8f, 0.45f, 0.3f };
+
+  /// 何を渡して組んだか。z の期待値はここから作る
+  struct SizeSpec {
+    SurvivorDrawRadii radii;
+    float             minNdc;
+  };
+
+  constexpr SizeSpec kNoMinimum{ kRadii, 0.0f };
+
+  /// 種類 k の z の期待値: 半径 x 縦の縮尺。下限より小さければ下限
+  float ExpectedZ(Kind k, const SizeSpec& s) {
+    float r = 0.0f;
+    switch (k) {
+      case Kind::Player: r = s.radii.player; break;
+      case Kind::Enemy:  r = s.radii.enemy;  break;
+      case Kind::Bullet: r = s.radii.bullet; break;
+      case Kind::Pickup: r = s.radii.pickup; break;
+      default:           return -1.0f;
+    }
+    const float ndc = r * GLFD::Game::kSurvivorScaleY;
+    return (ndc < s.minNdc) ? s.minNdc : ndc;
+  }
 
   /// 描く順(後が上)。**この表が仕様**。種類の並びを変えるときはここを変える
   constexpr Kind kDrawOrder[] = { Kind::Enemy, Kind::Pickup, Kind::Bullet, Kind::Player };   // 2-3 (2)
@@ -155,7 +185,8 @@ namespace {
    *          死んだもの・種類の無いものは描かれていない。プレイヤーは原点にちょうど 1 つ。
    *          種類の並びが `kDrawOrder` のとおり。頂点の数 = 生きているもの + 1
    */
-  void CheckMatchesWorld(const World& w, const GLFD::DynamicArray<SimpleVertex>& v, const RenderStatus& status) {
+  void CheckMatchesWorld(const World& w, const GLFD::DynamicArray<SimpleVertex>& v, const RenderStatus& status,
+                         const SizeSpec& spec = kNoMinimum) {
     CHECK(status.outcome == RenderStatus::Outcome::Drawn);
     CHECK(v.GetSize() == w.AliveDrawable() + 1u);
     CHECK(status.requestedVertices == v.GetSize());
@@ -200,10 +231,17 @@ namespace {
     CHECK(known);
     CHECK(ordered);
 
-    // 使っていない成分: z は 0、w と α は 1
+    // 大きさ: z は種類ごとの半径 (2-3 (3))
+    bool sizeByKind = true;
+    for (std::size_t i = 0; i < v.GetSize(); ++i) {
+      sizeByKind = sizeByKind && v[i].Pos.z == ExpectedZ(KindOfColor(v[i].Color), spec);
+    }
+    CHECK(sizeByKind);
+
+    // 使っていない成分: w と α は 1
     bool unusedFields = true;
     for (std::size_t i = 0; i < v.GetSize(); ++i) {
-      unusedFields = unusedFields && v[i].Pos.z == 0.0f && v[i].Pos.w == 1.0f && v[i].Color.w == 1.0f;
+      unusedFields = unusedFields && v[i].Pos.w == 1.0f && v[i].Color.w == 1.0f;
     }
     CHECK(unusedFields);
   }
@@ -234,7 +272,7 @@ namespace {
 
     MockMemoryResource frame;
     GLFD::DynamicArray<SimpleVertex> v(&frame);
-    const RenderStatus status = GLFD::Game::BuildSurvivorVertices(w.registry, v);
+    const RenderStatus status = GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, 0.0f, v);
     CheckMatchesWorld(w, v, status);
     CHECK(v.GetSize() == 13u);   // 12 体 + プレイヤー(囮 2 つは描かない)
 
@@ -259,7 +297,7 @@ namespace {
 
     {
       GLFD::DynamicArray<SimpleVertex> v(&frame);
-      CheckMatchesWorld(w, v, GLFD::Game::BuildSurvivorVertices(w.registry, v));
+      CheckMatchesWorld(w, v, GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, 0.0f, v));
     }
 
     // 途中のものを破棄する(敵 2・弾 1・経験値 1)。先頭と末尾は残す
@@ -270,7 +308,7 @@ namespace {
     }
     {
       GLFD::DynamicArray<SimpleVertex> v(&frame);
-      const RenderStatus s = GLFD::Game::BuildSurvivorVertices(w.registry, v);
+      const RenderStatus s = GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, 0.0f, v);
       CheckMatchesWorld(w, v, s);
       CHECK(v.GetSize() == 9u);
     }
@@ -281,7 +319,7 @@ namespace {
     CHECK(w.Place(Kind::Enemy,  XAt(22), YAt(22)));
     {
       GLFD::DynamicArray<SimpleVertex> v(&frame);
-      const RenderStatus s = GLFD::Game::BuildSurvivorVertices(w.registry, v);
+      const RenderStatus s = GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, 0.0f, v);
       CheckMatchesWorld(w, v, s);
       CHECK(v.GetSize() == 12u);
     }
@@ -291,7 +329,7 @@ namespace {
     w.placed[0].alive = false;
     {
       GLFD::DynamicArray<SimpleVertex> v(&frame);
-      const RenderStatus s = GLFD::Game::BuildSurvivorVertices(w.registry, v);
+      const RenderStatus s = GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, 0.0f, v);
       CheckMatchesWorld(w, v, s);
       CHECK(v.GetSize() == 11u);
     }
@@ -311,7 +349,7 @@ namespace {
     frame.SetFailAfter(0);
     {
       GLFD::DynamicArray<SimpleVertex> v(&frame);
-      const RenderStatus s = GLFD::Game::BuildSurvivorVertices(w.registry, v);
+      const RenderStatus s = GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, 0.0f, v);
       CHECK(s.outcome == RenderStatus::Outcome::VertexBufferUnavailable);
       // 要求した数は、描くはずだった数(13)以上。基準プールの範囲なので囮の分だけ多いことがある
       CHECK(s.requestedVertices >= 13u);
@@ -324,9 +362,80 @@ namespace {
     frame.ClearFailure();
     {
       GLFD::DynamicArray<SimpleVertex> v(&frame);
-      CheckMatchesWorld(w, v, GLFD::Game::BuildSurvivorVertices(w.registry, v));
+      CheckMatchesWorld(w, v, GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, 0.0f, v));
     }
     CHECK(frame.LiveBytes() == 0u);
+  }
+
+  // ===========================================================================
+  // T-ECS-38e 最小の大きさと、半径の取り出し
+  // ===========================================================================
+
+  /// `SurvivorParams` と同じ名前の項目を持つ型。**5 つとも違う値**にする
+  /// (`collectRadius` は描く大きさに使ってはならない項目の囮)
+  struct FakeParams {
+    float reachRadius   = 1.25f;
+    float enemyRadius   = 0.75f;
+    float bulletRadius  = 0.5f;
+    float pickupRadius  = 0.25f;
+    float collectRadius = 8.0f;
+  };
+
+  void TestMinimumSizeAndRadiiSource() {
+    GLFD::Test::BeginCase("T-ECS-38e: sizes below the minimum are raised to it, the rest are untouched; radii come from the right fields");
+
+    // 窓の高さ 720 画素なら、NDC の縦 2 が 720 画素。下限 4 px は 8 / 720
+    const float min720 = GLFD::Game::SurvivorMinRadiusNdc(720);
+    CHECK(std::fabs(min720 * 720.0f * 0.5f - GLFD::Game::kSurvivorMinRadiusPx) <= 1e-5f);
+    CHECK(GLFD::Game::kSurvivorMinRadiusPx == 4.0f);
+    CHECK(std::fabs(GLFD::Game::SurvivorMinRadiusNdc(1080) * 1080.0f * 0.5f - 4.0f) <= 1e-5f);
+    // 高さ 0(最小化中など)でも割り算で壊れない
+    const float min0 = GLFD::Game::SurvivorMinRadiusNdc(0);
+    CHECK(min0 == GLFD::Game::SurvivorMinRadiusNdc(1));
+    CHECK(std::isfinite(min0));
+
+    World w;
+    CHECK(Populate(w));
+    MockMemoryResource frame;
+
+    // 720 画素の下限: 経験値 (0.3 / 34 = 0.0088) だけが下限 (0.0111) に上がり、
+    // 弾 (0.45 / 34 = 0.0132) は上がらない。**境目の両側に 1 種類ずつ置く**
+    CHECK(kRadii.pickup * GLFD::Game::kSurvivorScaleY < min720);
+    CHECK(kRadii.bullet * GLFD::Game::kSurvivorScaleY > min720);
+    {
+      const SizeSpec spec{ kRadii, min720 };
+      GLFD::DynamicArray<SimpleVertex> v(&frame);
+      CheckMatchesWorld(w, v, GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, min720, v), spec);
+      bool pickupsAtMinimum = true;
+      bool bulletsAboveIt   = true;
+      for (std::size_t i = 0; i < v.GetSize(); ++i) {
+        const Kind k = KindOfColor(v[i].Color);
+        if (k == Kind::Pickup) { pickupsAtMinimum = pickupsAtMinimum && v[i].Pos.z == min720; }
+        if (k == Kind::Bullet) { bulletsAboveIt   = bulletsAboveIt && v[i].Pos.z > min720; }
+      }
+      CHECK(pickupsAtMinimum);
+      CHECK(bulletsAboveIt);
+    }
+
+    // 下限がどれよりも大きければ、全部が下限になる
+    {
+      const float big = 0.2f;
+      const SizeSpec spec{ kRadii, big };
+      GLFD::DynamicArray<SimpleVertex> v(&frame);
+      CheckMatchesWorld(w, v, GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, big, v), spec);
+      bool allAtMinimum = v.GetSize() == 13u;
+      for (std::size_t i = 0; i < v.GetSize(); ++i) { allAtMinimum = allAtMinimum && v[i].Pos.z == big; }
+      CHECK(allAtMinimum);
+    }
+    CHECK(frame.LiveBytes() == 0u);
+
+    // 半径の取り出し: プレイヤーは reachRadius。collectRadius は使わない
+    const FakeParams fake;
+    const SurvivorDrawRadii r = GLFD::Game::SurvivorDrawRadiiOf(fake);
+    CHECK(r.player == fake.reachRadius);
+    CHECK(r.enemy  == fake.enemyRadius);
+    CHECK(r.bullet == fake.bulletRadius);
+    CHECK(r.pickup == fake.pickupRadius);
   }
 
 }
@@ -336,5 +445,6 @@ int main() {
   TestColorsPositionsAndOrder();
   TestCountFollowsTheWorld();
   TestAllocationFailure();
+  TestMinimumSizeAndRadiiSource();
   return GLFD::Test::Summarize();
 }

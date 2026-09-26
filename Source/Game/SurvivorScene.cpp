@@ -32,6 +32,7 @@ namespace {
    *    ここに残るのは DX11 の呼び出しだけ
    */
   GLFD::Systems::RenderStatus DrawSurvivor(GLFD::ECS::Registry& registry,
+                                           const GLFD::Game::SurvivorParams& params,
                                            GLFD::Graphics::DX11Renderer& renderer,
                                            GLFD::Memory::IMemoryResource* frameResource,
                                            float time, int windowWidth, int windowHeight) {
@@ -48,7 +49,9 @@ namespace {
 
     // 頂点を組むのは `Game/SurvivorRender.h`。**テストとベンチも同じ関数を呼ぶ** (2-3)
     DynamicArray<Graphics::SimpleVertex> vertices(frameResource);
-    const Systems::RenderStatus status = Game::BuildSurvivorVertices(registry, vertices);
+    // 大きさは当たり判定の半径。小さすぎるものは 4 px まで引き上げる (2-3 (3))
+    const Systems::RenderStatus status = Game::BuildSurvivorVertices(
+        registry, Game::SurvivorDrawRadiiOf(params), Game::SurvivorMinRadiusNdc(windowHeight), vertices);
     if (status.outcome != Systems::RenderStatus::Outcome::Drawn) {
       // **黙って諦めない** (R-28)。報告はシーンが門を通して出す
       renderer.EndFrame();
@@ -113,7 +116,7 @@ namespace GLFD {
 
   void SurvivorScene::OnRender(GameContext& ctx) {
     const Systems::RenderStatus status =
-        DrawSurvivor(*ctx.registry, *ctx.renderer, ctx.frameResource, ctx.totalTime,
+        DrawSurvivor(*ctx.registry, m_state.params, *ctx.renderer, ctx.frameResource, ctx.totalTime,
                      ctx.window->GetWidth(), ctx.window->GetHeight());
     Game::ReportRenderStep(status, m_renderGate);
   }

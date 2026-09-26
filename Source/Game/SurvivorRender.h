@@ -30,6 +30,14 @@
  *  重なる (2-3)。数の多い敵を一番下に、回収点のプレイヤーを一番上に置く。経験値は敵の上に
  *  落ちるので敵より上、弾は敵に当たる瞬間に見えるよう経験値より上にした。
  *
+ *  ## 大きさ(`Pos.z`)
+ *  **丸の半径を `Pos.z` に入れる**(NDC の縦の長さ)。GS がこれを読んで四角を広げ、深さには
+ *  使わない。頂点は 32 バイトのまま (2-3 (3))。
+ *  - 半径は**当たり判定の半径**(ワールドの単位)× 縦の縮尺。プレイヤーはエンティティでは
+ *    ないので、敵が「触れた」とみなされる距離 `reachRadius` を使う
+ *  - 画面上で `kSurvivorMinRadiusPx` より小さくなるものは、そこまで引き上げる(点が消えない)
+ *  - 縦横の縮尺がまだ違う(4:3 の値)ので、**当たり判定と一致するのは縦方向だけ**。(4) で揃える
+ *
  *  **色はハードコードする。** 色は実装の一部であって調整する設定ではない。
  *  調整したくなったら `GameConfig` の `$version` を上げて移す(A-2 の手順)。
  */
@@ -59,10 +67,40 @@ namespace GLFD::Game {
   inline constexpr SurvivorColor kSurvivorBulletColor = { 1.0f, 0.9f,  0.2f  };  ///< 黄
   inline constexpr SurvivorColor kSurvivorPickupColor = { 0.3f, 1.0f,  0.4f  };  ///< 緑
 
+  /// 画面上の最小の半径(画素)。これより小さい丸はここまで引き上げる (2-3 (3))
+  inline constexpr float kSurvivorMinRadiusPx = 4.0f;
+
+  /// 種類ごとの描く半径(ワールドの単位)。**当たり判定の半径をそのまま使う**
+  struct SurvivorDrawRadii {
+    float player;   ///< 敵が触れたとみなされる距離(`reachRadius`)
+    float enemy;
+    float bullet;
+    float pickup;
+  };
+
+  /**
+   * @brief `SurvivorParams` から描く半径を取る
+   * @details 敵 / 弾 / 経験値の `Collider` は、生成時にこの 3 つの値で作られる
+   *          (`SpawnEnemy` / `FireBullet` / `QueuePickup`)。**テンプレートにしたのは
+   *          `SurvivorLoop.h` を引き込まないため**(引き込むと `d3d11.h` まで入る。T-ECS-39)
+   */
+  template <class Params>
+  [[nodiscard]] constexpr SurvivorDrawRadii SurvivorDrawRadiiOf(const Params& p) noexcept {
+    return SurvivorDrawRadii{ p.reachRadius, p.enemyRadius, p.bulletRadius, p.pickupRadius };
+  }
+
+  /// 最小の半径を NDC の縦の長さに直す。窓の高さが h 画素なら、NDC の縦 2 が h 画素
+  [[nodiscard]] inline float SurvivorMinRadiusNdc(int windowHeight) noexcept {
+    const float h = (windowHeight < 1) ? 1.0f : static_cast<float>(windowHeight);
+    return kSurvivorMinRadiusPx * 2.0f / h;
+  }
+
   /**
    * @brief 敵 / 弾 / 経験値 / プレイヤーの頂点を `vertices` に組む
    *
    * @param registry 読むだけ(構造は変えない)
+   * @param radii    種類ごとの半径(ワールドの単位)
+   * @param minRadiusNdc 半径の下限(NDC の縦)。`SurvivorMinRadiusNdc` で作る
    * @param vertices 組んだ頂点の置き場所。**呼ぶ側がフレームメモリで作って渡す。**
    *                 成功したとき、要素数は描く頂点の数ちょうどになる
    * @return 成功: `Drawn` と描く数。確保失敗: `VertexBufferUnavailable` と
@@ -74,7 +112,8 @@ namespace GLFD::Game {
    *  出した数まで縮める(縮小は確保を伴わないので失敗しない)。
    */
   [[nodiscard]] inline Systems::RenderStatus BuildSurvivorVertices(
-      ECS::Registry& registry, DynamicArray<Graphics::SimpleVertex>& vertices) noexcept {
+      ECS::Registry& registry, const SurvivorDrawRadii& radii, float minRadiusNdc,
+      DynamicArray<Graphics::SimpleVertex>& vertices) noexcept {
     auto enemies = registry.View<Components::Position, Components::Health>();
     auto bullets = registry.View<Components::Position, Components::Damage>();
     auto pickups = registry.View<Components::Position, Components::Pickup>();
@@ -86,8 +125,11 @@ namespace GLFD::Game {
     }
 
     std::size_t count = 0;
-    const auto emit = [&vertices, &count](float x, float y, const SurvivorColor& c) {
-      vertices[count].Pos   = DirectX::XMFLOAT4(x * kSurvivorScaleX, y * kSurvivorScaleY, 0.0f, 1.0f);
+    // z は丸の半径(NDC の縦)。下限より小さければ下限にする
+    const auto emit = [&vertices, &count, minRadiusNdc](float x, float y, float radius, const SurvivorColor& c) {
+      const float r = radius * kSurvivorScaleY;
+      vertices[count].Pos   = DirectX::XMFLOAT4(x * kSurvivorScaleX, y * kSurvivorScaleY,
+                                                (r < minRadiusNdc) ? minRadiusNdc : r, 1.0f);
       vertices[count].Color = DirectX::XMFLOAT4(c.r, c.g, c.b, 1.0f);
       ++count;
     };
@@ -95,17 +137,17 @@ namespace GLFD::Game {
     // 描く順: 敵 → 経験値 → 弾 → プレイヤー(後が上)
     for (auto [e, pos, hp] : enemies) {
       (void)e; (void)hp;
-      emit(pos.x, pos.y, kSurvivorEnemyColor);
+      emit(pos.x, pos.y, radii.enemy, kSurvivorEnemyColor);
     }
     for (auto [e, pos, pick] : pickups) {
       (void)e; (void)pick;
-      emit(pos.x, pos.y, kSurvivorPickupColor);
+      emit(pos.x, pos.y, radii.pickup, kSurvivorPickupColor);
     }
     for (auto [e, pos, dmg] : bullets) {
       (void)e; (void)dmg;
-      emit(pos.x, pos.y, kSurvivorBulletColor);
+      emit(pos.x, pos.y, radii.bullet, kSurvivorBulletColor);
     }
-    emit(0.0f, 0.0f, kSurvivorPlayerColor);
+    emit(0.0f, 0.0f, radii.player, kSurvivorPlayerColor);
 
     (void)vertices.TryResize(count);   // 縮小は確保を伴わないので必ず成功する
     return Systems::RenderStatus{ Systems::RenderStatus::Outcome::Drawn, count };

@@ -9,6 +9,7 @@ cbuffer GlobalConstants : register(b0)
 
 // テクスチャは使わない (ECS 2-3)。PS が四角の中に丸を描く
 
+// 頂点の Pos.z は丸の半径 (NDC の縦)。深さではない (ECS 2-3 (3))
 struct VS_INPUT
 {
     float4 Pos : POSITION;
@@ -45,10 +46,12 @@ void GS(point GS_INPUT input[1], inout TriangleStream<PS_INPUT> outputStream)
     float timeFactor = (sin(Time * 3.0) + 1.0) * 0.5;
     outVert.Color = input[0].Color;
 
-    float size = 0.05;
+    // 大きさは頂点が持つ (Pos.z)。ここに既定値を置かない
+    float size = input[0].Pos.z;
     float sizeX = size / AspectRatio;
     float sizeY = size;
-    float4 center = input[0].Pos;
+    // z は深さとしては使わない。0 に戻す (深さの切り取りに掛からないように)
+    float4 center = float4(input[0].Pos.xy, 0.0, input[0].Pos.w);
 
     // 左下
     outVert.Pos = center + float4(-sizeX, -sizeY, 0, 0);

@@ -17,6 +17,8 @@
 #include "Graphics/SimpleVertex.h"
 
 GLFD::Systems::RenderStatus Build(GLFD::ECS::Registry& registry,
+                                  const GLFD::Game::SurvivorDrawRadii& radii, int windowHeight,
                                   GLFD::DynamicArray<GLFD::Graphics::SimpleVertex>& vertices) {
-  return GLFD::Game::BuildSurvivorVertices(registry, vertices);
+  return GLFD::Game::BuildSurvivorVertices(registry, radii, GLFD::Game::SurvivorMinRadiusNdc(windowHeight),
+                                           vertices);
 }

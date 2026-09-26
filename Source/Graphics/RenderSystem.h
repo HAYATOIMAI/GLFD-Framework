@@ -76,11 +76,14 @@ namespace GLFD::Systems {
         renderer.EndFrame();
         return RenderStatus{ RenderStatus::Outcome::ComponentsUnavailable, count };
       }
+      // z は丸の半径 (NDC の縦)。GS が読む。**シェーダーに暗黙の既定値を置かない**ので、
+      // ここで明示的に書く。値は 2-3 までシェーダーに固定で書かれていた大きさ (ECS 2-3 (3))
+      constexpr float kBoidRadiusNdc = 0.05f;
       for (size_t i = 0; i < count; ++i) {
         vertices[i].Pos = DirectX::XMFLOAT4(
           pData[i].x * scaleX,
           pData[i].y * scaleY,
-          0.0f,
+          kBoidRadiusNdc,
           1.0f
         );
         // 白い点
