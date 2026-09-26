@@ -2,7 +2,6 @@
 #include <d3dcompiler.h>
 #include <iostream>
 #include <fstream>
-#include "../Core/GameContext.h"
 
 #pragma comment(lib, "d3dcompiler.lib")
 
