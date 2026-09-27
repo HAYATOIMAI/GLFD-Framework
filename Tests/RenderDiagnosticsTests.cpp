@@ -108,7 +108,8 @@ namespace {
       if (failing) { frame.SetFailAfter(0); } else { frame.ClearFailure(); }
       GLFD::DynamicArray<GLFD::Graphics::SimpleVertex> vertices(&frame);
       const RenderStatus status = GLFD::Game::BuildSurvivorVertices(
-          registry, GLFD::Game::SurvivorDrawRadiiOf(GLFD::Game::SmallSurvivorParams()), 0.0f, vertices);
+          registry, GLFD::Game::SurvivorDrawRadiiOf(GLFD::Game::SmallSurvivorParams()),
+          GLFD::Game::SurvivorScreenOf(1280, 720), vertices);
       if (status.outcome == RenderStatus::Outcome::Drawn) { ++drawn; } else { ++failed; requestedWhenFailing = status.requestedVertices; }
       GLFD::Game::ReportRenderStep(status, gate);   // シーンと同じ呼び方
     }
@@ -134,10 +135,13 @@ namespace {
     CHECK(requestedWhenFailing >= 5u);   // 4 体 + プレイヤー
   }
 
+  /// 38f の画面。下限なし(大きさがそのまま出る)
+  constexpr GLFD::Game::SurvivorScreen kNoMinimumScreen{ 1.0f / 60.0f, 0.0f };
+
   /// 描いた頂点のうち、NDC の位置が (x, y) のものの z。無ければ -1
   float ZAt(const GLFD::DynamicArray<GLFD::Graphics::SimpleVertex>& v, float x, float y) {
     for (std::size_t i = 0; i < v.GetSize(); ++i) {
-      if (std::fabs(v[i].Pos.x - x * GLFD::Game::kSurvivorScaleX) <= 1e-6f
+      if (std::fabs(v[i].Pos.x - x * kNoMinimumScreen.scaleX) <= 1e-6f
           && std::fabs(v[i].Pos.y - y * GLFD::Game::kSurvivorScaleY) <= 1e-6f) {
         return v[i].Pos.z;
       }
@@ -189,7 +193,7 @@ namespace {
     MockMemoryResource frame;
     GLFD::DynamicArray<GLFD::Graphics::SimpleVertex> v(&frame);
     const RenderStatus status = GLFD::Game::BuildSurvivorVertices(
-        registry, GLFD::Game::SurvivorDrawRadiiOf(s.params), 0.0f, v);
+        registry, GLFD::Game::SurvivorDrawRadiiOf(s.params), kNoMinimumScreen, v);
     CHECK(status.outcome == RenderStatus::Outcome::Drawn);
     CHECK(v.GetSize() == 4u);
     CHECK(ZAt(v, 6.5f, -3.25f)  == ce->radius * GLFD::Game::kSurvivorScaleY);

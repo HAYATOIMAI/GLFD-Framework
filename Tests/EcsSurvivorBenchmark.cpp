@@ -225,9 +225,9 @@ int main(int argc, char** argv) {
     // **頂点を組む**(シーンの OnRender と同じ関数)。frame の区間の外で測る (2-3)
     GLFD::DynamicArray<GLFD::Graphics::SimpleVertex> vertices(&frameResource);
     const auto vb0 = Clock::now();
-    // 大きさの引数はシーンと同じ形(下限は 720 画素の窓で計算。値が変わっても仕事の量は同じ)
+    // 引数はシーンと同じ形(画面は 1280 x 720 で計算。値が変わっても仕事の量は同じ)
     const GLFD::Systems::RenderStatus built = GLFD::Game::BuildSurvivorVertices(
-        registry, GLFD::Game::SurvivorDrawRadiiOf(state.params), GLFD::Game::SurvivorMinRadiusNdc(720), vertices);
+        registry, GLFD::Game::SurvivorDrawRadiiOf(state.params), GLFD::Game::SurvivorScreenOf(1280, 720), vertices);
     const auto vb1 = Clock::now();
     GLFD::Game::EndSurvivorFrame(state);
 

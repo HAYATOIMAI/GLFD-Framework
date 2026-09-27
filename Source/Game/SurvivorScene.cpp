@@ -49,9 +49,10 @@ namespace {
 
     // 頂点を組むのは `Game/SurvivorRender.h`。**テストとベンチも同じ関数を呼ぶ** (2-3)
     DynamicArray<Graphics::SimpleVertex> vertices(frameResource);
-    // 大きさは当たり判定の半径。小さすぎるものは 4 px まで引き上げる (2-3 (3))
+    // 大きさは当たり判定の半径。小さすぎるものは 4 px まで引き上げる (2-3 (3))。
+    // 横の縮尺は窓の縦横比から決め、1 単位の画素を縦横で揃える (2-3 (4))
     const Systems::RenderStatus status = Game::BuildSurvivorVertices(
-        registry, Game::SurvivorDrawRadiiOf(params), Game::SurvivorMinRadiusNdc(windowHeight), vertices);
+        registry, Game::SurvivorDrawRadiiOf(params), Game::SurvivorScreenOf(windowWidth, windowHeight), vertices);
     if (status.outcome != Systems::RenderStatus::Outcome::Drawn) {
       // **黙って諦めない** (R-28)。報告はシーンが門を通して出す
       renderer.EndFrame();

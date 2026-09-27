@@ -19,6 +19,8 @@
  *     半径は 4 種類とも違う値にする(実際の値は弾と経験値が同じ 0.3 で、取り違えが見えない)
  *   - 38e: **最小の大きさ**。下限より小さいものだけが下限に引き上がる。
  *          `SurvivorDrawRadiiOf` が正しい項目を取る(プレイヤーは `reachRadius`)
+ *   - 38g: **1 単位の画素が縦横で同じ**になる横の縮尺を、窓の大きさから作る (2-3 (4))。
+ *          38a〜c は縦と違う値の横の縮尺を渡し、x がそれで直されていることも毎回見る
  *
  *  1-6 の診断の**行**(状態の変わり目だけ出ること)は、`Logger` を引き込むので
  *  別のスイート(`RenderDiagnosticsTests`)で見る。
@@ -60,6 +62,7 @@ using GLFD::ECS::Entity;
 using GLFD::ECS::Registry;
 using GLFD::Game::SurvivorColor;
 using GLFD::Game::SurvivorDrawRadii;
+using GLFD::Game::SurvivorScreen;
 using GLFD::Graphics::SimpleVertex;
 using GLFD::Systems::RenderStatus;
 using GLFD::Test::MockMemoryResource;
@@ -71,6 +74,9 @@ namespace {
   /// 4 種類とも違う半径(ワールドの単位)。取り違えると z が変わる
   constexpr SurvivorDrawRadii kRadii{ 1.5f, 0.8f, 0.45f, 0.3f };
 
+  /// 横の縮尺は縦(1/34 = 0.0294)と違う値にする。x に縦の縮尺を掛けると見える
+  constexpr float kTestScaleX = 0.0215f;
+
   /// 何を渡して組んだか。z の期待値はここから作る
   struct SizeSpec {
     SurvivorDrawRadii radii;
@@ -78,6 +84,9 @@ namespace {
   };
 
   constexpr SizeSpec kNoMinimum{ kRadii, 0.0f };
+
+  /// SizeSpec と同じ下限の画面
+  SurvivorScreen ScreenFor(const SizeSpec& s) { return SurvivorScreen{ kTestScaleX, s.minNdc }; }
 
   /// 種類 k の z の期待値: 半径 x 縦の縮尺。下限より小さければ下限
   float ExpectedZ(Kind k, const SizeSpec& s) {
@@ -164,7 +173,7 @@ namespace {
   std::size_t VerticesAt(const GLFD::DynamicArray<SimpleVertex>& v, float x, float y) {
     std::size_t n = 0;
     for (std::size_t i = 0; i < v.GetSize(); ++i) {
-      if (Near(v[i].Pos.x, x * GLFD::Game::kSurvivorScaleX) && Near(v[i].Pos.y, y * GLFD::Game::kSurvivorScaleY)) { ++n; }
+      if (Near(v[i].Pos.x, x * kTestScaleX) && Near(v[i].Pos.y, y * GLFD::Game::kSurvivorScaleY)) { ++n; }
     }
     return n;
   }
@@ -172,7 +181,7 @@ namespace {
   /// ワールド位置 (x, y) を描いた最初の頂点の添字。無ければ -1
   long long IndexAt(const GLFD::DynamicArray<SimpleVertex>& v, float x, float y) {
     for (std::size_t i = 0; i < v.GetSize(); ++i) {
-      if (Near(v[i].Pos.x, x * GLFD::Game::kSurvivorScaleX) && Near(v[i].Pos.y, y * GLFD::Game::kSurvivorScaleY)) {
+      if (Near(v[i].Pos.x, x * kTestScaleX) && Near(v[i].Pos.y, y * GLFD::Game::kSurvivorScaleY)) {
         return static_cast<long long>(i);
       }
     }
@@ -272,7 +281,7 @@ namespace {
 
     MockMemoryResource frame;
     GLFD::DynamicArray<SimpleVertex> v(&frame);
-    const RenderStatus status = GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, 0.0f, v);
+    const RenderStatus status = GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, ScreenFor(kNoMinimum), v);
     CheckMatchesWorld(w, v, status);
     CHECK(v.GetSize() == 13u);   // 12 体 + プレイヤー(囮 2 つは描かない)
 
@@ -297,7 +306,7 @@ namespace {
 
     {
       GLFD::DynamicArray<SimpleVertex> v(&frame);
-      CheckMatchesWorld(w, v, GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, 0.0f, v));
+      CheckMatchesWorld(w, v, GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, ScreenFor(kNoMinimum), v));
     }
 
     // 途中のものを破棄する(敵 2・弾 1・経験値 1)。先頭と末尾は残す
@@ -308,7 +317,7 @@ namespace {
     }
     {
       GLFD::DynamicArray<SimpleVertex> v(&frame);
-      const RenderStatus s = GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, 0.0f, v);
+      const RenderStatus s = GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, ScreenFor(kNoMinimum), v);
       CheckMatchesWorld(w, v, s);
       CHECK(v.GetSize() == 9u);
     }
@@ -319,7 +328,7 @@ namespace {
     CHECK(w.Place(Kind::Enemy,  XAt(22), YAt(22)));
     {
       GLFD::DynamicArray<SimpleVertex> v(&frame);
-      const RenderStatus s = GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, 0.0f, v);
+      const RenderStatus s = GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, ScreenFor(kNoMinimum), v);
       CheckMatchesWorld(w, v, s);
       CHECK(v.GetSize() == 12u);
     }
@@ -329,7 +338,7 @@ namespace {
     w.placed[0].alive = false;
     {
       GLFD::DynamicArray<SimpleVertex> v(&frame);
-      const RenderStatus s = GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, 0.0f, v);
+      const RenderStatus s = GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, ScreenFor(kNoMinimum), v);
       CheckMatchesWorld(w, v, s);
       CHECK(v.GetSize() == 11u);
     }
@@ -349,7 +358,7 @@ namespace {
     frame.SetFailAfter(0);
     {
       GLFD::DynamicArray<SimpleVertex> v(&frame);
-      const RenderStatus s = GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, 0.0f, v);
+      const RenderStatus s = GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, ScreenFor(kNoMinimum), v);
       CHECK(s.outcome == RenderStatus::Outcome::VertexBufferUnavailable);
       // 要求した数は、描くはずだった数(13)以上。基準プールの範囲なので囮の分だけ多いことがある
       CHECK(s.requestedVertices >= 13u);
@@ -362,7 +371,7 @@ namespace {
     frame.ClearFailure();
     {
       GLFD::DynamicArray<SimpleVertex> v(&frame);
-      CheckMatchesWorld(w, v, GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, 0.0f, v));
+      CheckMatchesWorld(w, v, GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, ScreenFor(kNoMinimum), v));
     }
     CHECK(frame.LiveBytes() == 0u);
   }
@@ -385,13 +394,13 @@ namespace {
     GLFD::Test::BeginCase("T-ECS-38e: sizes below the minimum are raised to it, the rest are untouched; radii come from the right fields");
 
     // 窓の高さ 720 画素なら、NDC の縦 2 が 720 画素。下限 4 px は 8 / 720
-    const float min720 = GLFD::Game::SurvivorMinRadiusNdc(720);
+    const float min720 = GLFD::Game::SurvivorScreenOf(1280, 720).minRadiusNdc;
     CHECK(std::fabs(min720 * 720.0f * 0.5f - GLFD::Game::kSurvivorMinRadiusPx) <= 1e-5f);
     CHECK(GLFD::Game::kSurvivorMinRadiusPx == 4.0f);
-    CHECK(std::fabs(GLFD::Game::SurvivorMinRadiusNdc(1080) * 1080.0f * 0.5f - 4.0f) <= 1e-5f);
+    CHECK(std::fabs(GLFD::Game::SurvivorScreenOf(1920, 1080).minRadiusNdc * 1080.0f * 0.5f - 4.0f) <= 1e-5f);
     // 高さ 0(最小化中など)でも割り算で壊れない
-    const float min0 = GLFD::Game::SurvivorMinRadiusNdc(0);
-    CHECK(min0 == GLFD::Game::SurvivorMinRadiusNdc(1));
+    const float min0 = GLFD::Game::SurvivorScreenOf(1280, 0).minRadiusNdc;
+    CHECK(min0 == GLFD::Game::SurvivorScreenOf(1280, 1).minRadiusNdc);
     CHECK(std::isfinite(min0));
 
     World w;
@@ -405,7 +414,7 @@ namespace {
     {
       const SizeSpec spec{ kRadii, min720 };
       GLFD::DynamicArray<SimpleVertex> v(&frame);
-      CheckMatchesWorld(w, v, GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, min720, v), spec);
+      CheckMatchesWorld(w, v, GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, ScreenFor(spec), v), spec);
       bool pickupsAtMinimum = true;
       bool bulletsAboveIt   = true;
       for (std::size_t i = 0; i < v.GetSize(); ++i) {
@@ -422,7 +431,7 @@ namespace {
       const float big = 0.2f;
       const SizeSpec spec{ kRadii, big };
       GLFD::DynamicArray<SimpleVertex> v(&frame);
-      CheckMatchesWorld(w, v, GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, big, v), spec);
+      CheckMatchesWorld(w, v, GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, ScreenFor(spec), v), spec);
       bool allAtMinimum = v.GetSize() == 13u;
       for (std::size_t i = 0; i < v.GetSize(); ++i) { allAtMinimum = allAtMinimum && v[i].Pos.z == big; }
       CHECK(allAtMinimum);
@@ -438,6 +447,54 @@ namespace {
     CHECK(r.pickup == fake.pickupRadius);
   }
 
+  // ===========================================================================
+  // T-ECS-38g 縦横の縮尺
+  // ===========================================================================
+
+  /// 1 単位が横に何画素か / 縦に何画素か
+  float PxPerUnitX(const SurvivorScreen& s, int width)  { return s.scaleX * static_cast<float>(width) * 0.5f; }
+  float PxPerUnitY(int height) { return GLFD::Game::kSurvivorScaleY * static_cast<float>(height) * 0.5f; }
+
+  void TestSameScaleAcrossAndDown() {
+    GLFD::Test::BeginCase("T-ECS-38g: one world unit is the same number of pixels across and down, for any window shape");
+
+    // 16:9 / 4:3 / 正方形 / 縦長。どれも 1 単位の画素が縦横で同じ
+    const int sizes[][2] = { { 1280, 720 }, { 1024, 768 }, { 800, 800 }, { 600, 900 }, { 1920, 1080 } };
+    bool same = true;
+    for (const auto& wh : sizes) {
+      const SurvivorScreen s = GLFD::Game::SurvivorScreenOf(wh[0], wh[1]);
+      same = same && std::fabs(PxPerUnitX(s, wh[0]) - PxPerUnitY(wh[1])) <= 1e-4f;
+    }
+    CHECK(same);
+
+    // 1280 x 720: 縦は上下 34 単位のまま(1 単位 = 360 / 34 = 10.6 画素)。横はその分広く見える
+    const SurvivorScreen hd = GLFD::Game::SurvivorScreenOf(1280, 720);
+    CHECK(std::fabs(PxPerUnitY(720) - 360.0f / 34.0f) <= 1e-4f);
+    CHECK(std::fabs(1.0f / hd.scaleX - 34.0f * 1280.0f / 720.0f) <= 1e-3f);   // 左右 60.4 単位
+    // 1-8 から 2-3 (3) までの 4:3 の値 (1/45) ではない
+    CHECK(std::fabs(hd.scaleX - 1.0f / 45.0f) > 1e-3f);
+
+    // 幅・高さが 0 でも有限
+    const SurvivorScreen zero = GLFD::Game::SurvivorScreenOf(0, 0);
+    CHECK(std::isfinite(zero.scaleX) && std::isfinite(zero.minRadiusNdc));
+
+    // 組んだ頂点の x は、渡した画面の横の縮尺で直されている
+    World w;
+    CHECK(w.Place(Kind::Enemy, 12.5f, -7.25f));
+    MockMemoryResource frame;
+    {
+      GLFD::DynamicArray<SimpleVertex> v(&frame);
+      const RenderStatus st = GLFD::Game::BuildSurvivorVertices(w.registry, kRadii, hd, v);
+      CHECK(st.outcome == RenderStatus::Outcome::Drawn);
+      CHECK(v.GetSize() == 2u);
+      if (v.GetSize() == 2u) {
+        CHECK(v[0].Pos.x == 12.5f * hd.scaleX);
+        CHECK(v[0].Pos.y == -7.25f * GLFD::Game::kSurvivorScaleY);
+      }
+    }
+    CHECK(frame.LiveBytes() == 0u);
+  }
+
 }
 
 int main() {
@@ -446,5 +503,6 @@ int main() {
   TestCountFollowsTheWorld();
   TestAllocationFailure();
   TestMinimumSizeAndRadiiSource();
+  TestSameScaleAcrossAndDown();
   return GLFD::Test::Summarize();
 }

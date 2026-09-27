@@ -36,7 +36,12 @@
  *  - 半径は**当たり判定の半径**(ワールドの単位)× 縦の縮尺。プレイヤーはエンティティでは
  *    ないので、敵が「触れた」とみなされる距離 `reachRadius` を使う
  *  - 画面上で `kSurvivorMinRadiusPx` より小さくなるものは、そこまで引き上げる(点が消えない)
- *  - 縦横の縮尺がまだ違う(4:3 の値)ので、**当たり判定と一致するのは縦方向だけ**。(4) で揃える
+ *
+ *  ## 縦横の縮尺
+ *  **1 単位あたりの画素を縦横で同じにする** (2-3 (4))。縦は `kSurvivorScaleY`(上下 34 単位)の
+ *  まま、横は窓の縦横比から決める(`SurvivorScreenOf`)。これで当たり判定の円が画面でも円になり、
+ *  描く丸の大きさ(縦で決めている)とも横方向で一致する。1-8 から 2-3 (3) までは横が 4:3 の値
+ *  (1/45)の固定で、16:9 の窓では縦に潰れていた
  *
  *  **色はハードコードする。** 色は実装の一部であって調整する設定ではない。
  *  調整したくなったら `GameConfig` の `$version` を上げて移す(A-2 の手順)。
@@ -54,8 +59,8 @@
 
 namespace GLFD::Game {
 
-  /// ワールド座標から NDC へ。**4:3 の窓の比**(1-8 で決めた値)
-  inline constexpr float kSurvivorScaleX = 1.0f / 45.0f;
+  /// ワールド座標から NDC への縦の縮尺(上下 34 単位が見える。1-8 で決めた値)。
+  /// 横は窓の縦横比で決める(`SurvivorScreenOf`)
   inline constexpr float kSurvivorScaleY = 1.0f / 34.0f;
 
   struct SurvivorColor {
@@ -89,10 +94,21 @@ namespace GLFD::Game {
     return SurvivorDrawRadii{ p.reachRadius, p.enemyRadius, p.bulletRadius, p.pickupRadius };
   }
 
-  /// 最小の半径を NDC の縦の長さに直す。窓の高さが h 画素なら、NDC の縦 2 が h 画素
-  [[nodiscard]] inline float SurvivorMinRadiusNdc(int windowHeight) noexcept {
+  /// 窓の大きさから決まる値。`SurvivorScreenOf` で作る
+  struct SurvivorScreen {
+    float scaleX;         ///< ワールド → NDC の横。1 単位の画素が縦(`kSurvivorScaleY`)と同じになる値
+    float minRadiusNdc;   ///< 半径の下限(NDC の縦)。`kSurvivorMinRadiusPx` を直したもの
+  };
+
+  /**
+   * @brief 窓の大きさ(画素)から横の縮尺と半径の下限を作る
+   * @details NDC の横 2 が幅 w 画素、縦 2 が高さ h 画素。1 単位の画素を縦横で揃えるには
+   *          `scaleX * w = kSurvivorScaleY * h`。幅・高さが 0(最小化中など)でも割り算で壊れない
+   */
+  [[nodiscard]] inline SurvivorScreen SurvivorScreenOf(int windowWidth, int windowHeight) noexcept {
+    const float w = (windowWidth  < 1) ? 1.0f : static_cast<float>(windowWidth);
     const float h = (windowHeight < 1) ? 1.0f : static_cast<float>(windowHeight);
-    return kSurvivorMinRadiusPx * 2.0f / h;
+    return SurvivorScreen{ kSurvivorScaleY * h / w, kSurvivorMinRadiusPx * 2.0f / h };
   }
 
   /**
@@ -100,7 +116,7 @@ namespace GLFD::Game {
    *
    * @param registry 読むだけ(構造は変えない)
    * @param radii    種類ごとの半径(ワールドの単位)
-   * @param minRadiusNdc 半径の下限(NDC の縦)。`SurvivorMinRadiusNdc` で作る
+   * @param screen   横の縮尺と半径の下限。`SurvivorScreenOf` で窓の大きさから作る
    * @param vertices 組んだ頂点の置き場所。**呼ぶ側がフレームメモリで作って渡す。**
    *                 成功したとき、要素数は描く頂点の数ちょうどになる
    * @return 成功: `Drawn` と描く数。確保失敗: `VertexBufferUnavailable` と
@@ -112,7 +128,7 @@ namespace GLFD::Game {
    *  出した数まで縮める(縮小は確保を伴わないので失敗しない)。
    */
   [[nodiscard]] inline Systems::RenderStatus BuildSurvivorVertices(
-      ECS::Registry& registry, const SurvivorDrawRadii& radii, float minRadiusNdc,
+      ECS::Registry& registry, const SurvivorDrawRadii& radii, const SurvivorScreen& screen,
       DynamicArray<Graphics::SimpleVertex>& vertices) noexcept {
     auto enemies = registry.View<Components::Position, Components::Health>();
     auto bullets = registry.View<Components::Position, Components::Damage>();
@@ -126,9 +142,11 @@ namespace GLFD::Game {
 
     std::size_t count = 0;
     // z は丸の半径(NDC の縦)。下限より小さければ下限にする
-    const auto emit = [&vertices, &count, minRadiusNdc](float x, float y, float radius, const SurvivorColor& c) {
+    const float scaleX       = screen.scaleX;
+    const float minRadiusNdc = screen.minRadiusNdc;
+    const auto emit = [&vertices, &count, scaleX, minRadiusNdc](float x, float y, float radius, const SurvivorColor& c) {
       const float r = radius * kSurvivorScaleY;
-      vertices[count].Pos   = DirectX::XMFLOAT4(x * kSurvivorScaleX, y * kSurvivorScaleY,
+      vertices[count].Pos   = DirectX::XMFLOAT4(x * scaleX, y * kSurvivorScaleY,
                                                 (r < minRadiusNdc) ? minRadiusNdc : r, 1.0f);
       vertices[count].Color = DirectX::XMFLOAT4(c.r, c.g, c.b, 1.0f);
       ++count;
