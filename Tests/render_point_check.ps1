@@ -27,6 +27,9 @@
 #  reaches the `finally` that restores the sources, and the probe stays in them. The script
 #  refuses to start while the two files differ from the last commit (exit 4) and prints how
 #  to restore:  git checkout -- Source/Game/SurvivorRender.h Source/Graphics/DX11Renderer.cpp
+#  If Windows refuses to bring the game window to the front (it does while you are using
+#  another window), the script asks you to CLICK THE GAME WINDOW ONCE and waits 30 s.
+#  -ManualFront skips the automatic attempt (used to test that path).
 #  Exit codes: 0 expectation met / 1 not met / 2 the '2' key did not land /
 #              3 restore failed / 4 not started (files differ from the last commit)
 #  The window must be able to come to the front (a background window is not held by
@@ -35,7 +38,7 @@
 #  NOTE: names differ in spelling, not only in case (PowerShell names are
 #        case-insensitive: ECS 2-4 $B/$b, ECS 2-7 $Configs/$configs).
 # ---------------------------------------------------------------------------
-param([switch]$Mutant, [int]$ShotCount = 3)
+param([switch]$Mutant, [int]$ShotCount = 3, [switch]$ManualFront)
 $ErrorActionPreference = "Stop"
 $repoRoot   = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $renderHdr  = Join-Path $repoRoot "Source\Game\SurvivorRender.h"
@@ -160,17 +163,37 @@ public struct POINT { public int X, Y; }
   }
   if ($hwnd -eq [IntPtr]::Zero) { throw "no main window after 30 s" }
   $frontGame = {
-    $target = [PointCheckApi]::GetWindowThreadProcessId($hwnd, [IntPtr]::Zero); $mine = [PointCheckApi]::GetCurrentThreadId()
+    $mine = [PointCheckApi]::GetCurrentThreadId()
     for ($try = 0; $try -lt 20; ++$try) {
-      if ([PointCheckApi]::GetForegroundWindow() -eq $hwnd) { return $true }
-      [void][PointCheckApi]::AttachThreadInput($mine, $target, $true); [void][PointCheckApi]::ShowWindow($hwnd, 9)
+      $inFront = [PointCheckApi]::GetForegroundWindow()
+      if ($inFront -eq $hwnd) { return $true }
+      if ($ManualFront) { return $false }
+      # Windows lets another process's window come to the front only in some cases. Attach our input
+      # to the thread of the window that is in front NOW (attaching to the game's own thread, as the
+      # first version did, does not get through; seen on the user's machine in ECS 2-3)
+      $frontThread = [PointCheckApi]::GetWindowThreadProcessId($inFront, [IntPtr]::Zero)
+      $attached = ($frontThread -ne 0) -and ($frontThread -ne $mine) -and [PointCheckApi]::AttachThreadInput($mine, $frontThread, $true)
+      [void][PointCheckApi]::ShowWindow($hwnd, 9)
       [void][PointCheckApi]::BringWindowToTop($hwnd); [void][PointCheckApi]::SetForegroundWindow($hwnd)
-      [void][PointCheckApi]::AttachThreadInput($mine, $target, $false); Start-Sleep -Milliseconds 200
+      if ($attached) { [void][PointCheckApi]::AttachThreadInput($mine, $frontThread, $false) }
+      Start-Sleep -Milliseconds 200
     }
     return ([PointCheckApi]::GetForegroundWindow() -eq $hwnd)
   }
+  # If Windows refuses, a click by the user brings it to the front. Ask once and wait
+  $waitForClick = {
+    Write-Host "  The game window could not be brought to the front."
+    Write-Host "  >>> CLICK THE GAME WINDOW ONCE (anywhere inside it). Waiting up to 30 s ..."
+    for ($w = 0; $w -lt 150; ++$w) {
+      if ([PointCheckApi]::GetForegroundWindow() -eq $hwnd) { Write-Host "  the game window is in front"; return $true }
+      Start-Sleep -Milliseconds 200
+    }
+    Write-Host "  no click within 30 s"
+    return $false
+  }
   $countChanges = { if (-not (Test-Path $gameLog)) { return 0 }; return @(Get-Content $gameLog | Select-String -Pattern "pressed. changing to").Count }
   Start-Sleep -Seconds 2
+  if (-not (& $frontGame)) { [void](& $waitForClick) }
   $before = & $countChanges; $landed = $false
   for ($attempt = 1; $attempt -le 3 -and -not $landed; ++$attempt) {
     if (-not (& $frontGame)) { continue }
@@ -209,7 +232,7 @@ public struct POINT { public int X, Y; }
   $selfExit = if ($proc.WaitForExit(15000)) { "exited by itself, code $($proc.ExitCode)" } else { $proc | Stop-Process -Force; "HUNG (killed)" }
 
   $allOnes = ("1 " * $probeCount).Trim()
-  if (-not $landed) { $verdict = "NO VERDICT: the '2' key did not land, no Survivor shot was taken"; $exitWith = 2 }
+  if (-not $landed) { $verdict = "NO VERDICT: the '2' key did not land (the game window was not in front), no Survivor shot was taken"; $exitWith = 2 }
   else {
     $everyPointDrawn = @($rowsSeen | Where-Object { $_ -notmatch "start $allOnes \| end $allOnes$" }).Count -eq 0
     if ($Mutant) {
