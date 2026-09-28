@@ -43,6 +43,7 @@
 #include <cstdio>
 #include <tuple>
 
+#include "Core/SimulationClock.h"   // kSimulationStep (ECS 2-8)
 #include "Core/FailureGate.h"
 #include "Core/GameContext.h"
 #include "Core/StackAllocator.h"
@@ -102,7 +103,7 @@ namespace {
           &m_global, &m_frame, g_jobs, &m_registry, &m_commands, &m_eventBus,
           nullptr,                 // grid: GridBuild が差し込む
           nullptr, nullptr, nullptr,
-          0.016f,
+          GLFD::Core::kSimulationStep,
           nullptr, 0.0f, nullptr, nullptr };
     }
 

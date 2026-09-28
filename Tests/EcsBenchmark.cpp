@@ -54,6 +54,7 @@
 #include <memory>
 #include <random>
 
+#include "Core/SimulationClock.h"   // kSimulationStep (ECS 2-8)
 #include "Core/DoubleStackAllocator.h"
 #include "Core/GameConfig.h"
 #include "Core/GameConfigLoad.h"
@@ -279,9 +280,9 @@ int main(int argc, char** argv) {
         nullptr,          // window
         nullptr,          // input
         nullptr,          // fileManager
-        0.016f,
+        GLFD::Core::kSimulationStep,
         nullptr,          // renderer
-        static_cast<float>(f) * 0.016f,
+        static_cast<float>(f) * GLFD::Core::kSimulationStep,
         nullptr,          // sceneManager
         nullptr           // resourceManager
     };

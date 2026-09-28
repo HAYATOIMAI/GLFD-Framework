@@ -9,6 +9,8 @@
 #include "Core/GameConfigLog.h"
 #include "Core/Json/Json.h"
 #include "Core/InputSystem.h"
+#include "Core/SimulationClock.h"
+#include "Core/SimulationClockLog.h"
 #include "Core/Logger.h"
 #include "Core/FileManager.h"
 
@@ -31,6 +33,7 @@
 #include "Game/SurvivorScene.h"
 
 #include <chrono>
+#include <cstdint>
 #include <iostream>   // Initialize の std::cerr。以前は JobSystem.h 経由で届いていた (ECS 2-4)
 #include <string>
 
@@ -197,9 +200,20 @@ namespace GLFD {
   }
 
   void GameEngine::Run() {
-    auto lastTime = std::chrono::high_resolution_clock::now();
-    int frames = 0;
-    double fpsTimer = 0.0;
+    // **固定の刻み + 貯め込み** (ECS 2-8)。2-7 までは毎フレーム Update(0.016f) を 1 回
+    // 呼んでいたので、ゲームの速さがフレームの数(モニターと窓の状態)で決まっていた。
+    // 144 Hz の前面で実時間の 2.30 倍、最小化で 316 から 336 倍 (Survivor) を実測した。
+    // 刻みの数え方と上限は Core/SimulationClock.h、診断の行は Core/SimulationClockLog.h
+    using Clock = std::chrono::steady_clock;
+    const auto toNanoseconds = [](Clock::duration d) -> std::int64_t {
+      return static_cast<std::int64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(d).count());
+    };
+    const Clock::time_point start = Clock::now();
+    Clock::time_point lastTime = start;
+
+    Core::FixedStepAccumulator clock;
+    Core::StepDropReport       stepDrops;        // 捨て始めた / 止んだ、だけを出す (R-46)
+    Core::StartupRateProbe     startupRate(0);   // 起動からの経過で数える
 
     while (m_isRunning) {
       if (!m_window->ProcessMessages()) {
@@ -207,20 +221,25 @@ namespace GLFD {
         break;
       }
 
-      auto currentTime = std::chrono::high_resolution_clock::now();
-      std::chrono::duration<float> dtSec = currentTime - lastTime;
-      lastTime = currentTime;
-      float dt = dtSec.count();
+      const Clock::time_point now = Clock::now();
+      const std::int64_t elapsed = toNanoseconds(now - lastTime);
+      lastTime = now;
 
-      fpsTimer += dt;
-      frames++;
-      if (fpsTimer >= 1.0) {
-        frames = 0;
-        fpsTimer -= 1.0;
-      }
+      // **入力はフレームに 1 回読む。** 押された瞬間は KeyEdgeLatch が持ち越し、
+      // ちょうど 1 回の刻みに届ける(刻みが 0 回のフレームでは次のフレームの最初の刻みへ)
+      m_inputSystem->Update(m_window->GetHWND());
 
-      Update(0.016f);
+      const Core::StepPlan plan = Core::RunFixedSteps(clock, *m_inputSystem, elapsed,
+                                                      [this] { Update(Core::kSimulationStep); });
+      Core::ReportStepDrops(plan, clock.MaxStepsPerFrame(), stepDrops);
+
       Render();
+
+      // 起動して落ち着いたところで 1 回だけ、fps とリフレッシュレートとシミュレーションの速さを出す。
+      // 2-7 までは FPS を数えて捨てていたので、2.3 倍で進んでいても誰も気づかなかった
+      if (startupRate.OnFrame(toNanoseconds(Clock::now() - start), plan.steps)) {
+        Core::ReportStartupRate(startupRate.Measured(), m_window->MonitorRefreshHz());
+      }
     }
   }
 
@@ -250,7 +269,7 @@ namespace GLFD {
         m_resourceManager.get()
     };
 
-    m_inputSystem->Update(m_window->GetHWND());
+    // 入力は Run がフレームに 1 回読み、この刻みの頭で BeginStep を済ませてある (ECS 2-8)
 
     // The scene switch is read before the scene runs (2-1). The table is the one
     // in SceneCatalog.h that the start-scene selection above also uses. Pressing
@@ -299,9 +318,11 @@ namespace GLFD {
     // 関数ローカルの `static std::vector`(N-1 / N-3 抵触)から
     // `DynamicArray` + `IMemoryResource` へ移ったため、確保元が要る。
     //
-    // `SwapAndReset()` は `Update()` の先頭で呼ばれ、`Run()` は
-    // `Update(); Render();` の順なので、**このフレームの領域は Render が
-    // 終わるまで生きている**。取った分は次フレームの先頭でまとめて戻る。
+    // **描画の前にも空にする** (ECS 2-8)。刻みは 1 フレームに 0 回のことがあり、刻みの頭
+    // (`Update`) でしか空にしないと、刻みの無いフレームが続く間、描画の確保が溜まっていく。
+    // 前のフレームの領域 (`GetPrevious`) を読む所は無く、どの確保もその刻み・その描画の中で
+    // 使い終わる(2-8 で確かめた)
+    m_frameAllocator->SwapAndReset();
     Memory::StackResource frameResource(m_frameAllocator->GetCurrent());
 
     GameContext ctx{

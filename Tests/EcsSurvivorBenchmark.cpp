@@ -43,6 +43,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "Core/SimulationClock.h"   // kSimulationStep (ECS 2-8)
 #include "Core/DoubleStackAllocator.h"
 #include "Core/GameContext.h"
 #include "Core/StackAllocator.h"
@@ -202,8 +203,8 @@ int main(int argc, char** argv) {
         &globalResource, &frameResource, &jobSystem, &registry, &commands, &eventBus,
         nullptr,          // grid: GridBuild が差し込む
         nullptr, nullptr, nullptr,
-        0.016f,
-        nullptr, static_cast<float>(f) * 0.016f, nullptr, nullptr };
+        GLFD::Core::kSimulationStep,
+        nullptr, static_cast<float>(f) * GLFD::Core::kSimulationStep, nullptr, nullptr };
 
     const bool measuring = (f >= warmup);
     const int  m         = f - warmup;

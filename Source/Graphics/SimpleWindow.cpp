@@ -79,6 +79,20 @@ namespace GLFD::Graphics {
     return true;
   }
 
+  int SimpleWindow::MonitorRefreshHz() const {
+    // 起動時に 1 回、観測の行に載せるためだけに読む (ECS 2-8)。窓モードの垂直同期は
+    // このモニターの値で待つ(スワップチェーンの RefreshRate = 60 は効いていない。2-8 手順1)
+    HMONITOR monitor = MonitorFromWindow(m_hwnd, MONITOR_DEFAULTTONEAREST);
+    MONITORINFOEXW info = {};
+    info.cbSize = sizeof(info);
+    if (!GetMonitorInfoW(monitor, &info)) { return 0; }
+    DEVMODEW mode = {};
+    mode.dmSize = sizeof(mode);
+    if (!EnumDisplaySettingsW(info.szDevice, ENUM_CURRENT_SETTINGS, &mode)) { return 0; }
+    // 0 と 1 は「ハードウェアの既定」の意味で、実際の値ではない
+    return (mode.dmDisplayFrequency > 1) ? static_cast<int>(mode.dmDisplayFrequency) : 0;
+  }
+
   LRESULT SimpleWindow::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     if (uMsg == WM_DESTROY) {
       PostQuitMessage(0);

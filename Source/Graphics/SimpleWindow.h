@@ -28,6 +28,8 @@ namespace GLFD::Graphics {
     bool ProcessMessages();
 
     HWND GetHWND() const { return m_hwnd; }
+    // 窓があるモニターのリフレッシュレート (Hz)。分からなければ 0 (ECS 2-8)
+    int MonitorRefreshHz() const;
     int GetWidth() const { return m_width; }
     int GetHeight() const { return m_height; }
 

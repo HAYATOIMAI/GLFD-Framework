@@ -69,6 +69,9 @@
     <ClInclude Include="Source\Core\Json\JsonReadArchive.h" />
     <ClInclude Include="Source\Core\Json\JsonWriteArchive.h" />
     <ClInclude Include="Source\Core\InputSystem.h" />
+    <ClInclude Include="Source\Core\KeyEdgeLatch.h" />
+    <ClInclude Include="Source\Core\SimulationClock.h" />
+    <ClInclude Include="Source\Core\SimulationClockLog.h" />
     <ClInclude Include="Source\Core\Logger.h" />
     <ClInclude Include="Source\Core\FailureGate.h" />
     <ClInclude Include="Source\Core\MemoryResource.h" />

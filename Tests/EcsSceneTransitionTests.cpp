@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <cstdio>
 
+#include "Core/SimulationClock.h"   // kSimulationStep (ECS 2-8)
 #include "Core/DoubleStackAllocator.h"
 #include "Core/GameContext.h"
 #include "Core/StackAllocator.h"
@@ -74,7 +75,7 @@ namespace {
       ctx.window         = nullptr;
       ctx.input          = nullptr;
       ctx.fileManager    = nullptr;
-      ctx.dt             = 0.016f;
+      ctx.dt             = GLFD::Core::kSimulationStep;
       ctx.renderer       = nullptr;
       ctx.totalTime      = 0.0f;
       ctx.sceneManager   = &scenes;

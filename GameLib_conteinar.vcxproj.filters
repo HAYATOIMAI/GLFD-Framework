@@ -183,6 +183,15 @@
     <ClInclude Include="Source\Core\FailureGate.h">
       <Filter>Core</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Core\KeyEdgeLatch.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\SimulationClock.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\SimulationClockLog.h">
+      <Filter>Core</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Core\DoubleStackAllocator.h">
       <Filter>Core</Filter>
     </ClInclude>
