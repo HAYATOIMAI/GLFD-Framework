@@ -7,7 +7,7 @@
 #
 #   1. TEMPORARILY edits Source\Game\SurvivorRender.h: 8 white points at the START of
 #      the vertex list and 8 at the END, at fixed NDC positions (so the world scale does
-#      not matter), size written to Pos.z (ignored while the GS uses a fixed size)
+#      not matter), radius written to Pos.z (the GS reads it since ECS 2-3 stage (3))
 #   2. -Mutant also removes the IASetPrimitiveTopology line from DX11Renderer.cpp
 #   3. builds Release, starts the game, switches to Survivor with '2' (confirmed from
 #      Game.log), captures 3 shots and reads the 16 points
@@ -22,6 +22,13 @@
 #  drawn (the tooth: removing the line must be seen). Exit code 0 = expectation met.
 #
 #  usage:  powershell -File Tests\render_point_check.ps1 [-Mutant]
+#
+#  DO NOT close the console / terminal while it runs. A process ended from outside never
+#  reaches the `finally` that restores the sources, and the probe stays in them. The script
+#  refuses to start while the two files differ from the last commit (exit 4) and prints how
+#  to restore:  git checkout -- Source/Game/SurvivorRender.h Source/Graphics/DX11Renderer.cpp
+#  Exit codes: 0 expectation met / 1 not met / 2 the '2' key did not land /
+#              3 restore failed / 4 not started (files differ from the last commit)
 #  The window must be able to come to the front (a background window is not held by
 #  vsync and the '2' key may not land); the script says so if it could not.
 #
@@ -59,7 +66,28 @@ function Build-Release([string]$tag) {
   if ($LASTEXITCODE -ne 0 -or -not $fresh) { throw "build '$tag' failed or did not write the exe (see $buildLog)" }
 }
 
-# --- back up; refuse to run over a leftover backup (a previous run died before restoring)
+# --- refuse to start unless both files are exactly as committed. A run ended from outside (its
+#     console closed, for instance) never reaches the `finally` below and leaves the probe in the
+#     source; the next run would then back that up as the "original" and restore it. Seen in
+#     ECS 2-3: the probe ended up in the source and in the Release exe after three runs.
+$gitPaths = @("Source/Game/SurvivorRender.h", "Source/Graphics/DX11Renderer.cpp")
+& git -C $repoRoot diff --quiet HEAD -- $gitPaths
+$gitCode = $LASTEXITCODE
+if ($gitCode -ne 0) {
+  if ($gitCode -eq 1) {
+    Write-Host "render_point_check: NOT STARTED: these files differ from the last commit"
+    Write-Host "  (a previous run may have been ended before it could restore them):"
+    & git -C $repoRoot status --short -- $gitPaths | ForEach-Object { Write-Host "    $_" }
+    Write-Host "  If the only changes are the lines marked PROBE (and, after -Mutant, the removed"
+    Write-Host "  topology line), restore them and build Release again:"
+    Write-Host "    git checkout -- Source/Game/SurvivorRender.h Source/Graphics/DX11Renderer.cpp"
+  } else {
+    Write-Host "render_point_check: NOT STARTED: git could not compare the files (exit $gitCode)"
+  }
+  exit 4
+}
+
+# --- back up (the copies are what the `finally` restores; they equal the last commit, checked above)
 $backupHdr = Join-Path $workDir "SurvivorRender.h.orig"
 $backupCpp = Join-Path $workDir "DX11Renderer.cpp.orig"
 Copy-Item $renderHdr $backupHdr
@@ -205,6 +233,10 @@ finally {
   (Get-Item $rendererCpp).LastWriteTime = Get-Date
   $restored = ((Get-FileHash $renderHdr).Hash -eq $hashHdr) -and ((Get-FileHash $rendererCpp).Hash -eq $hashCpp)
   Write-Host "  restored byte-identical: $restored"
+  & git -C $repoRoot diff --quiet HEAD -- $gitPaths
+  $sameAsCommit = ($LASTEXITCODE -eq 0)
+  Write-Host "  same as the last commit: $sameAsCommit"
+  if (-not $sameAsCommit) { $restored = $false }
   if (-not $restored) { Write-Host "  RESTORE FAILED. originals are in $workDir"; $exitWith = 3 }
   else {
     try { Build-Release "restored"; Write-Host "  Release rebuilt from the restored sources" }
