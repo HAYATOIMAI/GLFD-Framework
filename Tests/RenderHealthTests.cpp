@@ -14,7 +14,9 @@
  *   - 43c: 最初の失敗だけを覚える(後から来たもので上書きしない)
  *   - 43d: 失敗の行。名前と 16 進。失われたか / 失われていないかで文を分ける。表に無い値は 16 進だけ
  *   - 43e: 描かなかったフレームの行は、始まり / 止みだけ
- *   - 43f: **隠れた → 確かめ直しで失敗**の順番(TDR で本物を観察した順番)で、黙って描画に戻らない
+ *   - 43f: **隠れた → 確かめ直しで失敗**の順番で、黙って描画に戻らない。この順番は観察していない
+ *          (【訂正】以前は「TDR で本物を観察した順番」と書いていた。17:14 に観察したのは、隠れた →
+ *          確かめ直しで S_OK → 戻った、だけ)。起こり得る経路として塞ぐ
  *   - 43g: 終了コードと、利用者への知らせの文
  *
  *  ## 差の現れない値を避ける (§4.2)
@@ -271,9 +273,9 @@ namespace {
   // 43f 隠れた → 確かめ直しで失敗
   // ===========================================================================
   void TestOccludedThenFailed() {
-    GLFD::Test::BeginCase("T-ECS-43f: OCCLUDED first and then a failing PRESENT_TEST (the order a real TDR showed) stops, not resumes");
+    GLFD::Test::BeginCase("T-ECS-43f: OCCLUDED first and then a failing PRESENT_TEST (a possible order, not observed) stops, not resumes");
 
-    // TDR で観察した順番: Present が OCCLUDED -> 止まっている間の確かめ直し
+    // Present が OCCLUDED -> 止まっている間の確かめ直しで失敗(観察していない順番。起こり得る経路として塞ぐ)
     {
       PresentState state;
       Reason reason{ DXGI_ERROR_DEVICE_HUNG, 0 };
@@ -289,7 +291,7 @@ namespace {
       CHECK(state.failure.removedReason == DXGI_ERROR_DEVICE_HUNG);
       CHECK(reason.calls == 1);
     }
-    // 生き残る経路(TDR で実際に起きたこと): OCCLUDED -> 確かめ直しで S_OK -> 描画に戻る
+    // 戻る経路(17:14 に dxcap を流したとき実際に起きたこと): OCCLUDED -> 確かめ直しで S_OK -> 描画に戻る
     {
       PresentState state;
       Reason reason{ DXGI_ERROR_DEVICE_HUNG, 0 };

@@ -239,8 +239,8 @@ namespace GLFD {
       const bool hidden    = minimized || m_renderer->IsOccluded();
       // **描画を続けられなくなっていたら、ここで終わる** (ECS 2-9)。確かめるのはループの頭の 1 か所。
       //  - 前のフレームの Present / Map の失敗: 次の周の頭で抜ける (失敗の後は Present も Map も呼ばない)
-      //  - 止まっている間の確かめ直し (IsOccluded) の失敗: 眠る分岐に入る前に抜ける。TDR では Present が
-      //    消失より先に OCCLUDED を返した。ここで見ないと、止まったまま眠り続ける
+      //  - 止まっている間の確かめ直し (IsOccluded) の失敗: 眠る分岐に入る前に抜ける。ここで見ないと、
+      //    止まったまま眠り続ける (OCCLUDED の後に失敗が返る順番は観察していない。起こり得る経路として塞ぐ)
       // 抜けた後は通常の終了の経路 (join → ログ → Engine Shutdown) を通り、main が知らせて 0 以外で終わる。
       // Render の直後にも確かめていたが、1 周早く抜けるだけで何も変えないので外した (2-9 の変異 G1)
       if (m_renderer->Failure().failed) {

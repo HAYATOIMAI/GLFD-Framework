@@ -24,13 +24,20 @@
  *  【訂正】18:53 の `dxcap -forcetdr` で本物の消失を捉えた。`Present` は DXGI_ERROR_DEVICE_REMOVED を
  *  返し、理由は DXGI_ERROR_DEVICE_RESET だった(差し込みと同じ振る舞いで終わった)。`Map` が何を
  *  返すかは確かめていない(Present で先に見つかった)
+ *  【訂正 2】「Present で先に見つかった」は誤り。Boid のフレームは `DrawPoints`(Map)を `EndFrame`(Present)
+ *  より先に呼ぶ。18:53 のログには `at Map` の行も `not drawing this frame` の行も無いので、失敗した
+ *  Present の直前の Map は失敗を返していない。そのときデバイスがすでに失われていたかは分からない。
+ *  書き込みだけの Map が失われたデバイスで成功を返すなら、消失を確実に見つけられるのは Present だけになる
  *
- *  ## TDR のときの順番(2-9 で本物を 2 回観察。順番は 1 通りではない)
- *   - 17:14: `Present` が OCCLUDED を返し、0.9 秒止まって戻った。デバイスは生き残った
+ *  ## `dxcap -forcetdr` を流したときの順番(2-9 で 2 回。順番は 1 通りではない)
+ *   - 17:14: `Present` が OCCLUDED を返し、0.9 秒止まって戻った。描画は続いた。ドライバと
+ *     Windows Error Reporting の記録は無い。**本物の TDR だったかは分からない**
+ *     (【訂正】以前は「デバイスは TDR で生き残った」と書いていた)
  *   - 18:53: 約 6.9 秒止まった後(どの呼び出しで止まったかは分からない)、OCCLUDED を経ずに
- *     `Present` が DXGI_ERROR_DEVICE_REMOVED を返した
- *  止まっている間の確かめ直し(`DXGI_PRESENT_TEST`)の値も同じ判定に通す。そうしないと、
- *  OCCLUDED の後に確かめ直しで消失の値が返っても「見えた」と読んで、黙って描画に戻る。
+ *     `Present` が DXGI_ERROR_DEVICE_REMOVED を返した。ドライバの記録と LKD_0x117 (TDR) がある
+ *  止まっている間の確かめ直し(`DXGI_PRESENT_TEST`)の値も同じ判定に通す。**OCCLUDED の後に確かめ
+ *  直しで失敗が返る順番は観察していない**が、起こり得る経路として塞ぐ。見ないと「見えた」と読んで、
+ *  黙って描画に戻る。
  *
  *  **この層は出力しない。** DX11 も `Logger` も引き込まない(`<winerror.h>` だけ)。
  *  本番の `DX11Renderer` とテスト (T-ECS-43) が同じ関数を呼ぶ。行は `RenderHealthLog.h`。
@@ -119,8 +126,9 @@ namespace GLFD::Graphics {
   /**
    * @brief 止まっている間の確かめ直し `Present(0, DXGI_PRESENT_TEST)` の後
    * @return まだ止まっているか。**失敗なら記録して true**(止まったまま。`Run` が失敗を見て終わる)
-   * @note  TDR では Present が消失より先に OCCLUDED を返した(2-9 で本物を観察)。ここで
-   *        「OCCLUDED でなければ見えた」と読むと、消失の値が返っても黙って描画に戻る
+   * @note  OCCLUDED の後に確かめ直しで失敗が返る順番は、観察していない(17:14 は OCCLUDED の後に戻り、
+   *        18:53 は OCCLUDED を経ずに失敗した)。起こり得る経路として塞ぐ。ここで「OCCLUDED でなければ
+   *        見えた」と読むと、失敗の値が返っても黙って描画に戻る
    */
   template <class ReasonFn>
   [[nodiscard]] bool AfterPresentTest(PresentState& state, HRESULT hr, ReasonFn&& reason) {

@@ -2,8 +2,9 @@
 #  GLFD: does the game stop correctly when drawing can no longer continue? (ECS 2-9)
 #
 #  A lost graphics device cannot be caused on demand (on this machine `dxcap -forcetdr` did
-#  not remove the device). [CORRECTED] It can, but not every time: at 17:14 the device survived
-#  dxcap -forcetdr, at 18:53 the same command removed it (Present -> DXGI_ERROR_DEVICE_REMOVED,
+#  not remove the device). [CORRECTED] It can, but not every time: at 17:14 drawing went on after
+#  dxcap -forcetdr (no driver event was recorded; whether it was a real TDR is unknown), at 18:53
+#  the same command removed the device (Present -> DXGI_ERROR_DEVICE_REMOVED,
 #  reason DXGI_ERROR_DEVICE_RESET). Not on demand, so the probe is still needed.
 #  The probe build (GLFD_RENDER_FAULT_PROBE) replaces the results
 #  of Present / Present(TEST) / Map / GetDeviceRemovedReason from the environment variable

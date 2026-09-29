@@ -138,7 +138,8 @@ namespace GLFD::Graphics {
     if (!m_present.occluded) { return false; }
     if (m_present.failure.failed) { return true; }
     // DXGI_PRESENT_TEST: 何も転送せず、今の状態だけを返す。
-    // **この値も同じ判定に通す** (ECS 2-9)。TDR では Present が消失より先に OCCLUDED を返した
+    // **この値も同じ判定に通す** (ECS 2-9)。OCCLUDED の後にここで失敗が返る順番は観察していないが、
+    // 起こり得る経路として塞ぐ (17:14 は OCCLUDED の後に戻り、18:53 は OCCLUDED を経ずに失敗した)
     const HRESULT hr = RenderFaultProbe::Call(RenderFaultProbe::Point::PresentTest,
                                               [this] { return m_swapChain->Present(0, DXGI_PRESENT_TEST); });
     return AfterPresentTest(m_present, hr, [this] { return RemovedReason(); });
