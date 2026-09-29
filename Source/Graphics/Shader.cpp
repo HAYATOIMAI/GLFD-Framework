@@ -46,9 +46,19 @@ namespace GLFD::Graphics {
     if (!CompileShader(codePtr, "PS", "ps_4_0", &psBlob)) return false;
 
     // 2. 作成
-    device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &m_vertexShader);
-    device->CreateGeometryShader(gsBlob->GetBufferPointer(), gsBlob->GetBufferSize(), nullptr, &m_geometryShader);
-    device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_pixelShader);
+    // 戻り値を見る (ECS 2-9)。以前は見ておらず、作れなくても空のシェーダーのまま起動していた
+    if (FAILED(device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &m_vertexShader))) {
+      std::cerr << "Error: Failed to create the vertex shader" << std::endl;
+      return false;
+    }
+    if (FAILED(device->CreateGeometryShader(gsBlob->GetBufferPointer(), gsBlob->GetBufferSize(), nullptr, &m_geometryShader))) {
+      std::cerr << "Error: Failed to create the geometry shader" << std::endl;
+      return false;
+    }
+    if (FAILED(device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_pixelShader))) {
+      std::cerr << "Error: Failed to create the pixel shader" << std::endl;
+      return false;
+    }
 
     // 3. InputLayout
     D3D11_INPUT_ELEMENT_DESC layout[] = {

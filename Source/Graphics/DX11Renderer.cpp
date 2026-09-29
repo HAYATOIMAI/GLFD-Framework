@@ -47,7 +47,13 @@ namespace GLFD::Graphics {
 
     // バックバッファからレンダーターゲットビューを作成
     Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
-    m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer);
+    // 戻り値を見る (ECS 2-9)。以前は見ておらず、失敗は次の CreateRenderTargetView が空のバッファで
+    // 失敗する形でしか分からなかった
+    hr = m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer);
+    if (FAILED(hr)) {
+      std::cerr << "Failed to get the swap chain's back buffer." << std::endl;
+      return false;
+    }
 
     hr = m_device->CreateRenderTargetView(backBuffer.Get(), nullptr, &m_renderTargetView);
 
@@ -235,7 +241,12 @@ namespace GLFD::Graphics {
     bd.ByteWidth = sizeof(SimpleVertex) * MAX_PARTICLES;
     bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; // 書き込み許可
-    m_device->CreateBuffer(&bd, nullptr, &m_vertexBuffer);
+    // 戻り値を見る (ECS 2-9)。以前は見ずに true を返していたので、作れなくても空の頂点バッファのまま
+    // 起動していた (毎フレームの Map が失敗し続ける形になる)
+    if (FAILED(m_device->CreateBuffer(&bd, nullptr, &m_vertexBuffer))) {
+      std::cerr << "Failed to create the vertex buffer." << std::endl;
+      return false;
+    }
 
     return true;
   }
