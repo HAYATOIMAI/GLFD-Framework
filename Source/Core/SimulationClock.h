@@ -28,6 +28,12 @@
  *  して 1 フレームが長くなり、さらに遅れる形を断つ)。1 刻みに満たない端数は残す。
  *  捨てたことは戻り値で返し、出力は上の層が状態の変わり目だけ行う(R-46)。
  *
+ *  ## 隠れている間は止める
+ *  最小化すると `Present` が待たずに `DXGI_STATUS_OCCLUDED` を返し、ループが 1 秒に数千〜数万回
+ *  まわる(2-8 手順1・T-ECS-42)。隠れている間は `Advance(経過, true)` を呼び、**その経過は数えない**。
+ *  戻った最初のフレームの経過も捨てる(前のフレームが隠れていたので、隠れていた時間を含む)。
+ *  端数と、刻みにまだ届いていない入力は、止まる前のまま残る。戻っても追いつこうとはしない。
+ *
  *  **この層は出力しない。** Win32 も Logger も引き込まない。時刻は呼ぶ側が渡すので、
  *  テストが実時間の列を差し込んで決定的に確かめられる (T-ECS-41)。
  */
@@ -79,12 +85,21 @@ namespace GLFD::Core {
     /**
      * @brief 前のフレームからの経過を足し、このフレームで進める刻みの数を返す
      * @param elapsedNanoseconds 0 以下なら何も足さない(時計が戻った・同じ時刻)
+     * @param paused 窓が隠れていて進めないフレーム。経過を数えず、刻みも捨てたことにしない
      * @note  経過に上限は設けない。貯め込みは 64 ビットのナノ秒で、桁があふれるのは約 292 年ぶんの
      *        経過から。1 時間で打ち切る守りを置いたが、外しても何も変わらないことを変異 (N6) で
      *        確かめたので外した(何も変えない守りは置かない)
      */
-    [[nodiscard]] StepPlan Advance(std::int64_t elapsedNanoseconds) noexcept {
+    [[nodiscard]] StepPlan Advance(std::int64_t elapsedNanoseconds, bool paused = false) noexcept {
       StepPlan plan;
+      if (paused) {
+        m_resumeFresh = true;
+        return plan;
+      }
+      if (m_resumeFresh) {   // 戻った最初のフレーム: この経過は隠れていた時間を含むので捨てる
+        m_resumeFresh = false;
+        return plan;
+      }
       if (elapsedNanoseconds > 0) {
         m_pending += elapsedNanoseconds;
       }
@@ -110,6 +125,7 @@ namespace GLFD::Core {
   private:
     std::int64_t  m_pending = 0;
     std::uint32_t m_maxSteps;
+    bool          m_resumeFresh = false;   ///< 前のフレームが止まっていた
   };
 
   /**

@@ -18,6 +18,7 @@
 std::uint32_t Frame(GLFD::Core::FixedStepAccumulator& clock, GLFD::Core::KeyEdgeLatch& latch,
                     const GLFD::Core::KeyEdgeLatch::KeyStates& keys, std::int64_t elapsed,
                     GLFD::Core::StartupRateProbe& probe, std::int64_t now, int& triggered) {
+  if (elapsed > 1000000000LL) { (void)clock.Advance(elapsed, /*paused=*/true); return 0; }
   latch.Sample(keys);
   const GLFD::Core::StepPlan plan = GLFD::Core::RunFixedSteps(clock, latch, elapsed, [&] {
     if (latch.IsTriggered('2')) { ++triggered; }

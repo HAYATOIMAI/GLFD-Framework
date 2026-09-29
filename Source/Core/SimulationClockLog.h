@@ -11,6 +11,7 @@
  *  **毎フレーム・毎秒は出さない。** 出すのは次の 2 つだけ(R-46)。
  *   - 上限を超えて刻みを捨て始めたとき / 止んだとき(`FailureGate`)
  *   - 起動して落ち着いたところで 1 回、フレームの速さとシミュレーションの速さ
+ *   - 窓が隠れて止まったとき / 戻ったとき
  *
  *  ```
  *  [WARN] simulation: falling behind real time. dropped 58 step(s) (0.93 s) this frame; at most 4 step(s) run per frame
@@ -58,6 +59,31 @@ namespace GLFD::Core {
                static_cast<double>(report.droppedInStretch) * static_cast<double>(kSimulationStep),
                static_cast<unsigned long long>(report.droppedTotal));
       report.droppedInStretch = 0;
+    }
+  }
+
+  /// 止まっていることの診断の状態。**`Run` が持つ**
+  struct PauseReport {
+    bool          paused                 = false;
+    std::int64_t  pausedSinceNanoseconds = 0;
+    std::uint32_t pauses                 = 0;   ///< 起動してから止まった回数
+  };
+
+  /**
+   * @brief フレームごとに呼ぶ。止まったとき / 戻ったときだけ 1 行出す
+   * @param why 止まった理由(止まったときの行にだけ載る)
+   */
+  inline void ReportPause(bool paused, const char* why, std::int64_t nowNanoseconds, PauseReport& report) {
+    if (paused == report.paused) { return; }
+    report.paused = paused;
+    if (paused) {
+      report.pausedSinceNanoseconds = nowNanoseconds;
+      ++report.pauses;
+      LOG_INFO("simulation: paused (%s). no steps and no drawing until the window is visible again", why);
+    }
+    else {
+      LOG_INFO("simulation: resumed after %.1f s paused",
+               static_cast<double>(nowNanoseconds - report.pausedSinceNanoseconds) / 1e9);
     }
   }
 

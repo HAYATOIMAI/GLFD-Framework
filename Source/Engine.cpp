@@ -36,6 +36,7 @@
 #include <cstdint>
 #include <iostream>   // Initialize の std::cerr。以前は JobSystem.h 経由で届いていた (ECS 2-4)
 #include <string>
+#include <thread>
 
 namespace {
   constexpr auto USE_MEMORY_SIZE = 512 * 1024 * 1024; // 512MB
@@ -203,7 +204,8 @@ namespace GLFD {
     // **固定の刻み + 貯め込み** (ECS 2-8)。2-7 までは毎フレーム Update(0.016f) を 1 回
     // 呼んでいたので、ゲームの速さがフレームの数(モニターと窓の状態)で決まっていた。
     // 144 Hz の前面で実時間の 2.30 倍、最小化で 316 から 336 倍 (Survivor) を実測した。
-    // 刻みの数え方と上限は Core/SimulationClock.h、診断の行は Core/SimulationClockLog.h
+    // 刻みの数え方と上限は Core/SimulationClock.h、診断の行は Core/SimulationClockLog.h。
+    // 窓が隠れている間は止めて眠る(最小化で 1 秒に数千～数万回まわり 1.7 コアを使っていた)
     using Clock = std::chrono::steady_clock;
     const auto toNanoseconds = [](Clock::duration d) -> std::int64_t {
       return static_cast<std::int64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(d).count());
@@ -214,6 +216,8 @@ namespace GLFD {
     Core::FixedStepAccumulator clock;
     Core::StepDropReport       stepDrops;        // 捨て始めた / 止んだ、だけを出す (R-46)
     Core::StartupRateProbe     startupRate(0);   // 起動からの経過で数える
+    Core::PauseReport          pauses;           // 止まった / 戻った、だけを出す
+    constexpr std::chrono::milliseconds kHiddenPoll{50};   // 隠れている間、確かめ直す間隔
 
     while (m_isRunning) {
       if (!m_window->ProcessMessages()) {
@@ -224,6 +228,18 @@ namespace GLFD {
       const Clock::time_point now = Clock::now();
       const std::int64_t elapsed = toNanoseconds(now - lastTime);
       lastTime = now;
+
+      // **隠れている間は止めて眠る。** 経過は数えず、入力も読まず、描かない。
+      // 戻った最初のフレームの経過も数えない(FixedStepAccumulator が捨てる)
+      const bool minimized = m_window->IsMinimized();
+      const bool hidden    = minimized || m_renderer->IsOccluded();
+      Core::ReportPause(hidden, minimized ? "window minimized" : "window occluded, Present returned DXGI_STATUS_OCCLUDED",
+                        toNanoseconds(now - start), pauses);
+      if (hidden) {
+        (void)clock.Advance(elapsed, /*paused=*/true);
+        std::this_thread::sleep_for(kHiddenPoll);
+        continue;
+      }
 
       // **入力はフレームに 1 回読む。** 押された瞬間は KeyEdgeLatch が持ち越し、
       // ちょうど 1 回の刻みに届ける(刻みが 0 回のフレームでは次のフレームの最初の刻みへ)

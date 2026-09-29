@@ -30,6 +30,8 @@ namespace GLFD::Graphics {
     HWND GetHWND() const { return m_hwnd; }
     // 窓があるモニターのリフレッシュレート (Hz)。分からなければ 0 (ECS 2-8)
     int MonitorRefreshHz() const;
+    // 最小化されているか (ECS 2-8)
+    bool IsMinimized() const { return m_hwnd != nullptr && IsIconic(m_hwnd) != FALSE; }
     int GetWidth() const { return m_width; }
     int GetHeight() const { return m_height; }
 

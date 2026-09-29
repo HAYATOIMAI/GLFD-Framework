@@ -43,6 +43,9 @@ namespace GLFD::Graphics {
     void BeginFrame();
     // 描画終了
     void EndFrame();
+    // 前の Present が DXGI_STATUS_OCCLUDED (窓が見えない) を返していたら、描かずに確かめ直す。
+    // 見えていれば false (ECS 2-8)。Present のそれ以外の戻り値 (デバイスの消失など) は見ていない
+    bool IsOccluded();
 
     // パーティクル描画用メソッドを追加
     // CPU側で計算した頂点リストを受け取ってGPUに送る
@@ -65,6 +68,7 @@ namespace GLFD::Graphics {
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_renderTargetView;
     Microsoft::WRL::ComPtr<ID3D11RasterizerState>  m_rasterizerState;
     Microsoft::WRL::ComPtr<ID3D11BlendState>       m_blendState;
+    bool                                           m_occluded = false;   // 前の Present の結果
 
     ParticleShader m_shader;
     ConstantBuffer<ConstantBufferData>   m_cbGlobal;

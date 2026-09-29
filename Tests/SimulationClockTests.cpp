@@ -15,6 +15,9 @@
  *          次のフレームの最初の刻みへ持ち越され、2 回のフレームでも 1 回だけ届く
  *   - 41f: 起動後に 1 回だけ、fps とシミュレーションの速さを測る
  *   - 41g: 刻みを捨て始めたとき / 止んだときだけ、`Logger` が実際に 1 行ずつ書く
+ *   - 41h: 窓が隠れて止まっている間の経過は数えない。戻った最初のフレームも数えない。
+ *          端数と、刻みにまだ届いていない押下は、止まる前のまま残る
+ *   - 41i: 止まったとき / 戻ったときだけ、`Logger` が実際に 1 行ずつ書く
  *
  *  ## 差の現れない値を避ける (§4.2)
  *   - 経過は刻み (16,000,000 ns) の倍数ちょうどにしない(6,944,444 / 16,666,667 / 49,999 ns など)
@@ -411,6 +414,103 @@ namespace {
     CHECK(dropped == 88u);
   }
 
+
+  // ===========================================================================
+  // 41h 止まっている間
+  // ===========================================================================
+  void TestPausedTimeIsNotCounted() {
+    GLFD::Test::BeginCase("T-ECS-41h: paused time is not counted, the resuming frame runs no step, remainder and a pending press survive");
+
+    const int key = '2';
+    KeyEdgeLatch::KeyStates down{};
+    down[key] = 0x80;
+    FixedStepAccumulator clock;
+    KeyEdgeLatch latch;
+
+    // 10 ms のフレームで押す。刻みは 0 回なので押下は持ち越し
+    const InputFrameResult before = RunInputFrame(clock, latch, down, 10000000, key);
+    CHECK(before.steps == 0);
+    CHECK(clock.PendingNanoseconds() == 10000000);
+
+    // 隠れて 3 秒あまり。Run と同じく、入力は読まず Advance(経過, true) だけ
+    std::uint64_t pausedSteps = 0, pausedDropped = 0;
+    for (int f = 0; f < 60; ++f) {
+      const StepPlan plan = clock.Advance(50001234, /*paused=*/true);
+      pausedSteps   += plan.steps;
+      pausedDropped += plan.droppedSteps;
+    }
+    CHECK(pausedSteps == 0u);
+    CHECK(pausedDropped == 0u);                       // 止まっているのは「遅れて捨てた」ではない
+    CHECK(clock.PendingNanoseconds() == 10000000);    // 端数は止まる前のまま
+
+    // 戻った最初のフレーム: 51 ms は隠れていた時間を含むので捨てる(数えれば 10 + 51 = 3 刻み)
+    const InputFrameResult resume = RunInputFrame(clock, latch, down, 51000000, key);
+    CHECK(resume.steps == 0);
+    CHECK(clock.PendingNanoseconds() == 10000000);
+
+    // 次のフレームからは数える: 10 + 7 = 17 ms -> 1 刻み。止まる前の押下はここにちょうど 1 回届く
+    const InputFrameResult first = RunInputFrame(clock, latch, down, 7000000, key);
+    CHECK(first.steps == 1);
+    CHECK(first.triggeredSteps == 1);
+    CHECK(clock.PendingNanoseconds() == 1000000);
+    const InputFrameResult held = RunInputFrame(clock, latch, down, 16000000, key);
+    CHECK(held.steps == 1);
+    CHECK(held.triggeredSteps == 0);                  // 押し続けても 2 回目は届かない
+
+    // 1 フレームだけ隠れても同じ: そのフレームと、戻ったフレームの経過を数えない
+    (void)clock.Advance(20000000, /*paused=*/true);
+    CHECK(clock.Advance(20000000).steps == 0u);
+    CHECK(clock.Advance(15000000).steps == 1u);       // 1 + 15 = 16 ms ちょうど
+    CHECK(clock.PendingNanoseconds() == 0);
+  }
+
+  // ===========================================================================
+  // 41i 止まった / 戻ったの行
+  // ===========================================================================
+  void TestPauseDiagnosticsOnlyOnChanges() {
+    GLFD::Test::BeginCase("T-ECS-41i: pausing is logged once when the window hides and once when it is back, with the paused time");
+
+    char path[512]{};
+    char        tempDir[400]{};
+    std::size_t tempLen = 0;
+    const bool  hasTemp = getenv_s(&tempLen, tempDir, sizeof tempDir, "TEMP") == 0 && tempLen > 0;
+    std::snprintf(path, sizeof path, "%s\\glfd_simulation_pause_test.log", hasTemp ? tempDir : ".");
+    CHECK(GLFD::Core::Logger::Get().Initialize(path));
+
+    GLFD::Core::PauseReport report;
+    std::int64_t now = 0;
+    auto frames = [&](bool paused, const char* why, int count, std::int64_t each) {
+      for (int f = 0; f < count; ++f) {
+        now += each;
+        GLFD::Core::ReportPause(paused, why, now, report);
+      }
+    };
+    frames(false, "unused", 10, kFrame144);
+    frames(true, "window minimized", 50, 50000000);          // 最初の 1 フレームで止まる。2.45 s 後に戻る
+    frames(false, "unused", 10, kFrame144);
+    frames(true, "window occluded", 6, 50000000);            // 0.25 s 後 + 1 フレームで戻る
+    frames(false, "unused", 5, kFrame144);
+    GLFD::Core::Logger::Get().Shutdown();
+
+    char lines[kMaxLines][kLineLength]{};
+    const int n = ReadLines(path, lines);
+    std::remove(path);
+
+    CHECK(n == 4);
+    if (n >= 4) {
+      CHECK(Contains(lines[0], "[INFO]"));
+      CHECK(Contains(lines[0], "simulation: paused (window minimized). no steps and no drawing until the window is visible again"));
+      // 止まったのは 50 ms のフレームの 1 つ目の終わり、戻ったのは 144 Hz のフレームの 1 つ目の終わり:
+      // 49 x 50 ms + 6.94 ms = 2.457 s
+      CHECK(Contains(lines[1], "simulation: resumed after 2.5 s paused"));
+      CHECK(Contains(lines[2], "simulation: paused (window occluded)."));
+      // 5 x 50 ms + 6.94 ms = 0.257 s
+      CHECK(Contains(lines[3], "simulation: resumed after 0.3 s paused"));
+    }
+    CHECK(report.pauses == 2u);
+    CHECK(!report.paused);
+  }
+
 }
 
 int main() {
@@ -422,5 +522,7 @@ int main() {
   TestInputEdgesReachExactlyOneStep();
   TestStartupRateIsMeasuredOnce();
   TestDropDiagnosticsOnlyOnChanges();
+  TestPausedTimeIsNotCounted();
+  TestPauseDiagnosticsOnlyOnChanges();
   return GLFD::Test::Summarize();
 }

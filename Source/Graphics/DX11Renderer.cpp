@@ -118,8 +118,15 @@ namespace GLFD::Graphics {
   }
 
   void DX11Renderer::EndFrame() {
-    // ‚’¼“¯Šú (VSync) ‚ ‚è‚Å‰æ–Ê“]‘—
-    m_swapChain->Present(1, 0);
+    // ‚’¼“¯Šú (VSync) ‚ ‚è‚Å‰æ–Ê“]‘—B‘‹‚ªŒ©‚¦‚È‚¢‚Æ‘Ò‚½‚¸‚É DXGI_STATUS_OCCLUDED ‚ª•Ô‚é (ECS 2-8)
+    m_occluded = (m_swapChain->Present(1, 0) == DXGI_STATUS_OCCLUDED);
+  }
+
+  bool DX11Renderer::IsOccluded() {
+    if (!m_occluded) { return false; }
+    // DXGI_PRESENT_TEST: ‰½‚à“]‘—‚¹‚¸A¡‚Ìó‘Ô‚¾‚¯‚ð•Ô‚·
+    m_occluded = (m_swapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED);
+    return m_occluded;
   }
 
   void DX11Renderer::DrawPoints(const SimpleVertex* points, size_t pointCount) {
