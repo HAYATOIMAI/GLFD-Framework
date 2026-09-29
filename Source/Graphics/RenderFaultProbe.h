@@ -7,6 +7,9 @@
  * @details
  *  デバイスの消失は普段の実行では起きず、この機械では本物を起こせなかった(`dxcap -forcetdr` では
  *  失われなかった)。消失の経路を決定的に通すため、戻り値を差し替える。
+ *  【訂正】起こせた。17:14 の `dxcap -forcetdr` ではデバイスが生き残ったが、18:53 の同じ操作では
+ *  失われた(Present が DXGI_ERROR_DEVICE_REMOVED、理由 DXGI_ERROR_DEVICE_RESET)。外の出来事は
+ *  1 回の観察で「起きない」と決めない。差し込みは、それでも毎回決定的に通すために要る
  *
  *  **2-4 の `JobSystemProbe.h` と同じ形。**
  *   - `GLFD_RENDER_FAULT_PROBE` を定義したビルドでだけ、`Inject` を呼ぶ。定義の無いビルドでは

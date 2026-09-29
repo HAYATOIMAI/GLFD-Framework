@@ -21,11 +21,16 @@
  *  値を確かめられなかった `D3DDDIERR_DEVICEREMOVED`(Present の文書にある)をまとめて拾う。
  *  **本物の消失で何が返るかは、この機械では確かめられていない**(dxcap -forcetdr では
  *  デバイスが失われなかった)。拾えるのは「返った値が失敗なら」まで。
+ *  【訂正】18:53 の `dxcap -forcetdr` で本物の消失を捉えた。`Present` は DXGI_ERROR_DEVICE_REMOVED を
+ *  返し、理由は DXGI_ERROR_DEVICE_RESET だった(差し込みと同じ振る舞いで終わった)。`Map` が何を
+ *  返すかは確かめていない(Present で先に見つかった)
  *
- *  ## TDR のときの順番(2-9 で本物を観察)
- *  `dxcap -forcetdr` を流すと、`Present` は**消失より先に OCCLUDED を返した**(0.9 秒止まって戻った)。
+ *  ## TDR のときの順番(2-9 で本物を 2 回観察。順番は 1 通りではない)
+ *   - 17:14: `Present` が OCCLUDED を返し、0.9 秒止まって戻った。デバイスは生き残った
+ *   - 18:53: 約 6.9 秒止まった後(どの呼び出しで止まったかは分からない)、OCCLUDED を経ずに
+ *     `Present` が DXGI_ERROR_DEVICE_REMOVED を返した
  *  止まっている間の確かめ直し(`DXGI_PRESENT_TEST`)の値も同じ判定に通す。そうしないと、
- *  確かめ直しで消失の値が返っても「見えた」と読んで、黙って描画に戻る。
+ *  OCCLUDED の後に確かめ直しで消失の値が返っても「見えた」と読んで、黙って描画に戻る。
  *
  *  **この層は出力しない。** DX11 も `Logger` も引き込まない(`<winerror.h>` だけ)。
  *  本番の `DX11Renderer` とテスト (T-ECS-43) が同じ関数を呼ぶ。行は `RenderHealthLog.h`。
@@ -187,7 +192,39 @@ namespace GLFD::Graphics {
   inline constexpr std::size_t kExitMessageLength = 1024;
 
   /**
+   * @brief 知らせの 1 行目: 何が起きたかを、理由(`GetDeviceRemovedReason`)ごとに平易に書く
+   * @note  2-9 で本物の消失を捉えたとき (18:53)、英語の "The graphics device was lost" はユーザーに
+   *        「デバイスが見つからない」と読まれた。起きたのは Windows による GPU のリセット (TDR。理由
+   *        DXGI_ERROR_DEVICE_RESET)。見当違いの対処(GPU を探す、挿し直す)を招かない文にする。
+   *        RESET の文は文書の説明(「誤った命令」)ではなく、観察した出来事(外からのリセット)で書く
+   */
+  [[nodiscard]] inline const wchar_t* ExitHeadline(const RenderFailure& failure) noexcept {
+    if (!IsDeviceRemoved(failure)) { return L"描画の呼び出しが失敗しました。GPU は使える状態のままです (デバイスは失われていません)。"; }
+    switch (failure.removedReason) {
+      case DXGI_ERROR_DEVICE_RESET:          return L"Windows がグラフィックス デバイス (GPU) をリセットしたため、描画を続けられなくなりました。";
+      case DXGI_ERROR_DEVICE_HUNG:           return L"GPU が応答しなくなり、Windows がリセットしたため、描画を続けられなくなりました。";
+      case DXGI_ERROR_DEVICE_REMOVED:        return L"グラフィックス ドライバが更新・再起動されたか、GPU が取り外されたため、描画を続けられなくなりました。";
+      case DXGI_ERROR_DRIVER_INTERNAL_ERROR: return L"グラフィックス ドライバの内部エラーで GPU がリセットされたため、描画を続けられなくなりました。";
+      case DXGI_ERROR_INVALID_CALL:          return L"ゲームが描画に誤った呼び出しをしたため、描画を続けられなくなりました (ゲームの不具合です)。";
+      default:                               return L"GPU が使えない状態になったため、描画を続けられなくなりました。";
+    }
+  }
+
+  /// 知らせの 2 段目: どうすればよいか
+  [[nodiscard]] inline const wchar_t* ExitAdvice(const RenderFailure& failure) noexcept {
+    if (!IsDeviceRemoved(failure) || failure.removedReason == DXGI_ERROR_INVALID_CALL) { return L"ゲームの不具合の可能性が高いので、Game.log を送ってください。"; }
+    switch (failure.removedReason) {
+      case DXGI_ERROR_DEVICE_RESET:
+      case DXGI_ERROR_DEVICE_HUNG:
+      case DXGI_ERROR_DRIVER_INTERNAL_ERROR: return L"GPU が無くなったわけではありません。ゲームをもう一度起動してください。\n何度も起きる場合は、グラフィックス ドライバを更新し、Game.log を送ってください。";
+      default:                               return L"ゲームをもう一度起動してください。\n何度も起きる場合は、グラフィックス ドライバを更新し、Game.log を送ってください。";
+    }
+  }
+
+  /**
    * @brief 利用者への知らせの文(メッセージボックス用)を組み立てる
+   * @details 何が起きたか → どうすればよいか → 値の名前(最後の行)→ ログの場所、の順。
+   *          日本語の文はこのヘッダ(UTF-8 BOM)のワイド文字列だけに置く。テストは \\u で照らす
    * @param what      起動の失敗なら何ができなかったか(ASCII)。描画の失敗なら使わない
    * @param workDir   作業フォルダ(起動の失敗の多くは、ここを取り違えて起きる)
    * @return 書いた文字数。`Normal` なら空文字列を書いて 0
@@ -198,24 +235,18 @@ namespace GLFD::Graphics {
     const wchar_t* folder = (workDir != nullptr) ? workDir : L"(unknown)";
     if (reason == ExitReason::StartupFailed) {
       return std::swprintf(out, kExitMessageLength,
-                           L"The game could not start: %hs.\n\n"
-                           L"Working folder: %ls\n"
-                           L"The game reads Resource\\ and Source\\Shaders\\ from this folder. "
-                           L"Start it from the repository root (or from Visual Studio).\n\n"
-                           L"Log: %ls\\Game.log",
+                           L"ゲームを起動できませんでした。\n原因: %hs\n\n作業フォルダ: %ls\nゲームはこのフォルダから Resource\\ と Source\\Shaders\\ を読みます。リポジトリの直下 (または Visual Studio) から起動してください。\n\nログ: %ls\\Game.log",
                            (what != nullptr) ? what : "unknown", folder, folder);
     }
     if (reason == ExitReason::RenderFailed) {
       const char* returned = HResultName(failure.returned);
       const char* reasonName = HResultName(failure.removedReason);
-      const wchar_t* head = IsDeviceRemoved(failure)
-                                ? L"The graphics device was lost"
-                                : L"Drawing failed (the graphics device was not lost)";
       return std::swprintf(out, kExitMessageLength,
-                           L"%ls, so the game has stopped.\n\n"
-                           L"%hs returned %hs (0x%08lX). removed reason: %hs (0x%08lX).\n\n"
-                           L"Log: %ls\\Game.log",
-                           head, (failure.where != nullptr) ? failure.where : "?",
+                           L"%ls\n\n%ls\n\n"
+                           L"%hs: %hs (0x%08lX) / removed reason: %hs (0x%08lX)\n"
+                           L"ログ: %ls\\Game.log",
+                           ExitHeadline(failure), ExitAdvice(failure),
+                           (failure.where != nullptr) ? failure.where : "?",
                            (returned != nullptr) ? returned : "unknown",
                            static_cast<unsigned long>(failure.returned),
                            (reasonName != nullptr) ? reasonName : "unknown",

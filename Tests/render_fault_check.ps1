@@ -2,7 +2,10 @@
 #  GLFD: does the game stop correctly when drawing can no longer continue? (ECS 2-9)
 #
 #  A lost graphics device cannot be caused on demand (on this machine `dxcap -forcetdr` did
-#  not remove the device). The probe build (GLFD_RENDER_FAULT_PROBE) replaces the results
+#  not remove the device). [CORRECTED] It can, but not every time: at 17:14 the device survived
+#  dxcap -forcetdr, at 18:53 the same command removed it (Present -> DXGI_ERROR_DEVICE_REMOVED,
+#  reason DXGI_ERROR_DEVICE_RESET). Not on demand, so the probe is still needed.
+#  The probe build (GLFD_RENDER_FAULT_PROBE) replaces the results
 #  of Present / Present(TEST) / Map / GetDeviceRemovedReason from the environment variable
 #  GLFD_RENDER_FAULT (format: Tests\RenderFaultProbe.cpp). The sources are NOT edited: the
 #  probe build is a separate MSBuild output (x64\ProbeRelease\), and the game build never
@@ -11,6 +14,7 @@
 #  Cases:
 #   H1 no fault                    -> runs; closing the window ends it with 0; no box
 #   H2 Present lost                -> ONE failure line "at Present", box AFTER "Engine Shutdown", exit != 0
+#                                     (reason DXGI_ERROR_DEVICE_RESET: what the real loss at 18:53 returned)
 #   H3 Map lost                    -> the same, "at Map"
 #   H4 Map fails, device not lost  -> keeps running; ONE pair of skipped-draw lines; closing ends with 0
 #   H5 OCCLUDED, then TEST lost    -> the TDR order: stops at "Present(TEST)", no "resumed", exit != 0
@@ -163,7 +167,7 @@ function Run-Case([string]$caseName, [string]$exePath, [string]$workDir, [string
 $lost    = "the graphics device was lost"
 $results = @()
 $results += Run-Case "H1" $probeExe $repoRoot "" $false @() @("render:") 6
-$results += Run-Case "H2" $probeExe $repoRoot "present=0x887A0005@432,reason=0x887A0006@0" $true @("$lost at Present: DXGI_ERROR_DEVICE_REMOVED") @("at Present(TEST)", "resumed after") 20
+$results += Run-Case "H2" $probeExe $repoRoot "present=0x887A0005@432,reason=0x887A0007@0" $true @("$lost at Present: DXGI_ERROR_DEVICE_REMOVED") @("at Present(TEST)", "resumed after") 20
 $results += Run-Case "H3" $probeExe $repoRoot "map=0x8007000E@432,reason=0x887A0005@0" $true @("$lost at Map: E_OUTOFMEMORY") @("not drawing this frame") 20
 $results += Run-Case "H4" $probeExe $repoRoot "map=0x8007000E@432+3" $false @("not drawing this frame", "drawing again after 3 frame(s)") @("stopping the game") 8
 $results += Run-Case "H5" $probeExe $repoRoot "present=0x087A0001@432+1,test=0x887A0005@0,reason=0x887A0006@0" $true @("$lost at Present(TEST): DXGI_ERROR_DEVICE_REMOVED") @("resumed after") 20

@@ -25,6 +25,8 @@
  *   - `DX11Renderer` と `Run` そのもの(DX11 と窓が要る)。確認用のビルド (`GLFD_RENDER_FAULT_PROBE`)
  *     で本物の DX11 に差し込んで確かめる(H1〜H6)
  *   - 本物のデバイスの消失で何が返るか。この機械では起こせなかった(dxcap -forcetdr では失われなかった)
+ *     【訂正】18:53 の dxcap -forcetdr で起きた。Present が DXGI_ERROR_DEVICE_REMOVED、理由
+ *     DXGI_ERROR_DEVICE_RESET。このテストでは押さえず、実機の観察として記録した(T-ECS-44)
  *
  *  @note テストコードに非 ASCII の文字列リテラルを書かない (C5297)。
  */
@@ -109,8 +111,9 @@ namespace {
       CHECK(!GLFD::Graphics::IsDeviceRemoved(state.failure));
       wchar_t text[GLFD::Graphics::kExitMessageLength];
       GLFD::Graphics::FormatExitMessage(text, GLFD::Graphics::ExitReason::RenderFailed, state.failure, nullptr, L"C:\\work");
-      CHECK(std::wcsstr(text, L"the graphics device was not lost") != nullptr);
-      CHECK(std::wcsstr(text, L"The graphics device was lost") == nullptr);
+      CHECK(std::wcsstr(text, L"\u5931\u308f\u308c\u3066\u3044\u307e\u305b\u3093") != nullptr);   // "(デバイスは失われていません)"
+      CHECK(std::wcsstr(text, L"\u30b2\u30fc\u30e0\u306e\u4e0d\u5177\u5408") != nullptr);   // "ゲームの不具合"
+      CHECK(std::wcsstr(text, L"\u30ea\u30bb\u30c3\u30c8") == nullptr);   // "リセット" と書かない
     }
   }
 
@@ -318,17 +321,42 @@ namespace {
 
     CHECK(GLFD::Graphics::FormatExitMessage(text, ExitReason::StartupFailed, none,
                                             "the graphics (DX11) could not be initialized", L"C:\\games\\x64\\Release") > 0);
-    CHECK(std::wcsstr(text, L"could not start: the graphics (DX11) could not be initialized") != nullptr);
-    CHECK(std::wcsstr(text, L"Working folder: C:\\games\\x64\\Release") != nullptr);
-    CHECK(std::wcsstr(text, L"Log: C:\\games\\x64\\Release\\Game.log") != nullptr);
+    CHECK(std::wcsstr(text, L"\u8d77\u52d5\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f") != nullptr);   // "起動できませんでした"
+    CHECK(std::wcsstr(text, L"the graphics (DX11) could not be initialized") != nullptr);
+    CHECK(std::wcsstr(text, L"\u4f5c\u696d\u30d5\u30a9\u30eb\u30c0: C:\\games\\x64\\Release") != nullptr);   // "作業フォルダ: "
+    CHECK(std::wcsstr(text, L"\u30ed\u30b0: C:\\games\\x64\\Release\\Game.log") != nullptr);   // "ログ: "
 
     RenderFailure lost;
     (void)GLFD::Graphics::RecordFailure(lost, "Map", E_OUTOFMEMORY, DXGI_ERROR_DEVICE_REMOVED);
     CHECK(GLFD::Graphics::FormatExitMessage(text, ExitReason::RenderFailed, lost, nullptr, L"D:\\repo") > 0);
-    CHECK(std::wcsstr(text, L"The graphics device was lost") != nullptr);
-    CHECK(std::wcsstr(text, L"Map returned E_OUTOFMEMORY (0x8007000E)") != nullptr);
-    CHECK(std::wcsstr(text, L"removed reason: DXGI_ERROR_DEVICE_REMOVED (0x887A0005)") != nullptr);
-    CHECK(std::wcsstr(text, L"Log: D:\\repo\\Game.log") != nullptr);
+    CHECK(std::wcsstr(text, L"\u53d6\u308a\u5916") != nullptr);   // REMOVED: "取り外"
+    CHECK(std::wcsstr(text, L"Map: E_OUTOFMEMORY (0x8007000E) / removed reason: DXGI_ERROR_DEVICE_REMOVED (0x887A0005)") != nullptr);
+    CHECK(std::wcsstr(text, L"\u30ed\u30b0: D:\\repo\\Game.log") != nullptr);   // "ログ: "
+
+    // 理由ごとに 1 行目を分ける(ユーザーは "device was lost" を「見つからない」と読んだ。18:53 の本物は RESET)
+    struct Case { HRESULT reason; const wchar_t* must; const wchar_t* mustNot; };
+    const Case cases[] = {
+      { DXGI_ERROR_DEVICE_RESET,          L"\u30ea\u30bb\u30c3\u30c8\u3057\u305f", L"\u53d6\u308a\u5916" },   // "リセットした" / not "取り外"
+      { DXGI_ERROR_DEVICE_HUNG,           L"\u5fdc\u7b54\u3057\u306a\u304f", L"\u53d6\u308a\u5916" },   // "応答しなく" / not "取り外"
+      { DXGI_ERROR_DRIVER_INTERNAL_ERROR, L"\u5185\u90e8\u30a8\u30e9\u30fc", L"\u53d6\u308a\u5916" },   // "内部エラー" / not "取り外"
+      { DXGI_ERROR_INVALID_CALL,          L"\u30b2\u30fc\u30e0\u306e\u4e0d\u5177\u5408", L"\u30ea\u30bb\u30c3\u30c8" },   // "ゲームの不具合" / not "リセット"
+      { kUnknownDeviceRemoved,            L"\u4f7f\u3048\u306a\u3044\u72b6\u614b", L"\u30ea\u30bb\u30c3\u30c8" },   // "使えない状態" / not "リセット"
+    };
+    for (const Case& c : cases) {
+      RenderFailure f;
+      (void)GLFD::Graphics::RecordFailure(f, "Present", DXGI_ERROR_DEVICE_REMOVED, c.reason);
+      CHECK(GLFD::Graphics::FormatExitMessage(text, ExitReason::RenderFailed, f, nullptr, L"D:\\repo") > 0);
+      CHECK(std::wcsstr(text, c.must) != nullptr);
+      CHECK(std::wcsstr(text, c.mustNot) == nullptr);
+    }
+    // RESET / HUNG / 内部エラーでは「GPU が無くなったわけではない」と書く。取り外し(REMOVED)では書かない
+    RenderFailure reset;
+    (void)GLFD::Graphics::RecordFailure(reset, "Present", DXGI_ERROR_DEVICE_REMOVED, DXGI_ERROR_DEVICE_RESET);
+    CHECK(GLFD::Graphics::FormatExitMessage(text, ExitReason::RenderFailed, reset, nullptr, L"D:\\repo") > 0);
+    CHECK(std::wcsstr(text, L"\u7121\u304f\u306a\u3063\u305f\u308f\u3051\u3067\u306f\u3042\u308a\u307e\u305b\u3093") != nullptr);
+    CHECK(std::wcsstr(text, L"Present: DXGI_ERROR_DEVICE_REMOVED (0x887A0005) / removed reason: DXGI_ERROR_DEVICE_RESET (0x887A0007)") != nullptr);
+    CHECK(GLFD::Graphics::FormatExitMessage(text, ExitReason::RenderFailed, lost, nullptr, L"D:\\repo") > 0);
+    CHECK(std::wcsstr(text, L"\u7121\u304f\u306a\u3063\u305f\u308f\u3051\u3067\u306f\u3042\u308a\u307e\u305b\u3093") == nullptr);
   }
 
 }
