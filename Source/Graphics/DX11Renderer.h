@@ -4,6 +4,7 @@
 #endif
 #define NOMINMAX // std::min/max との衝突回避
 
+#include "RenderHealth.h"
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <dxgi1_6.h>
@@ -47,6 +48,12 @@ namespace GLFD::Graphics {
     // 見えていれば false (ECS 2-8)。Present のそれ以外の戻り値 (デバイスの消失など) は見ていない
     bool IsOccluded();
 
+    // 描画を続けられなくなった最初の 1 回 (ECS 2-9)。Run が見て、ログに残して終わる。
+    // 記録した後は Present も Map も呼ばない (失われたまま Present を呼ぶと、待たずに戻って空回りした)
+    const RenderFailure& Failure() const { return m_present.failure; }
+    // このフレームで頂点バッファを書けず、描かなかったか。読むと戻る (ECS 2-9)
+    bool TakeSkippedDraw(HRESULT& mapReturned);
+
     // パーティクル描画用メソッドを追加
     // CPU側で計算した頂点リストを受け取ってGPUに送る
     /// @note `std::vector` を取るのをやめた。呼び出し側 (`RenderSystem`) が
@@ -68,7 +75,12 @@ namespace GLFD::Graphics {
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_renderTargetView;
     Microsoft::WRL::ComPtr<ID3D11RasterizerState>  m_rasterizerState;
     Microsoft::WRL::ComPtr<ID3D11BlendState>       m_blendState;
-    bool                                           m_occluded = false;   // 前の Present の結果
+    PresentState                                   m_present;            // 前の Present の結果と、描画の失敗 (2-8 / 2-9)
+    bool                                           m_skippedDraw = false;
+    HRESULT                                        m_skippedMapHr = S_OK;
+
+    // GetDeviceRemovedReason。確認用のビルドでは差し替えられる (RenderFaultProbe.h)
+    HRESULT RemovedReason();
 
     ParticleShader m_shader;
     ConstantBuffer<ConstantBufferData>   m_cbGlobal;

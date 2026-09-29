@@ -15,6 +15,8 @@ namespace GLFD::Json { class Document; }
 #include <cstdint>
 #include <memory>
 
+#include "Graphics/RenderHealth.h"   // ExitReason と知らせの文 (winerror.h だけを引き込む)
+
 namespace GLFD {
   struct GameContext;
   struct GameConfig;
@@ -29,6 +31,11 @@ namespace GLFD {
 
     void Initialize();
     void Run();
+
+    // どう終わったか (ECS 2-9)。main が終了コードと知らせを決める。
+    // 知らせの文は GameEngine を壊す前に main が写す (壊した後に出すため)
+    Graphics::ExitReason ExitReason() const { return m_exitReason; }
+    const wchar_t* ExitMessage() const { return m_exitMessage; }
 
   private:
     std::unique_ptr<Memory::StackAllocator> m_mainStack = nullptr;
@@ -71,8 +78,14 @@ namespace GLFD {
     std::uint32_t m_jobDropsSeen = 0;
     bool          m_droppingJobs = false;
 
+    // ECS 2-9: 正常でない終わり方と、利用者への知らせの文
+    Graphics::ExitReason m_exitReason = Graphics::ExitReason::Normal;
+    wchar_t              m_exitMessage[Graphics::kExitMessageLength] = {};
+
     void Update(float dt);
     void Render();
     void ReportJobDrops();
+    // 終わり方を決め、知らせの文を組み立てる。what は起動の失敗のときだけ使う
+    void SetExit(Graphics::ExitReason reason, const char* what);
   };
 }

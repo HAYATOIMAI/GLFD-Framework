@@ -109,6 +109,8 @@ if /i "%NAME%"=="RenderDiagnosticsTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\L
 if /i "%NAME%"=="RenderDiagnosticsTests" set "EXTRA_FLAGS=/wd4324"
 rem  SimulationClockTests (2-8) ÇÕñ{ï®ÇÃ ReportStepDrops Ç∆ Logger Ç≈êfífÇÃçsÇì«Çﬁ
 if /i "%NAME%"=="SimulationClockTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
+rem  RenderHealthTests (2-9) ÇÕñ{ï®ÇÃ ReportRenderFailure / ReportSkippedDraws Ç∆ Logger Ç≈êfífÇÃçsÇì«Çﬁ
+if /i "%NAME%"=="RenderHealthTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
 set "OBJDIR=%OUTDIR%\%NAME%"
 if not exist "%OBJDIR%" mkdir "%OBJDIR%"
 

@@ -1,4 +1,5 @@
 #include "DX11Renderer.h"
+#include "RenderFaultProbe.h"
 #include <iostream>
 
 namespace GLFD::Graphics {
@@ -118,19 +119,41 @@ namespace GLFD::Graphics {
   }
 
   void DX11Renderer::EndFrame() {
+    // 描画を続けられなくなった後は呼ばない (ECS 2-9)。2-9 の手順1 で、消失したまま呼び続けると
+    // 待たずに戻り、ループが 1 秒に約 11 万回まわった
+    if (m_present.failure.failed) { return; }
     // 垂直同期 (VSync) ありで画面転送。窓が見えないと待たずに DXGI_STATUS_OCCLUDED が返る (ECS 2-8)
-    m_occluded = (m_swapChain->Present(1, 0) == DXGI_STATUS_OCCLUDED);
+    const HRESULT hr = RenderFaultProbe::Call(RenderFaultProbe::Point::Present,
+                                              [this] { return m_swapChain->Present(1, 0); });
+    AfterPresent(m_present, hr, [this] { return RemovedReason(); });
   }
 
   bool DX11Renderer::IsOccluded() {
-    if (!m_occluded) { return false; }
-    // DXGI_PRESENT_TEST: 何も転送せず、今の状態だけを返す
-    m_occluded = (m_swapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED);
-    return m_occluded;
+    if (!m_present.occluded) { return false; }
+    if (m_present.failure.failed) { return true; }
+    // DXGI_PRESENT_TEST: 何も転送せず、今の状態だけを返す。
+    // **この値も同じ判定に通す** (ECS 2-9)。TDR では Present が消失より先に OCCLUDED を返した
+    const HRESULT hr = RenderFaultProbe::Call(RenderFaultProbe::Point::PresentTest,
+                                              [this] { return m_swapChain->Present(0, DXGI_PRESENT_TEST); });
+    return AfterPresentTest(m_present, hr, [this] { return RemovedReason(); });
+  }
+
+  HRESULT DX11Renderer::RemovedReason() {
+    return RenderFaultProbe::Call(RenderFaultProbe::Point::RemovedReason,
+                                  [this] { return m_device->GetDeviceRemovedReason(); });
+  }
+
+  bool DX11Renderer::TakeSkippedDraw(HRESULT& mapReturned) {
+    const bool skipped = m_skippedDraw;
+    mapReturned = m_skippedMapHr;
+    m_skippedDraw = false;
+    m_skippedMapHr = S_OK;
+    return skipped;
   }
 
   void DX11Renderer::DrawPoints(const SimpleVertex* points, size_t pointCount) {
     if (points == nullptr || pointCount == 0) return;
+    if (m_present.failure.failed) return;   // ECS 2-9: 描画を続けられなくなった後は何もしない
 
     // 頂点バッファをCPUメモリで更新 (Map / Unmap)
     D3D11_MAPPED_SUBRESOURCE mapped = {};
@@ -138,12 +161,23 @@ namespace GLFD::Graphics {
     // バッファサイズを超えないように安全策
     size_t count = std::min(pointCount, (size_t)MAX_PARTICLES);
 
-    auto hr = m_deviceContext->Map(m_vertexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+    const HRESULT hr = RenderFaultProbe::Call(RenderFaultProbe::Point::Map, [this, &mapped] {
+      return m_deviceContext->Map(m_vertexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+    });
 
-    if (SUCCEEDED(hr)) {
-      memcpy(mapped.pData, points, sizeof(SimpleVertex) * count);
-      m_deviceContext->Unmap(m_vertexBuffer.Get(), 0);
+    // **書けなかったら、このフレームは描かない** (ECS 2-9)。2-8 までは写しを飛ばして Draw だけ
+    // 呼んでいたので、前のフレームの頂点が黙って描かれ続けた。デバイスが失われていたら
+    // Present の失敗と同じく終わる。失われていなければ、状態の変わり目だけ Run がログに出す
+    const MapOutcome mapResult = AfterMap(m_present.failure, hr, [this] { return RemovedReason(); });
+    if (mapResult != MapOutcome::Written) {
+      if (mapResult == MapOutcome::SkipFrame) {
+        m_skippedDraw = true;
+        m_skippedMapHr = hr;
+      }
+      return;
     }
+    memcpy(mapped.pData, points, sizeof(SimpleVertex) * count);
+    m_deviceContext->Unmap(m_vertexBuffer.Get(), 0);
 
     UINT stride = sizeof(SimpleVertex);
     UINT offset = 0;

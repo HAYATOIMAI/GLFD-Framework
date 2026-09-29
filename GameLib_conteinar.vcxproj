@@ -43,6 +43,10 @@
     <ClCompile Include="Source\Game\SurvivorScene.cpp" />
     <ClCompile Include="Source\Resource\ResourceManager.cpp" />
     <ClCompile Include="Source\Resource\TextureLoader.cpp" />
+    <!-- ECS 2-9: the definition of RenderFaultProbe::Inject. Built ONLY when GLFDProbeDefines contains
+         GLFD_RENDER_FAULT_PROBE (msbuild /p:GLFDProbeDefines=GLFD_RENDER_FAULT_PROBE /p:OutDir=... /p:IntDir=...).
+         The game build never has it, so a stray GLFD_RENDER_FAULT_PROBE fails to link there. -->
+    <ClCompile Include="Tests\RenderFaultProbe.cpp" Condition="$(GLFDProbeDefines.Contains('GLFD_RENDER_FAULT_PROBE'))" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Core\DoubleStackAllocator.h" />
@@ -107,6 +111,9 @@
     <ClInclude Include="Source\Graphics\ConstantBuffer.h" />
     <ClInclude Include="Source\Graphics\DX11Renderer.h" />
     <ClInclude Include="Source\Graphics\GraphicsType.h" />
+    <ClInclude Include="Source\Graphics\RenderFaultProbe.h" />
+    <ClInclude Include="Source\Graphics\RenderHealth.h" />
+    <ClInclude Include="Source\Graphics\RenderHealthLog.h" />
     <ClInclude Include="Source\Graphics\RenderSystem.h" />
     <ClInclude Include="Source\Graphics\RenderStatus.h" />
     <ClInclude Include="Source\Graphics\SimpleVertex.h" />
@@ -194,7 +201,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;$(GLFDProbeDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <!-- 未指定だと MSBuild の既定 (ExceptionHandling=Sync = /EHsc) が効く。
@@ -217,7 +224,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;$(GLFDProbeDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <!-- 未指定だと MSBuild の既定 (ExceptionHandling=Sync = /EHsc) が効く。
@@ -238,7 +245,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;$(GLFDProbeDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <!-- 未指定だと MSBuild の既定 (ExceptionHandling=Sync = /EHsc) が効く。
@@ -261,7 +268,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;$(GLFDProbeDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <!-- 未指定だと MSBuild の既定 (ExceptionHandling=Sync = /EHsc) が効く。

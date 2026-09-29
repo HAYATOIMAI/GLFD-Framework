@@ -23,6 +23,7 @@
 
 #include "Graphics/SimpleWindow.h"
 #include "Graphics/DX11Renderer.h"
+#include "Graphics/RenderHealthLog.h"
 
 #include "Resource/ResourceManager.h"
 #include "Resource/TextureLoader.h"
@@ -140,6 +141,7 @@ namespace GLFD {
       std::cerr << "DX11 Init Failed!" << std::endl;
 #endif // DEBUG
       LOG_ERROR("DX11 Init Failed!");
+      SetExit(Graphics::ExitReason::StartupFailed, "the graphics (DX11) could not be initialized");
       m_isRunning = false;
       return;
     }
@@ -189,6 +191,7 @@ namespace GLFD {
     }
     if (!m_sceneManager->PushScene(std::move(scene))) {
       LOG_ERROR("could not queue the start scene. the engine has nothing to run");
+      SetExit(Graphics::ExitReason::StartupFailed, "the start scene could not be queued");
       m_isRunning = false;
       return;
     }
@@ -217,6 +220,7 @@ namespace GLFD {
     Core::StepDropReport       stepDrops;        // 捨て始めた / 止んだ、だけを出す (R-46)
     Core::StartupRateProbe     startupRate(0);   // 起動からの経過で数える
     Core::PauseReport          pauses;           // 止まった / 戻った、だけを出す
+    Graphics::SkippedDrawReport skippedDraws;    // 頂点バッファを書けずに描かなかった、の始まり / 止み (ECS 2-9)
     constexpr std::chrono::milliseconds kHiddenPoll{50};   // 隠れている間、確かめ直す間隔
 
     while (m_isRunning) {
@@ -233,6 +237,18 @@ namespace GLFD {
       // 戻った最初のフレームの経過も数えない(FixedStepAccumulator が捨てる)
       const bool minimized = m_window->IsMinimized();
       const bool hidden    = minimized || m_renderer->IsOccluded();
+      // **描画を続けられなくなっていたら、ここで終わる** (ECS 2-9)。確かめるのはループの頭の 1 か所。
+      //  - 前のフレームの Present / Map の失敗: 次の周の頭で抜ける (失敗の後は Present も Map も呼ばない)
+      //  - 止まっている間の確かめ直し (IsOccluded) の失敗: 眠る分岐に入る前に抜ける。TDR では Present が
+      //    消失より先に OCCLUDED を返した。ここで見ないと、止まったまま眠り続ける
+      // 抜けた後は通常の終了の経路 (join → ログ → Engine Shutdown) を通り、main が知らせて 0 以外で終わる。
+      // Render の直後にも確かめていたが、1 周早く抜けるだけで何も変えないので外した (2-9 の変異 G1)
+      if (m_renderer->Failure().failed) {
+        Graphics::ReportRenderFailure(m_renderer->Failure());
+        SetExit(Graphics::ExitReason::RenderFailed, nullptr);
+        m_isRunning = false;
+        break;
+      }
       Core::ReportPause(hidden, minimized ? "window minimized" : "window occluded, Present returned DXGI_STATUS_OCCLUDED",
                         toNanoseconds(now - start), pauses);
       if (hidden) {
@@ -250,6 +266,12 @@ namespace GLFD {
       Core::ReportStepDrops(plan, clock.MaxStepsPerFrame(), stepDrops);
 
       Render();
+
+      {
+        HRESULT mapReturned = S_OK;
+        const bool skipped = m_renderer->TakeSkippedDraw(mapReturned);
+        Graphics::ReportSkippedDraws(skipped, mapReturned, skippedDraws);
+      }
 
       // 起動して落ち着いたところで 1 回だけ、fps とリフレッシュレートとシミュレーションの速さを出す。
       // 2-7 までは FPS を数えて捨てていたので、2.3 倍で進んでいても誰も気づかなかった
@@ -327,6 +349,15 @@ namespace GLFD {
       m_droppingJobs = false;
       LOG_INFO("job queue stopped dropping (%u dropped in total)", drops);
     }
+  }
+
+  void GameEngine::SetExit(Graphics::ExitReason reason, const char* what) {
+    m_exitReason = reason;
+    wchar_t workDir[512] = {};
+    const DWORD n = ::GetCurrentDirectoryW(static_cast<DWORD>(sizeof workDir / sizeof workDir[0]), workDir);
+    const Graphics::RenderFailure none{};
+    Graphics::FormatExitMessage(m_exitMessage, reason, m_renderer ? m_renderer->Failure() : none, what,
+                                (n > 0 && n < sizeof workDir / sizeof workDir[0]) ? workDir : nullptr);
   }
 
   void GameEngine::Render() {

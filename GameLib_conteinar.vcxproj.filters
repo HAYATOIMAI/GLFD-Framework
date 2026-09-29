@@ -219,6 +219,15 @@
     <ClInclude Include="Source\Graphics\DX11Renderer.h">
       <Filter>Graphics</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Graphics\RenderFaultProbe.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\RenderHealth.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Graphics\RenderHealthLog.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Resource\IResourceLoader.h">
       <Filter>Resource</Filter>
     </ClInclude>
