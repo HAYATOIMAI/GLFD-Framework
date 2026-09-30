@@ -10,6 +10,7 @@
 #   C2 close the console                             C6 in the window-move modal loop (SC_MOVE), then close
 #   C3 Ctrl+C                                        C7 while the 2-9 message box is up (probe build), then close
 #   C4 Ctrl+Break                                    C8 Ctrl+C right after launch, before the window exists
+#                                                    C9 close the console right after launch (during Initialize)
 #  Expected: the log ends with the join line and "=== Engine Shutdown ===" (C2-C6 and C8 also have exactly one
 #  "console: ..." line); the process ends by itself within 15 s. C7: ends within 15 s (the log was already
 #  complete when the box came up). Exit codes are RECORDED, not asserted (a close races main's own return).
@@ -29,12 +30,12 @@
 #  Every wait has an upper bound. Names differ in spelling, not only in case.
 # ---------------------------------------------------------------------------
 param([ValidateSet("Release", "Debug")][string]$Config = "Release", [switch]$UseConhost, [string]$ExePath = "",
-      [string[]]$Cases = @("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8"),
+      [string[]]$Cases = @("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9"),
       [string]$OutName = ("run_" + (Get-Date -Format "yyyyMMdd_HHmmss")))
 $ErrorActionPreference = "Stop"
 # `powershell -File ... -Cases C3,C4` passes ONE string "C3,C4": split it, and refuse names that are not cases
 $Cases = @($Cases | ForEach-Object { $_ -split "," } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-$unknownCases = @($Cases | Where-Object { $_ -notin @("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8") })
+$unknownCases = @($Cases | Where-Object { $_ -notin @("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9") })
 if ($unknownCases.Count -gt 0) { Write-Host "unknown case(s): $($unknownCases -join ', ')"; exit 2 }
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $gameExe  = if ($ExePath) { $ExePath } else { Join-Path $repoRoot "x64\$Config\GameLib_conteinar.exe" }
@@ -189,12 +190,13 @@ foreach ($case in $Cases) {
   if ($null -eq $game) { "$case  LAUNCH_FAILED" | Tee-Object -FilePath $result -Append | Write-Host; $allOk = $false; continue }
   try {
 
-  if ($case -eq "C8") {
+  if ($case -in @("C8", "C9")) {
     # right after launch: wait only for the console window, not for the game window
     [void](Wait-Until { @(Find-GameConsole $started $before).Count -ge 1 -or $game.HasExited } 10)
     $windowAtSignal = [GlfdCloseCheck]::FindGameWindow([uint32]$game.Id) -ne [IntPtr]::Zero
     $installedLine = (Test-Path $log) -and (@(Get-Content $log) -like "*go through the normal shutdown. a close waits*").Count -gt 0
-    $t0 = Get-Date; $action = Send-Ctrl $game 0 $case
+    $t0 = Get-Date
+    if ($case -eq "C8") { $action = Send-Ctrl $game 0 $case } else { $action = Close-Console $started $before }
     $notes += "game window existed when the signal was sent: $windowAtSignal"
     $notes += "window handle already published (Initialize finished) when the signal was sent: $installedLine"
   }
@@ -245,13 +247,17 @@ foreach ($case in $Cases) {
   $lastLine = if ($lines.Count -gt 0) { $lines[-1] } else { "" }
   $console  = @($lines | Where-Object { $_ -like "*console: *stopping the game through the normal shutdown*" }).Count
   $ok = $ended -and $action -notlike "NOT_RUN*"
-  if ($case -ne "C8" -and $hwnd -eq [IntPtr]::Zero) { $ok = $false }
+  if ($case -notin @("C8", "C9") -and $hwnd -eq [IntPtr]::Zero) { $ok = $false }   # C8 / C9 act before the window exists
   # C5 / C6 / C7 test a state; if the game was not in it, the case did not test what it is for
   if ($case -in @("C5", "C6", "C7") -and -not $pre) { $ok = $false; $notes += "NOT_RUN as meant: the precondition did not hold" }
   if ($joined -ne 1) { $ok = $false; $notes += "join line x$joined" }
   if ($lastLine -notlike "*=== Engine Shutdown ===*") { $ok = $false; $notes += "last line is not Engine Shutdown: $lastLine" }
-  if ($case -in @("C2", "C3", "C4", "C5", "C6", "C8") -and $console -ne 1) { $ok = $false; $notes += "console line x$console" }
-  if ($case -eq "C8") {
+  if ($case -in @("C2", "C3", "C4", "C5", "C6", "C8", "C9") -and $console -ne 1) { $ok = $false; $notes += "console line x$console" }
+  if ($case -eq "C9") {
+    $limit = @($lines | Where-Object { $_ -match "a close waits up to (\d+) ms" } | ForEach-Object { [int]$Matches[1] })
+    $notes += "close -> end {0:N0} ms against the handler's limit {1} ms" -f $ms, ($(if ($limit.Count) { $limit[0] } else { "?" }))
+  }
+  if ($case -in @("C8", "C9")) {
     $frameRate = @($lines | Where-Object { $_ -like "*frame rate:*" }).Count
     $notes += "frame loop started before the signal was seen ('frame rate' line): $($frameRate -gt 0)"
     # the case only tests Run's flag check if the signal came before the handle was published
