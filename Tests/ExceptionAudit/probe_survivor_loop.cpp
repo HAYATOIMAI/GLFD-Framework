@@ -5,7 +5,7 @@
  * @note Was dirty until ECS 2-6, and not because of anything 1-8 wrote: the loop
  *       reaches `HitSystem::Update`, whose kick built a `std::function` big enough
  *       to allocate. Nothing in `SurvivorLoop.h` itself throws
- *       (`probe_survivor_loop_steps.cpp`).
+ *       (`probe_survivor_loop_stages.cpp`).
  *  **ECS 2-6 3a:** the kick now goes through `Thread::ParallelForChunks`, whose job
  *  captures only `&body` and the range (24 bytes). That fits `std::function`'s
  *  inline buffer, so the conversion no longer allocates. The body itself is

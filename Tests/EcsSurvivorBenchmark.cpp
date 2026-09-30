@@ -78,7 +78,7 @@ namespace {
   using Clock = std::chrono::steady_clock;
 
   constexpr int         kMaxFrames = 4096;
-  constexpr std::size_t kSteps     = sizeof(GLFD::Game::kSurvivorOrder)
+  constexpr std::size_t kStages     = sizeof(GLFD::Game::kSurvivorOrder)
                                    / sizeof(GLFD::Game::kSurvivorOrder[0]);
 
   enum Metric { kCreated, kDestroyed, kApplied, kHits, kAlive, kMetricCount };
@@ -90,7 +90,7 @@ namespace {
     "created", "destroyed", "commands_applied", "hits_delivered", "alive",
   };
 
-  double g_steps[kSteps][kMaxFrames];
+  double g_stages[kStages][kMaxFrames];
   double g_frame[kMaxFrames];
   double g_buildVertices[kMaxFrames];   ///< BuildSurvivorVertices の us (2-3)
   double g_vertices[kMaxFrames];        ///< 組んだ頂点の数
@@ -217,12 +217,12 @@ int main(int argc, char** argv) {
     // **`RunSurvivorStep` と同じ表を 1 段ずつ回す**(表を写さない)
     GLFD::Game::BeginSurvivorFrame(state);
     const auto frameStart = Clock::now();
-    for (std::size_t i = 0; i < kSteps; ++i) {
+    for (std::size_t i = 0; i < kStages; ++i) {
       const auto t0 = Clock::now();
       const GLFD::Core::StageResult result = GLFD::Game::kSurvivorOrder[i].run(state, ctx);
       const auto t1 = Clock::now();
       if (measuring) {
-        g_steps[i][m] = us(t0, t1);
+        g_stages[i][m] = us(t0, t1);
         if (result != GLFD::Core::StageResult::Ran) { ++notRan; }
       }
     }
@@ -268,8 +268,8 @@ int main(int argc, char** argv) {
   std::printf("\n%-18s %10s %10s %10s %10s\n", "step", "median", "mean", "min", "p95");
   std::printf("------------------------------------------------------------\n");
   double medianTotal = 0.0;
-  for (std::size_t i = 0; i < kSteps; ++i) {
-    const Summary s = Summarize(g_steps[i], frames);
+  for (std::size_t i = 0; i < kStages; ++i) {
+    const Summary s = Summarize(g_stages[i], frames);
     medianTotal += s.median;
     std::printf("%-18s %9.1fus %9.1fus %9.1fus %9.1fus\n",
                 GLFD::Game::kSurvivorOrder[i].name, s.median, s.mean, s.min, s.p95);

@@ -224,8 +224,8 @@ namespace {
       FailureGate gate;
       const GLFD::Systems::RenderStatus unavailable{ GLFD::Systems::RenderStatus::Outcome::VertexBufferUnavailable, 12u };
       const GLFD::Systems::RenderStatus drawn{ GLFD::Systems::RenderStatus::Outcome::Drawn, 12u };
-      GLFD::Game::ReportRenderStep(unavailable, gate);
-      GLFD::Game::ReportRenderStep(drawn, gate);
+      GLFD::Game::ReportRenderStatus(unavailable, gate);
+      GLFD::Game::ReportRenderStatus(drawn, gate);
       GLFD::Graphics::SkippedDrawReport skipped;
       GLFD::Graphics::ReportSkippedDraws(true, E_OUTOFMEMORY, skipped);
       GLFD::Graphics::ReportSkippedDraws(false, S_OK, skipped);

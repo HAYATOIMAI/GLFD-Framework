@@ -55,16 +55,16 @@ namespace {
     int spawned = 0;
   };
 
-  using Step = SystemStage<FakeHost, FakeContext>;
+  using Stage = SystemStage<FakeHost, FakeContext>;
 
   // ---------------------------------------------------------------------------
   // T-ECS-18 実行順序
   // ---------------------------------------------------------------------------
 
-  void TestStepsRunInTableOrder() {
-    GLFD::Test::BeginCase("T-ECS-18a: the steps run in the order the table lists them");
+  void TestStagesRunInTableOrder() {
+    GLFD::Test::BeginCase("T-ECS-18a: the stages run in the order the table lists them");
 
-    static constexpr Step kOrder[] = {
+    static constexpr Stage kOrder[] = {
       { "alpha", [](FakeHost&, FakeContext& c) { c.Mark('a'); return StageResult::Ran; } },
       { "beta",  [](FakeHost&, FakeContext& c) { c.Mark('b'); return StageResult::Ran; } },
       { "gamma", [](FakeHost&, FakeContext& c) { c.Mark('g'); return StageResult::Ran; } },
@@ -93,13 +93,13 @@ namespace {
   void TestOrderIsChangedInExactlyOnePlace() {
     GLFD::Test::BeginCase("T-ECS-18b: reordering the table is the only thing that reorders the run");
 
-    // **同じ 3 つのステップ**を、表の並びだけ変えて 2 通り用意する
+    // **同じ 3 つの段**を、表の並びだけ変えて 2 通り用意する
     constexpr auto alpha = [](FakeHost&, FakeContext& c) { c.Mark('a'); return StageResult::Ran; };
     constexpr auto beta  = [](FakeHost&, FakeContext& c) { c.Mark('b'); return StageResult::Ran; };
     constexpr auto gamma = [](FakeHost&, FakeContext& c) { c.Mark('g'); return StageResult::Ran; };
 
-    static constexpr Step kForward[]  = { { "alpha", alpha }, { "beta", beta }, { "gamma", gamma } };
-    static constexpr Step kShuffled[] = { { "gamma", gamma }, { "alpha", alpha }, { "beta", beta } };
+    static constexpr Stage kForward[]  = { { "alpha", alpha }, { "beta", beta }, { "gamma", gamma } };
+    static constexpr Stage kShuffled[] = { { "gamma", gamma }, { "alpha", alpha }, { "beta", beta } };
 
     FakeHost    host;
     StageReport report;
@@ -118,10 +118,10 @@ namespace {
     CHECK(std::strcmp(a.trace, b.trace) != 0);
   }
 
-  void TestAFailingStepDoesNotStopTheRest() {
-    GLFD::Test::BeginCase("T-ECS-18c: a failed step does not abandon the steps behind it");
+  void TestAFailingStageDoesNotStopTheRest() {
+    GLFD::Test::BeginCase("T-ECS-18c: a failed stage does not abandon the stages behind it");
 
-    static constexpr Step kOrder[] = {
+    static constexpr Stage kOrder[] = {
       { "first",  [](FakeHost&, FakeContext& c) { c.Mark('1'); return StageResult::Ran; } },
       { "broken", [](FakeHost&, FakeContext& c) { c.Mark('X'); return StageResult::Failed; } },
       { "last",   [](FakeHost&, FakeContext& c) { c.Mark('3'); return StageResult::Ran; } },
@@ -132,7 +132,7 @@ namespace {
     StageReport report;
     RunStages(kOrder, host, ctx, report);
 
-    // **後ろのステップは走る** (1-4 の R-37 と同じ理由)
+    // **後ろの段は走る** (1-4 の R-37 と同じ理由)
     CHECK(std::strcmp(ctx.trace, "1X3") == 0);
     CHECK(report.StageCount() == 3u);
     CHECK(report.ResultAt(1) == StageResult::Failed);
@@ -142,10 +142,10 @@ namespace {
   }
 
   void TestPreconditionsSkipWithoutRunning() {
-    GLFD::Test::BeginCase("T-ECS-18d: a step whose precondition fails is skipped, not run");
+    GLFD::Test::BeginCase("T-ECS-18d: a stage whose precondition fails is skipped, not run");
 
     // 「グリッドが作れなかったフレーム」の縮小版。**1 つの原因と 2 つの結果**
-    static constexpr Step kOrder[] = {
+    static constexpr Stage kOrder[] = {
       { "GridBuild", [](FakeHost&, FakeContext& c) {
           c.Mark('G');
           return c.gridReady ? StageResult::Ran : StageResult::Failed; } },
@@ -176,7 +176,7 @@ namespace {
       ctx.gridReady = false;
       RunStages(kOrder, host, ctx, report);
 
-      // **飛ばされたステップの本体は動いていない**
+      // **飛ばされた段の本体は動いていない**
       CHECK(std::strcmp(ctx.trace, "GM") == 0);
 
       // **1 つの原因 (Failed) と 2 つの結果 (Skipped) が区別できること**
@@ -191,11 +191,11 @@ namespace {
     }
   }
 
-  void TestTheHostIsReachableFromEveryStep() {
-    GLFD::Test::BeginCase("T-ECS-18e: steps can reach the host (that is how config is read)");
+  void TestTheHostIsReachableFromEveryStage() {
+    GLFD::Test::BeginCase("T-ECS-18e: stages can reach the host (that is how config is read)");
 
     // 本番では `self.m_config->simulation.maxSpeed` を読むのがこの経路
-    static constexpr Step kOrder[] = {
+    static constexpr Stage kOrder[] = {
       { "spawn", [](FakeHost& h, FakeContext&) { h.spawned += 2; return StageResult::Ran; } },
       { "again", [](FakeHost& h, FakeContext&) { h.spawned *= 3; return StageResult::Ran; } },
     };
@@ -211,10 +211,10 @@ namespace {
   void TestReportIsResetOnEveryRun() {
     GLFD::Test::BeginCase("T-ECS-18f: the report describes one frame, not every frame so far");
 
-    static constexpr Step kOne[] = {
+    static constexpr Stage kOne[] = {
       { "only", [](FakeHost&, FakeContext&) { return StageResult::Failed; } },
     };
-    static constexpr Step kTwo[] = {
+    static constexpr Stage kTwo[] = {
       { "a", [](FakeHost&, FakeContext&) { return StageResult::Ran; } },
       { "b", [](FakeHost&, FakeContext&) { return StageResult::Ran; } },
     };
@@ -241,7 +241,7 @@ namespace {
     StageReport report;
     report.Reset();
     for (std::uint32_t i = 0; i < StageReport::kMaxStages; ++i) {
-      report.Record("step", StageResult::Ran);
+      report.Record("stage", StageResult::Ran);
     }
     CHECK(report.StageCount() == StageReport::kMaxStages);
     CHECK(!report.Truncated());
@@ -257,11 +257,11 @@ namespace {
 int main() {
   GLFD::Test::BeginSuite("EcsSchedule (ECS 1-6)");
 
-  TestStepsRunInTableOrder();
+  TestStagesRunInTableOrder();
   TestOrderIsChangedInExactlyOnePlace();
-  TestAFailingStepDoesNotStopTheRest();
+  TestAFailingStageDoesNotStopTheRest();
   TestPreconditionsSkipWithoutRunning();
-  TestTheHostIsReachableFromEveryStep();
+  TestTheHostIsReachableFromEveryStage();
   TestReportIsResetOnEveryRun();
   TestReportSaysWhenItRanOutOfRoom();
 

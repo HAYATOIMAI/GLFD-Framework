@@ -8,7 +8,7 @@
  *  `Game::BuildSurvivorVertices` に切り出したので、DX11 なしで失敗を起こせるようになった)
  *
  *  本番と同じ組み合わせを呼ぶ: `BuildSurvivorVertices` が返した `RenderStatus` を
- *  `Game::ReportRenderStep` と `FailureGate` に渡し、**`Logger` が実際に書いた行**を読む。
+ *  `Game::ReportRenderStatus` と `FailureGate` に渡し、**`Logger` が実際に書いた行**を読む。
  *
  *  ## 確かめること
  *   - 描けている間は 1 行も出ない
@@ -21,7 +21,7 @@
  *
  *  ## 押さえないもの
  *   - Boid の経路(`RenderSystem::Update`)は DX11 を要求するので呼べない。
- *     文言と門は同じ `ReportRenderStep` を通る
+ *     文言と門は同じ `ReportRenderStatus` を通る
  *
  *  @note `EcsDiagnosticsLog.h` は `GameContext.h` 経由で `d3d11.h` を引き込む(既存の
  *        `EcsSurvivorTests` と同じ)。頂点のデータの検証は `SurvivorRenderTests` に分け、
@@ -111,7 +111,7 @@ namespace {
           registry, GLFD::Game::SurvivorDrawRadiiOf(GLFD::Game::SmallSurvivorParams()),
           GLFD::Game::SurvivorScreenOf(1280, 720), vertices);
       if (status.outcome == RenderStatus::Outcome::Drawn) { ++drawn; } else { ++failed; requestedWhenFailing = status.requestedVertices; }
-      GLFD::Game::ReportRenderStep(status, gate);   // シーンと同じ呼び方
+      GLFD::Game::ReportRenderStatus(status, gate);   // シーンと同じ呼び方
     }
     GLFD::Core::Logger::Get().Shutdown();
     CHECK(drawn == 5);

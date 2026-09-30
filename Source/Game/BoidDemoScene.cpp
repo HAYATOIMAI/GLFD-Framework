@@ -301,7 +301,7 @@ namespace GLFD {
         Systems::RenderSystem::Update(*ctx.registry, *ctx.renderer, ctx.frameResource,
                                       ctx.totalTime,
                                       ctx.window->GetWidth(), ctx.window->GetHeight());
-    Game::ReportRenderStep(status, m_renderGate);
+    Game::ReportRenderStatus(status, m_renderGate);
   }
 
   void BoidDemoScene::OnExit(GameContext& ctx) {

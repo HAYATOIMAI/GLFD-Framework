@@ -114,7 +114,7 @@ namespace GLFD {
     const Systems::RenderStatus status =
         DrawSurvivor(*ctx.registry, m_state.params, *ctx.renderer, ctx.frameResource, ctx.totalTime,
                      ctx.window->GetWidth(), ctx.window->GetHeight());
-    Game::ReportRenderStep(status, m_renderGate);
+    Game::ReportRenderStatus(status, m_renderGate);
   }
 
   void SurvivorScene::OnExit(GameContext& ctx) {

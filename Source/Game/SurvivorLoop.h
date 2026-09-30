@@ -299,7 +299,7 @@ namespace GLFD::Game {
   /**
    * @brief 敵を 1 体作る
    * @return 作れたエンティティ。**失敗したら `Invalid()`**(作りかけは残さない)
-   * @note   上限は見ない(呼ぶ側のステップが見る)。テストが配置を手で決めるため
+   * @note   上限は見ない(呼ぶ側の段が見る)。テストが配置を手で決めるため
    */
   inline ECS::Entity SpawnEnemy(SurvivorState& s, float x, float y,
                                 float vx, float vy) noexcept {
@@ -469,10 +469,10 @@ namespace GLFD::Game {
   }
 
   // ===========================================================================
-  // ステップ
+  // 段 (StageReport に並ぶ処理。刻みごとに順に走る)
   // ===========================================================================
 
-  inline Core::StageResult SpawnEnemiesStep(SurvivorState& s, GameContext&) noexcept {
+  inline Core::StageResult SpawnEnemiesStage(SurvivorState& s, GameContext&) noexcept {
     const SurvivorParams& p = s.params;
     if (p.spawnEverySteps == 0u || (s.step % p.spawnEverySteps) != 0u) {
       return Core::StageResult::Ran;
@@ -495,7 +495,7 @@ namespace GLFD::Game {
     return Core::StageResult::Ran;
   }
 
-  inline Core::StageResult FireBulletsStep(SurvivorState& s, GameContext&) noexcept {
+  inline Core::StageResult FireBulletsStage(SurvivorState& s, GameContext&) noexcept {
     const SurvivorParams& p = s.params;
     if (p.fireEverySteps == 0u || (s.step % p.fireEverySteps) != 0u) {
       return Core::StageResult::Ran;
@@ -515,17 +515,17 @@ namespace GLFD::Game {
     return Core::StageResult::Ran;
   }
 
-  inline Core::StageResult MovementStep(SurvivorState&, GameContext& ctx) noexcept {
+  inline Core::StageResult MovementStage(SurvivorState&, GameContext& ctx) noexcept {
     Systems::MovementSystem::Update(ctx);
     return Core::StageResult::Ran;
   }
 
-  inline Core::StageResult GridBuildStep(SurvivorState&, GameContext& ctx) noexcept {
+  inline Core::StageResult GridBuildStage(SurvivorState&, GameContext& ctx) noexcept {
     Systems::HitSystem::BuildGrid(ctx);
     return (ctx.grid != nullptr) ? Core::StageResult::Ran : Core::StageResult::Failed;
   }
 
-  inline Core::StageResult HitStep(SurvivorState& s, GameContext& ctx) noexcept {
+  inline Core::StageResult HitStage(SurvivorState& s, GameContext& ctx) noexcept {
     if (ctx.grid == nullptr) { return Core::StageResult::Skipped; }
     // **Release でも数える。** Debug は `Update` の中の assert で止まるが、
     // Release ではそれが消え、食い違ったまま古い添字で引くことになる
@@ -534,14 +534,14 @@ namespace GLFD::Game {
     return Core::StageResult::Ran;
   }
 
-  inline Core::StageResult DispatchEventsStep(SurvivorState&, GameContext& ctx) noexcept {
+  inline Core::StageResult DispatchEventsStage(SurvivorState&, GameContext& ctx) noexcept {
     // **`ApplyCommands` の前で配る**(ファイル冒頭の「順序」)。エンジンの
     // `DispatchAll` は残っているが、ここで空にしてあるので空振りになる
     ctx.eventBus->DispatchAll();
     return Core::StageResult::Ran;
   }
 
-  inline Core::StageResult LifetimeStep(SurvivorState& s, GameContext& ctx) noexcept {
+  inline Core::StageResult LifetimeStage(SurvivorState& s, GameContext& ctx) noexcept {
     ECS::Registry&      registry = *s.registry;
     ECS::CommandBuffer& commands = *s.commands;
     SurvivorCounts&     counts   = s.thisStep;
@@ -566,7 +566,7 @@ namespace GLFD::Game {
     return Core::StageResult::Ran;
   }
 
-  inline Core::StageResult CollectStep(SurvivorState& s, GameContext&) noexcept {
+  inline Core::StageResult CollectStage(SurvivorState& s, GameContext&) noexcept {
     ECS::Registry&        registry = *s.registry;
     ECS::CommandBuffer&   commands = *s.commands;
     SurvivorCounts&       counts   = s.thisStep;
@@ -594,7 +594,7 @@ namespace GLFD::Game {
     return Core::StageResult::Ran;
   }
 
-  inline Core::StageResult ReachStep(SurvivorState& s, GameContext&) noexcept {
+  inline Core::StageResult ReachStage(SurvivorState& s, GameContext&) noexcept {
     ECS::Registry&        registry = *s.registry;
     ECS::CommandBuffer&   commands = *s.commands;
     SurvivorCounts&       counts   = s.thisStep;
@@ -620,7 +620,7 @@ namespace GLFD::Game {
     return Core::StageResult::Ran;
   }
 
-  inline Core::StageResult ApplyCommandsStep(SurvivorState&, GameContext& ctx) noexcept {
+  inline Core::StageResult ApplyCommandsStage(SurvivorState&, GameContext& ctx) noexcept {
     ctx.registry->ApplyCommands(*ctx.commands);
     return Core::StageResult::Ran;
   }
@@ -710,16 +710,16 @@ namespace GLFD::Game {
    *  1-6 で `kUpdateOrder` がシーンの中にあり、外から見えなかった (§19.7) ことへの答え。
    */
   inline constexpr Core::SystemStage<SurvivorState, GameContext> kSurvivorOrder[] = {
-    { "SpawnEnemies",   &SpawnEnemiesStep   },
-    { "FireBullets",    &FireBulletsStep    },
-    { "Movement",       &MovementStep       },
-    { "GridBuild",      &GridBuildStep      },
-    { "Hit",            &HitStep            },
-    { "DispatchEvents", &DispatchEventsStep },
-    { "Lifetime",       &LifetimeStep       },
-    { "Collect",        &CollectStep        },
-    { "Reach",          &ReachStep          },
-    { "ApplyCommands",  &ApplyCommandsStep  },
+    { "SpawnEnemies",   &SpawnEnemiesStage   },
+    { "FireBullets",    &FireBulletsStage    },
+    { "Movement",       &MovementStage       },
+    { "GridBuild",      &GridBuildStage      },
+    { "Hit",            &HitStage            },
+    { "DispatchEvents", &DispatchEventsStage },
+    { "Lifetime",       &LifetimeStage       },
+    { "Collect",        &CollectStage        },
+    { "Reach",          &ReachStage          },
+    { "ApplyCommands",  &ApplyCommandsStage  },
   };
 
   /// フレームの頭。このフレームの件数を空にする

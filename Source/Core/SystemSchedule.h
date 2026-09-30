@@ -7,7 +7,7 @@
 namespace GLFD::Core {
 
   /**
-   * @brief 1 つのステップが何をしたか (ECS 1-6 / R-26 / R-28)
+   * @brief 1 つの段が何をしたか (ECS 1-6 / R-26 / R-28)
    *
    * @note **`Skipped` と `Failed` を分ける。** 前者は「前提条件が揃わないので
    *       今回は走らない」で、後者は「走ろうとして駄目だった」である。
@@ -47,7 +47,7 @@ namespace GLFD::Core {
   };
 
   /**
-   * @brief 1 フレームで各ステップがどうなったか (R-28)
+   * @brief 1 フレームで各段がどうなったか (R-28)
    *
    * @details
    *  **確保しない。** `ApplyReport`(1-4 / R-38)と同じ理由である。この報告は
@@ -59,7 +59,7 @@ namespace GLFD::Core {
   class StageReport {
   public:
     /**
-     * @brief 記録できるステップ数の上限
+     * @brief 記録できる段数の上限
      *
      * @note **本当の防御は `RunStages` の `static_assert` である**(表の大きさは
      *       コンパイル時に分かる)。この上限と `Truncated()` が残っているのは、
@@ -103,7 +103,7 @@ namespace GLFD::Core {
       return n;
     }
 
-    /// 全ステップが走ったか。**平常時はこれが true で、報告は 1 行も出ない**
+    /// 全段が走ったか。**平常時はこれが true で、報告は 1 行も出ない**
     [[nodiscard]] bool AllRan() const noexcept {
       return CountOf(StageResult::Ran) == m_count;
     }
@@ -121,28 +121,28 @@ namespace GLFD::Core {
    * @brief 表のとおりに順に走らせる (R-26)
    *
    * @details
-   *  **止めない。** あるステップが `Failed` を返しても残りを走らせる。
+   *  **止めない。** ある段が `Failed` を返しても残りを走らせる。
    *  1-4 の R-37 と同じ理由で、途中で止めるとフレームの状態が「どこで失敗したか」に
-   *  依存する。**依存しているステップは自分で `Skipped` を返す**(前提条件は
+   *  依存する。**依存している段は自分で `Skipped` を返す**(前提条件は
    *  表に書いてある)ので、走らせて困るものは走らない。
    *
    *  @note **計測点は置いていない。** 将来スレッド別のタイムラインが要るように
-   *        なったら、**このループに 3 行入れれば全ステップが一度に計測対象になる**。
+   *        なったら、**このループに 3 行入れれば全段が一度に計測対象になる**。
    *        呼ぶ人のいないフックを今から置かない (R-27) — それは 1-6 で消した
    *        `PROFILE_SCOPE` と同じ形である。
    */
   template <class Host, class Ctx, std::size_t N>
-  void RunStages(const SystemStage<Host, Ctx> (&steps)[N], Host& host, Ctx& ctx,
+  void RunStages(const SystemStage<Host, Ctx> (&stages)[N], Host& host, Ctx& ctx,
                 StageReport& report) noexcept {
     static_assert(N <= StageReport::kMaxStages,
-                  "the execution order table has more steps than StageReport can record. "
+                  "the execution order table has more stages than StageReport can record. "
                   "Raise StageReport::kMaxStages (it is a fixed-size array on purpose: the "
                   "report is written on frames where allocation failed, so it must not "
                   "allocate).");
 
     report.Reset();
     for (std::size_t i = 0; i < N; ++i) {
-      report.Record(steps[i].name, steps[i].run(host, ctx));
+      report.Record(stages[i].name, stages[i].run(host, ctx));
     }
   }
 

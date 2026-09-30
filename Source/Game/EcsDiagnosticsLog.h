@@ -11,7 +11,7 @@
  *  2 つのメソッドに割れる:
  *
  *   1. `ApplyReport` の明細(1-4 から移設)
- *   2. 実行順序の各ステップの結果 (`StageReport`)
+ *   2. 実行順序の各段の結果 (`StageReport`)
  *   3. `RenderSystem` の頂点バッファ確保失敗
  *   4. `RenderSystem` の成分プール確保失敗
  *   5. `FailureGate` の開始 / 復帰の文言
@@ -142,7 +142,7 @@ namespace GLFD::Game {
   // ---------------------------------------------------------------------------
 
   /// @copydoc ReportUpdateStages
-  inline void ReportRenderStep(const Systems::RenderStatus& status, Core::FailureGate& gate) {
+  inline void ReportRenderStatus(const Systems::RenderStatus& status, Core::FailureGate& gate) {
     const bool failing = (status.outcome != Systems::RenderStatus::Outcome::Drawn);
     const Core::FailureGate::Change change = gate.Observe(failing);
 

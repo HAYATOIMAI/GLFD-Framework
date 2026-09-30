@@ -22,7 +22,7 @@ void Report(const GLFD::ECS::ApplyReport& applied, bool& loggedFirst,
   GLFD::Game::ReportAppliedCommands(applied, loggedFirst, gate);
   GLFD::Game::ReportUpdateStages(frame, gate);
   GLFD::Game::ReportEventQueue(bus, gate);
-  GLFD::Game::ReportRenderStep(render, gate);
+  GLFD::Game::ReportRenderStatus(render, gate);
   GLFD::Game::ReportSurvivorCreation(counts, GLFD::Core::FailureGate::Change{}, gate);
   GLFD::Game::ReportSurvivorFirstLap(state, lap);
   GLFD::Game::ReportSurvivorSummary(state, 1u, 2u, 3u, 4u);

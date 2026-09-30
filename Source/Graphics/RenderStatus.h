@@ -9,7 +9,7 @@
  *  戻っていた(コードにも「1-6 で観測点を用意すること」と書いてあった)。
  *
  *  **記録するだけで `Logger` を呼ばない。** 出力はシーンが
- *  `Game/EcsDiagnosticsLog.h` の `ReportRenderStep` と `FailureGate` の組で行う。
+ *  `Game/EcsDiagnosticsLog.h` の `ReportRenderStatus` と `FailureGate` の組で行う。
  *  JSON の `ArchiveContext` と同じ分担。
  *
  *  **ECS も DX11 も引き込まない。** Game 側で頂点を組む関数(`Game/SurvivorRender.h`)が
