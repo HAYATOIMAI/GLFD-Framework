@@ -11,6 +11,7 @@
 #include "Core/InputSystem.h"
 #include "Core/SimulationClock.h"
 #include "Core/SimulationClockLog.h"
+#include "Core/ConsoleClose.h"
 #include "Core/Logger.h"
 #include "Core/FileManager.h"
 
@@ -224,6 +225,13 @@ namespace GLFD {
     constexpr std::chrono::milliseconds kHiddenPoll{50};   // 隠れている間、確かめ直す間隔
 
     while (m_isRunning) {
+      // **コンソールを閉じた / Ctrl+C の頼みを、ループの頭で見る** (ECS 2-10)。信号の処理は窓に WM_CLOSE も
+      // 投げるが、それは早く起こすための合図にすぎない。窓ができる前に届いた頼みや、投げるのに失敗した
+      // 頼みも、この印で拾う。抜けた後は、窓の × と同じ終了の経路 (join -> ログ -> Engine Shutdown) を通る
+      if (m_closeRequest != nullptr && m_closeRequest->Requested()) {
+        m_isRunning = false;
+        break;
+      }
       if (!m_window->ProcessMessages()) {
         m_isRunning = false;
         break;
@@ -278,6 +286,12 @@ namespace GLFD {
       if (startupRate.OnFrame(toNanoseconds(Clock::now() - start), plan.steps)) {
         Core::ReportStartupRate(startupRate.Measured(), m_window->MonitorRefreshHz());
       }
+    }
+    // 頼まれて抜けたなら、どの経路で抜けても 1 行残す (ECS 2-10)。窓の移動・サイズ変更のモーダルな回りの中では、
+    // 投げた WM_CLOSE をその回りが配って窓が壊れ、上の印の確かめより先に WM_QUIT で抜ける (T-ECS-46 の C6)
+    if (m_closeRequest != nullptr && m_closeRequest->Requested()) {
+      LOG_INFO("console: %s. stopping the game through the normal shutdown",
+               Core::ConsoleSignalText(m_closeRequest->Signal()));
     }
   }
 
@@ -349,6 +363,10 @@ namespace GLFD {
       m_droppingJobs = false;
       LOG_INFO("job queue stopped dropping (%u dropped in total)", drops);
     }
+  }
+
+  void* GameEngine::NativeWindow() const {
+    return m_window ? static_cast<void*>(m_window->GetHWND()) : nullptr;
   }
 
   void GameEngine::SetExit(Graphics::ExitReason reason, const char* what) {

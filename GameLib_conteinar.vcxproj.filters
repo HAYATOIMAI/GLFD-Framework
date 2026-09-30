@@ -186,6 +186,9 @@
     <ClInclude Include="Source\Core\KeyEdgeLatch.h">
       <Filter>Core</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Core\ConsoleClose.h">
+      <Filter>Core</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Core\SimulationClock.h">
       <Filter>Core</Filter>
     </ClInclude>

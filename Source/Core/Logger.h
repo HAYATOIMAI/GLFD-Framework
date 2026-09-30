@@ -4,8 +4,15 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <atomic>
 
 namespace GLFD::Core {
+  /// コンソール (std::cout) にも書くか (ECS 2-10)。コンソールが閉じられたら、信号の処理のスレッドが
+  /// false にする(閉じかけのコンソールへの書き込みで待たされないように。ファイルへは書き続ける)。
+  /// **`Logger` の外に置く**: プロセスの終わりに `Logger` のシングルトンが壊されている最中も、
+  /// 処理のスレッドが触り得るため(constinit の原子的な変数は壊されない)
+  inline constinit std::atomic<bool> gLogToConsole{ true };
+
   enum class LogLevel {
     Info,
     Warning,

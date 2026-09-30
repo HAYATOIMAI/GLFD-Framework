@@ -7,7 +7,7 @@ namespace GLFD::Events { class EventBus; }
 namespace GLFD::Graphics { class SimpleWindow; class DX11Renderer; }
 namespace GLFD::Resource { class ResourceManager; }
 namespace GLFD::Physics  { class SpatialHashGrid; }
-namespace GLFD::Core { class InputSystem; class FileManager; }
+namespace GLFD::Core { class InputSystem; class FileManager; class CloseRequest; }
 namespace GLFD::Scene { class SceneManager; }
 // 設定は JSON から読む。ヘッダに Document を持ち込まない
 namespace GLFD::Json { class Document; }
@@ -36,6 +36,11 @@ namespace GLFD {
     // 知らせの文は GameEngine を壊す前に main が写す (壊した後に出すため)
     Graphics::ExitReason ExitReason() const { return m_exitReason; }
     const wchar_t* ExitMessage() const { return m_exitMessage; }
+
+    // コンソールを閉じた / Ctrl+C の頼み (ECS 2-10)。Initialize の前に main が渡す。Run はループの頭で見る
+    void SetCloseRequest(const Core::CloseRequest* request) { m_closeRequest = request; }
+    // ゲームの窓(HWND)。main が信号の処理に教える。windows.h をここへ持ち込まないため void*
+    void* NativeWindow() const;
 
   private:
     std::unique_ptr<Memory::StackAllocator> m_mainStack = nullptr;
@@ -80,6 +85,7 @@ namespace GLFD {
 
     // ECS 2-9: 正常でない終わり方と、利用者への知らせの文
     Graphics::ExitReason m_exitReason = Graphics::ExitReason::Normal;
+    const Core::CloseRequest* m_closeRequest = nullptr;   // ECS 2-10。持ち主は main
     wchar_t              m_exitMessage[Graphics::kExitMessageLength] = {};
 
     void Update(float dt);

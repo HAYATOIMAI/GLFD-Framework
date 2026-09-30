@@ -64,7 +64,9 @@ namespace GLFD::Core {
 
     // コンソール出力。UTF-8 へ切り替えられていない場合、日本語を含む行は
     // 端末側で化ける(ファイルと OutputDebugString は影響を受けない)
-    std::cout << finalMsg;
+    if (gLogToConsole.load(std::memory_order_relaxed)) {   // ECS 2-10: コンソールが閉じられたら書かない
+      std::cout << finalMsg;
+    }
 
     // デバッガの出力ウィンドウ。診断の行をダブルクリックで辿れるようにする
     ::OutputDebugStringA(finalMsg.c_str());
