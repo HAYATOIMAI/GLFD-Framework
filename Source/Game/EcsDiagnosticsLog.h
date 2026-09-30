@@ -96,20 +96,23 @@ namespace GLFD::Game {
   // ---------------------------------------------------------------------------
 
   /**
-   * @brief 1 フレームのステップ結果を、**状態が変わったときだけ**出す
+   * @brief 1 刻みの更新の段(システム)の結果を、**状態が変わったときだけ**出す
    *
    * @details
-   *  平常時は全ステップが `Ran` なので**1 行も出ない**。どれかが `Failed` /
-   *  `Skipped` になった最初のフレームで内訳を出し、以降は直るまで黙る。
+   *  平常時は全段が `Ran` なので**1 行も出ない**。どれかが `Failed` /
+   *  `Skipped` になった最初の刻みで内訳を出し、以降は直るまで黙る。
    *
-   *  **沈黙が「状態が変わっていない」を意味する。** 直ったときに、何フレーム
+   *  **沈黙が「状態が変わっていない」を意味する。** 直ったときに、何刻み
    *  続いたかを添えて 1 行出す。
+   *  @note 言葉 (ECS 2-10): 「step」はシミュレーションの刻みだけに使う。1 回の更新の中の
+   *        システムの並びは「update stages」/「stage」。2-8 から呼ばれるのは刻みごと
+   *        (`OnUpdate`)なので、数えているのはフレームではなく刻み
    */
   inline void ReportFrameSteps(const Core::FrameReport& report, Core::FailureGate& gate) {
     const Core::FailureGate::Change change = gate.Observe(!report.AllRan());
 
     if (change == Core::FailureGate::Change::Recovered) {
-      LOG_INFO("frame steps: all systems ran again after %u frame(s) (%u bad frame(s) total)",
+      LOG_INFO("update stages: all systems ran again after %u step(s) (%u bad step(s) total)",
                gate.LastStreakLength(), gate.TotalFailures());
       return;
     }
@@ -117,7 +120,7 @@ namespace GLFD::Game {
       return;                       // 平常、または同じ状態が続いている
     }
 
-    LOG_ERROR("frame steps: %u failed, %u skipped of %u",
+    LOG_ERROR("update stages: %u failed, %u skipped of %u",
               report.CountOf(Core::StepResult::Failed),
               report.CountOf(Core::StepResult::Skipped),
               report.StepCount());
@@ -130,7 +133,7 @@ namespace GLFD::Game {
       LOG_ERROR("  [%u] %s: %s", i, report.NameAt(i), ToText(result));
     }
     if (report.Truncated()) {
-      LOG_ERROR("  (the step report ran out of room; raise FrameReport::kMaxSteps)");
+      LOG_ERROR("  (the stage report ran out of room; raise FrameReport::kMaxSteps)");
     }
   }
 
@@ -181,7 +184,7 @@ namespace GLFD::Game {
                                          Core::FailureGate& overflowGate) {
     if (!loggedFirstHit && delivered != 0u) {
       loggedFirstHit = true;
-      LOG_INFO("collision: first frame with hits. published=%u delivered=%u dropped=%u",
+      LOG_INFO("collision: first step with hits. published=%u delivered=%u dropped=%u",
                published, delivered, dropped);
     }
 
@@ -189,14 +192,14 @@ namespace GLFD::Game {
     if (change == Core::FailureGate::Change::Started) {
       // **黙って捨てない** (R-28)。ここは 1-7 まで printf がコメントアウト
       // されていた場所である
-      LOG_ERROR("event queue overflow: dropped %u of %u published this frame. "
+      LOG_ERROR("event queue overflow: dropped %u of %u published this step. "
                 "the channel holds %zu",
                 dropped, published,
                 Events::EventChannel<Events::CollisionEvent>::QUEUE_CAPACITY);
     }
     else if (change == Core::FailureGate::Change::Recovered) {
-      LOG_INFO("event queue: no longer overflowing after %u frame(s) "
-               "(%u bad frame(s) total)",
+      LOG_INFO("event queue: no longer overflowing after %u step(s) "
+               "(%u bad step(s) total)",
                overflowGate.LastStreakLength(), overflowGate.TotalFailures());
     }
   }
@@ -235,7 +238,7 @@ namespace GLFD::Game {
     const auto once = [frame](bool& done, std::uint32_t count, const char* what) {
       if (done || count == 0u) { return; }
       done = true;
-      LOG_INFO("survivor: first %s at frame %llu (%u in that frame)", what, frame, count);
+      LOG_INFO("survivor: first %s at step %llu (%u in that step)", what, frame, count);
     };
     once(log.spawned,   f.enemiesSpawned,                     "enemy spawned");
     once(log.fired,     f.bulletsFired,                       "bullet fired");
@@ -249,7 +252,7 @@ namespace GLFD::Game {
     if (!log.complete && log.spawned && log.fired && log.hit && log.killed && log.dropped
         && log.collected && log.expired && log.reached) {
       log.complete = true;
-      LOG_INFO("survivor: every stage of the loop has run at least once (by frame %llu)", frame);
+      LOG_INFO("survivor: every stage of the loop has run at least once (by step %llu)", frame);
     }
   }
 
@@ -257,13 +260,13 @@ namespace GLFD::Game {
   inline void ReportSurvivorCreation(const SurvivorCounts& f, Core::FailureGate::Change change,
                                      const Core::FailureGate& gate) {
     if (change == Core::FailureGate::Change::Started) {
-      LOG_ERROR("survivor: could not create entities this frame (create %u, build %u, "
+      LOG_ERROR("survivor: could not create entities this step (create %u, build %u, "
                 "queue %u, orphans %u). ECS::MaxEntities = %zu",
                 f.createFailures, f.buildFailures, f.queueFailures, f.orphans,
                 ECS::MaxEntities);
     }
     else if (change == Core::FailureGate::Change::Recovered) {
-      LOG_INFO("survivor: creating entities again after %u frame(s) (%u bad frame(s) total)",
+      LOG_INFO("survivor: creating entities again after %u step(s) (%u bad step(s) total)",
                gate.LastStreakLength(), gate.TotalFailures());
     }
   }
@@ -275,15 +278,25 @@ namespace GLFD::Game {
   inline void ReportEventQueue(const Events::BusCounters& counters, Core::FailureGate& gate) {
     const Core::FailureGate::Change change = gate.Observe(counters.dropped != 0u);
     if (change == Core::FailureGate::Change::Started) {
-      LOG_ERROR("event queue overflow: dropped %u of %u published this frame. "
+      LOG_ERROR("event queue overflow: dropped %u of %u published this step. "
                 "each channel holds %zu",
                 counters.dropped, counters.published,
                 Events::EventChannel<Events::HitEvent>::QUEUE_CAPACITY);
     }
     else if (change == Core::FailureGate::Change::Recovered) {
-      LOG_INFO("event queue: no longer overflowing after %u frame(s) (%u bad frame(s) total)",
+      LOG_INFO("event queue: no longer overflowing after %u step(s) (%u bad step(s) total)",
                gate.LastStreakLength(), gate.TotalFailures());
     }
+  }
+
+  /// 入場時に 1 回、使う初期値を出す (ECS 2-10 で SurvivorScene.cpp から移した。テストから呼べるように)。
+  /// 間隔の単位は刻み(`s.frame % spawnEveryFrames`)
+  inline void ReportSurvivorPreset(const SurvivorParams& p) {
+    LOG_INFO("SurvivorScene: small preset. %u enemies every %u steps at radius %.0f, "
+             "%u bullet(s) every %u steps, caps %u / %u / %u",
+             p.enemiesPerSpawn, p.spawnEveryFrames, p.spawnRadius,
+             p.bulletsPerVolley, p.fireEveryFrames,
+             p.maxEnemies, p.maxBullets, p.maxPickups);
   }
 
   /// 経過の要約。**呼び出し側が間隔を決める**(毎フレームは呼ばない)
@@ -291,7 +304,7 @@ namespace GLFD::Game {
                                     std::size_t bullets, std::size_t pickups,
                                     std::uint32_t alive) {
     const SurvivorCounts& t = s.total;
-    LOG_INFO("survivor: frame %llu alive %u (enemies %zu, bullets %zu, experience %zu). "
+    LOG_INFO("survivor: step %llu alive %u (enemies %zu, bullets %zu, experience %zu). "
              "so far: kills %u, collected %u, reached %u, experience %.0f",
              static_cast<unsigned long long>(s.frame), alive, enemies, bullets, pickups,
              t.kills, t.pickupsCollected, t.enemiesReached, s.experience);
@@ -328,7 +341,7 @@ namespace GLFD::Game {
     }
 
     if (notice.drops == Core::FailureGate::Change::Recovered) {
-      LOG_INFO("command buffer: no longer dropping after %u frame(s) (%u bad frame(s) total)",
+      LOG_INFO("command buffer: no longer dropping after %u step(s) (%u bad step(s) total)",
                dropGate.LastStreakLength(), dropGate.TotalFailures());
       return;
     }

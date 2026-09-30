@@ -79,12 +79,7 @@ namespace GLFD {
       LOG_ERROR("SurvivorScene: could not subscribe to HitEvent. hits will not resolve");
     }
 
-    const Game::SurvivorParams& p = m_state.params;
-    LOG_INFO("SurvivorScene: small preset. %u enemies every %u frames at radius %.0f, "
-             "%u bullet(s) every %u frames, caps %u / %u / %u",
-             p.enemiesPerSpawn, p.spawnEveryFrames, p.spawnRadius,
-             p.bulletsPerVolley, p.fireEveryFrames,
-             p.maxEnemies, p.maxBullets, p.maxPickups);
+    Game::ReportSurvivorPreset(m_state.params);   // 行は EcsDiagnosticsLog.h (ECS 2-10)
   }
 
   void SurvivorScene::OnUpdate(GameContext& ctx) {
