@@ -172,7 +172,7 @@ namespace {
     GLFD::Game::QueuePickup(s, GLFD::Components::Position{ 9.25f, 7.75f, 0.0f, 0.0f });
     CHECK(enemy.IsValid());
     CHECK(bullet.IsValid());
-    CHECK(s.thisFrame.pickupsCreated == 1u);
+    CHECK(s.thisStep.pickupsCreated == 1u);
     registry.ApplyCommands(commands);
 
     // 経験値は遅延で作られるので、Pickup を持つものを探す

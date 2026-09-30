@@ -7,6 +7,11 @@
    run_baseline.bat -Rounds 2 -SlowRuns 1 -WakeRuns 1        試走
    run_baseline.bat -Inject crash -Rounds 1 -SlowRuns 0 -WakeRuns 0   歯の確認
 
+ ## 言葉 (ECS 2-10)
+  ベンチの出力と記録の「frame」(`@frame name=frame`、`frames=`、列 frame_*)は、シミュレーションの刻み 1 回。
+  ベンチは描かないので 1 フレーム = 1 刻み。ゲームのログは 2-10 から刻みを「step」と書くが、ここは変えていない
+  (2-5 以来の基準線の記録と比べるため)
+
  ## 何を守っているか
   - **失敗を数字と取り違えない**(開発手法 §4.14a)。ビルド失敗、起動失敗、時間切れ、
     0 以外の終了コード、`@end` の無い出力、引数と違う設定で走った回は、すべて FAILED の行として

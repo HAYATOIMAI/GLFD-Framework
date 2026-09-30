@@ -11,7 +11,7 @@
  *  2 つのメソッドに割れる:
  *
  *   1. `ApplyReport` の明細(1-4 から移設)
- *   2. 実行順序の各ステップの結果 (`FrameReport`)
+ *   2. 実行順序の各ステップの結果 (`StageReport`)
  *   3. `RenderSystem` の頂点バッファ確保失敗
  *   4. `RenderSystem` の成分プール確保失敗
  *   5. `FailureGate` の開始 / 復帰の文言
@@ -20,7 +20,7 @@
  *
  *  | 層 | JSON | ECS |
  *  |---|---|---|
- *  | 構造(記録するだけ) | `ArchiveContext` | `ECS::ApplyReport` / `Core::FrameReport` / `RenderStatus` |
+ *  | 構造(記録するだけ) | `ArchiveContext` | `ECS::ApplyReport` / `Core::StageReport` / `RenderStatus` |
  *  | **出力**(`Logger` を呼ぶ) | `Core/GameConfigLog.h` | **このファイル** |
  *
  *  **`Source/ECS/` は `Logger` を include しない。** 1-6 の調査時点でそれは
@@ -51,11 +51,11 @@ namespace GLFD::Game {
   // 名前付け
   // ---------------------------------------------------------------------------
 
-  [[nodiscard]] inline const char* ToText(Core::StepResult result) noexcept {
+  [[nodiscard]] inline const char* ToText(Core::StageResult result) noexcept {
     switch (result) {
-      case Core::StepResult::Ran:     return "ran";
-      case Core::StepResult::Skipped: return "skipped";
-      case Core::StepResult::Failed:  return "FAILED";
+      case Core::StageResult::Ran:     return "ran";
+      case Core::StageResult::Skipped: return "skipped";
+      case Core::StageResult::Failed:  return "FAILED";
     }
     return "?";
   }
@@ -108,7 +108,7 @@ namespace GLFD::Game {
    *        システムの並びは「update stages」/「stage」。2-8 から呼ばれるのは刻みごと
    *        (`OnUpdate`)なので、数えているのはフレームではなく刻み
    */
-  inline void ReportFrameSteps(const Core::FrameReport& report, Core::FailureGate& gate) {
+  inline void ReportUpdateStages(const Core::StageReport& report, Core::FailureGate& gate) {
     const Core::FailureGate::Change change = gate.Observe(!report.AllRan());
 
     if (change == Core::FailureGate::Change::Recovered) {
@@ -121,19 +121,19 @@ namespace GLFD::Game {
     }
 
     LOG_ERROR("update stages: %u failed, %u skipped of %u",
-              report.CountOf(Core::StepResult::Failed),
-              report.CountOf(Core::StepResult::Skipped),
-              report.StepCount());
+              report.CountOf(Core::StageResult::Failed),
+              report.CountOf(Core::StageResult::Skipped),
+              report.StageCount());
 
-    for (std::uint32_t i = 0; i < report.StepCount(); ++i) {
-      const Core::StepResult result = report.ResultAt(i);
-      if (result == Core::StepResult::Ran) {
+    for (std::uint32_t i = 0; i < report.StageCount(); ++i) {
+      const Core::StageResult result = report.ResultAt(i);
+      if (result == Core::StageResult::Ran) {
         continue;                   // 走ったものは並べない(内訳が読めなくなる)
       }
       LOG_ERROR("  [%u] %s: %s", i, report.NameAt(i), ToText(result));
     }
     if (report.Truncated()) {
-      LOG_ERROR("  (the stage report ran out of room; raise FrameReport::kMaxSteps)");
+      LOG_ERROR("  (the stage report ran out of room; raise StageReport::kMaxStages)");
     }
   }
 
@@ -141,7 +141,7 @@ namespace GLFD::Game {
   // 描画の報告
   // ---------------------------------------------------------------------------
 
-  /// @copydoc ReportFrameSteps
+  /// @copydoc ReportUpdateStages
   inline void ReportRenderStep(const Systems::RenderStatus& status, Core::FailureGate& gate) {
     const bool failing = (status.outcome != Systems::RenderStatus::Outcome::Drawn);
     const Core::FailureGate::Change change = gate.Observe(failing);
@@ -230,15 +230,15 @@ namespace GLFD::Game {
    *  毎フレームの件数は出さない。
    */
   inline void ReportSurvivorFirstLap(const SurvivorState& s, SurvivorLapLog& log) {
-    const SurvivorCounts&    f     = s.thisFrame;
-    // `RunSurvivorFrame` がフレームを進めた後に呼ばれるので 1 つ戻す
-    const unsigned long long frame = (s.frame == 0u) ? 0ull
-                                                     : static_cast<unsigned long long>(s.frame - 1u);
+    const SurvivorCounts&    f     = s.thisStep;
+    // `RunSurvivorStep` が刻みを進めた後に呼ばれるので 1 つ戻す
+    const unsigned long long step = (s.step == 0u) ? 0ull
+                                                   : static_cast<unsigned long long>(s.step - 1u);
 
-    const auto once = [frame](bool& done, std::uint32_t count, const char* what) {
+    const auto once = [step](bool& done, std::uint32_t count, const char* what) {
       if (done || count == 0u) { return; }
       done = true;
-      LOG_INFO("survivor: first %s at step %llu (%u in that step)", what, frame, count);
+      LOG_INFO("survivor: first %s at step %llu (%u in that step)", what, step, count);
     };
     once(log.spawned,   f.enemiesSpawned,                     "enemy spawned");
     once(log.fired,     f.bulletsFired,                       "bullet fired");
@@ -252,7 +252,7 @@ namespace GLFD::Game {
     if (!log.complete && log.spawned && log.fired && log.hit && log.killed && log.dropped
         && log.collected && log.expired && log.reached) {
       log.complete = true;
-      LOG_INFO("survivor: every stage of the loop has run at least once (by step %llu)", frame);
+      LOG_INFO("survivor: every stage of the loop has run at least once (by step %llu)", step);
     }
   }
 
@@ -290,12 +290,12 @@ namespace GLFD::Game {
   }
 
   /// 入場時に 1 回、使う初期値を出す (ECS 2-10 で SurvivorScene.cpp から移した。テストから呼べるように)。
-  /// 間隔の単位は刻み(`s.frame % spawnEveryFrames`)
+  /// 間隔の単位は刻み(`s.step % spawnEverySteps`)
   inline void ReportSurvivorPreset(const SurvivorParams& p) {
     LOG_INFO("SurvivorScene: small preset. %u enemies every %u steps at radius %.0f, "
              "%u bullet(s) every %u steps, caps %u / %u / %u",
-             p.enemiesPerSpawn, p.spawnEveryFrames, p.spawnRadius,
-             p.bulletsPerVolley, p.fireEveryFrames,
+             p.enemiesPerSpawn, p.spawnEverySteps, p.spawnRadius,
+             p.bulletsPerVolley, p.fireEverySteps,
              p.maxEnemies, p.maxBullets, p.maxPickups);
   }
 
@@ -306,7 +306,7 @@ namespace GLFD::Game {
     const SurvivorCounts& t = s.total;
     LOG_INFO("survivor: step %llu alive %u (enemies %zu, bullets %zu, experience %zu). "
              "so far: kills %u, collected %u, reached %u, experience %.0f",
-             static_cast<unsigned long long>(s.frame), alive, enemies, bullets, pickups,
+             static_cast<unsigned long long>(s.step), alive, enemies, bullets, pickups,
              t.kills, t.pickupsCollected, t.enemiesReached, s.experience);
   }
 

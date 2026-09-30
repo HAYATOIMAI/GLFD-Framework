@@ -117,13 +117,13 @@ namespace {
     // 段(1 回の更新の中のシステム): 失敗が 3 刻み続いて戻る
     {
       FailureGate gate;
-      GLFD::Core::FrameReport bad;
-      bad.Record("Boid", GLFD::Core::StepResult::Failed);
-      bad.Record("Collision", GLFD::Core::StepResult::Skipped);
-      GLFD::Core::FrameReport good;
-      good.Record("Boid", GLFD::Core::StepResult::Ran);
-      for (int i = 0; i < 3; ++i) { GLFD::Game::ReportFrameSteps(bad, gate); }
-      GLFD::Game::ReportFrameSteps(good, gate);
+      GLFD::Core::StageReport bad;
+      bad.Record("Boid", GLFD::Core::StageResult::Failed);
+      bad.Record("Collision", GLFD::Core::StageResult::Skipped);
+      GLFD::Core::StageReport good;
+      good.Record("Boid", GLFD::Core::StageResult::Ran);
+      for (int i = 0; i < 3; ++i) { GLFD::Game::ReportUpdateStages(bad, gate); }
+      GLFD::Game::ReportUpdateStages(good, gate);
     }
     // 衝突(Boid): 初めて届いた刻み、溢れ 2 刻み -> 戻る
     {
@@ -137,24 +137,24 @@ namespace {
     // Survivor: 段の初回、全段がそろった、作れない 2 刻み -> 戻る、溢れ 3 刻み -> 戻る、要約、初期値
     {
       GLFD::Game::SurvivorState s;
-      s.frame = 212u;
-      s.thisFrame.enemiesSpawned = 2u;  s.thisFrame.bulletsFired = 1u;  s.thisFrame.hitsDelivered = 1u;
-      s.thisFrame.kills = 1u;           s.thisFrame.pickupsCreated = 1u; s.thisFrame.pickupsCollected = 1u;
-      s.thisFrame.pickupsExpired = 1u;  s.thisFrame.enemiesReached = 1u;
-      s.thisFrame.createFailures = 3u;
+      s.step = 212u;
+      s.thisStep.enemiesSpawned = 2u;  s.thisStep.bulletsFired = 1u;  s.thisStep.hitsDelivered = 1u;
+      s.thisStep.kills = 1u;           s.thisStep.pickupsCreated = 1u; s.thisStep.pickupsCollected = 1u;
+      s.thisStep.pickupsExpired = 1u;  s.thisStep.enemiesReached = 1u;
+      s.thisStep.createFailures = 3u;
       GLFD::Game::SurvivorLapLog lap;
       GLFD::Game::ReportSurvivorFirstLap(s, lap);
 
       FailureGate creation;
-      GLFD::Game::ReportSurvivorCreation(s.thisFrame, creation.Observe(true), creation);
-      GLFD::Game::ReportSurvivorCreation(s.thisFrame, creation.Observe(true), creation);
-      GLFD::Game::ReportSurvivorCreation(s.thisFrame, creation.Observe(false), creation);
+      GLFD::Game::ReportSurvivorCreation(s.thisStep, creation.Observe(true), creation);
+      GLFD::Game::ReportSurvivorCreation(s.thisStep, creation.Observe(true), creation);
+      GLFD::Game::ReportSurvivorCreation(s.thisStep, creation.Observe(false), creation);
 
       FailureGate queue;
       for (int i = 0; i < 3; ++i) { GLFD::Game::ReportEventQueue(GLFD::Events::BusCounters{ 20000u, 3616u }, queue); }
       GLFD::Game::ReportEventQueue(GLFD::Events::BusCounters{ 900u, 0u }, queue);
 
-      s.frame = 600u;
+      s.step = 600u;
       GLFD::Game::ReportSurvivorSummary(s, 137u, 42u, 31u, 210u);
       GLFD::Game::ReportSurvivorPreset(GLFD::Game::SmallSurvivorParams());
     }

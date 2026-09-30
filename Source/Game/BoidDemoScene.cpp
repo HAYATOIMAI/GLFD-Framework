@@ -236,11 +236,11 @@ namespace GLFD {
     //        `GameConfig` の実体は 2 つあり (`GameEngine::m_config` と
     //        `BoidDemoScene::m_config`)、`ctx` に入るのはエンジン側なので、
     //        **F5 で読み直しても効かない値**が生まれる。
-    static constexpr Core::SystemStep<BoidDemoScene, GameContext> kUpdateOrder[] = {
+    static constexpr Core::SystemStage<BoidDemoScene, GameContext> kUpdateOrder[] = {
       { "GridBuild", [](BoidDemoScene&, GameContext& c) {
           Systems::GridBuildSystem::Update(c);
           // 作れたかどうかは `ctx.grid` に出る (1-6 の確保失敗の扱い)
-          return (c.grid != nullptr) ? Core::StepResult::Ran : Core::StepResult::Failed;
+          return (c.grid != nullptr) ? Core::StageResult::Ran : Core::StageResult::Failed;
         } },
 
       { "Interaction", [](BoidDemoScene& self, GameContext& c) {
@@ -248,34 +248,34 @@ namespace GLFD {
           Systems::InteractionSystem::Update(*c.registry, *c.jobSystem, *c.input, *c.window,
                                              in.explosionRadius, in.explosionForce,
                                              in.screenScale);
-          return Core::StepResult::Ran;
+          return Core::StageResult::Ran;
         } },
 
       { "Boid", [](BoidDemoScene& self, GameContext& c) {
-          if (c.grid == nullptr) { return Core::StepResult::Skipped; }   // 近傍探索に要る
+          if (c.grid == nullptr) { return Core::StageResult::Skipped; }   // 近傍探索に要る
           Systems::BoidSystem::Update(c, self.m_config->simulation.maxSpeed);
-          return Core::StepResult::Ran;
+          return Core::StageResult::Ran;
         } },
 
       { "Movement", [](BoidDemoScene&, GameContext& c) {
           Systems::MovementSystem::Update(c);
-          return Core::StepResult::Ran;
+          return Core::StageResult::Ran;
         } },
 
       { "WorldBounds", [](BoidDemoScene& self, GameContext& c) {
           self.ApplyWorldBounds(c);
-          return Core::StepResult::Ran;
+          return Core::StageResult::Ran;
         } },
 
       { "Collision", [](BoidDemoScene&, GameContext& c) {
-          if (c.grid == nullptr) { return Core::StepResult::Skipped; }   // 近傍探索に要る
+          if (c.grid == nullptr) { return Core::StageResult::Skipped; }   // 近傍探索に要る
           Systems::CollisionSystem::Update(c);
-          return Core::StepResult::Ran;
+          return Core::StageResult::Ran;
         } },
     };
 
-    Core::FrameReport frameReport;
-    Core::RunSteps(kUpdateOrder, *this, ctx, frameReport);
+    Core::StageReport stageReport;
+    Core::RunStages(kUpdateOrder, *this, ctx, stageReport);
 
     // **構造変更をここで適用する** (1-4)。反復中に積まれたものがフレーム境界で
     // まとめて効く。CollisionSystem の後に置いたのは、破棄を積む最有力の候補が
@@ -290,7 +290,7 @@ namespace GLFD {
 
     // **出力は診断層が行う** (1-6)。ここは呼ぶだけ
     Game::ReportAppliedCommands(ctx.commands->Report(), m_loggedFirstApply, m_commandDropGate);
-    Game::ReportFrameSteps(frameReport, m_frameGate);
+    Game::ReportUpdateStages(stageReport, m_stageGate);
   }
 
   void BoidDemoScene::OnRender(GameContext& ctx) {

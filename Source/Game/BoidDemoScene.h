@@ -65,7 +65,7 @@ namespace GLFD {
      *       関数ローカルの `static` にすると N-3 に当たる。
      *       `RenderSystem` は `static` クラスなので自分では持てない
      */
-    Core::FailureGate m_frameGate;    ///< 更新の表(どれかが Failed / Skipped)
+    Core::FailureGate m_stageGate;    ///< 更新の表(どれかが Failed / Skipped)
     Core::FailureGate m_renderGate;   ///< 描画(確保失敗)
     Core::FailureGate m_eventOverflowGate;   ///< イベントキューの取りこぼし (1-7)
     Core::FailureGate m_commandDropGate;     ///< コマンドの取りこぼし (1-8 / R-46)

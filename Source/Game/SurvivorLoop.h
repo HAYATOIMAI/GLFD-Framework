@@ -8,7 +8,7 @@
  *  ## シーンではなくここに書く
  *  シーンは DX11 とウィンドウを要求するので、テストからもベンチからも呼べない。
  *  1-6 で `kUpdateOrder` がテストから見えなかった(§19.7)のと同じ問題を、
- *  最初から作らない。**シーンもテストもベンチも `RunSurvivorFrame` を呼ぶ。**
+ *  最初から作らない。**シーンもテストもベンチも `RunSurvivorStep` を呼ぶ。**
  *
  *  ## 順序(1-8 論点3 / §17.1)
  *  ```
@@ -64,7 +64,7 @@ namespace GLFD::Game {
 
   /**
    * @brief 1 周の形を決める値
-   * @note  `spawnEveryFrames` / `fireEveryFrames` が 0 なら自動の生成・発射をしない
+   * @note  `spawnEverySteps` / `fireEverySteps` が 0 なら自動の生成・発射をしない
    *        (テストで配置を手で決めるため)
    */
   struct SurvivorParams {
@@ -72,7 +72,7 @@ namespace GLFD::Game {
     std::uint32_t maxBullets = 0;
     std::uint32_t maxPickups = 0;
 
-    std::uint32_t spawnEveryFrames = 0;
+    std::uint32_t spawnEverySteps = 0;
     std::uint32_t enemiesPerSpawn  = 0;
     float         spawnRadius      = 0.0f;
     /**
@@ -85,7 +85,7 @@ namespace GLFD::Game {
     float         enemyHealth      = 1.0f;
     float         enemyRadius      = 0.5f;
 
-    std::uint32_t fireEveryFrames  = 0;
+    std::uint32_t fireEverySteps  = 0;
     std::uint32_t bulletsPerVolley = 0;
     float         bulletSpeed      = 0.0f;
     float         bulletLifetime   = 1.0f;
@@ -131,10 +131,10 @@ namespace GLFD::Game {
   [[nodiscard]] constexpr SurvivorParams SmallSurvivorParams() noexcept {
     return SurvivorParams{
         .maxEnemies = 400, .maxBullets = 400, .maxPickups = 400,
-        .spawnEveryFrames = 6, .enemiesPerSpawn = 2,
+        .spawnEverySteps = 6, .enemiesPerSpawn = 2,
         .spawnRadius = 30.0f, .spawnArc = 3.14159265f,
         .enemySpeed = 3.0f, .enemyHealth = 2.0f, .enemyRadius = 0.8f,
-        .fireEveryFrames = 2, .bulletsPerVolley = 1,
+        .fireEverySteps = 2, .bulletsPerVolley = 1,
         .bulletSpeed = 12.0f, .bulletLifetime = 2.0f, .bulletDamage = 1.0f, .bulletRadius = 0.3f,
         .pickupLifetime = 3.0f, .pickupRadius = 0.3f, .pickupValue = 1.0f,
         .collectRadius = 8.0f, .reachRadius = 1.5f,
@@ -154,10 +154,10 @@ namespace GLFD::Game {
   [[nodiscard]] constexpr SurvivorParams LargeSurvivorParams() noexcept {
     return SurvivorParams{
         .maxEnemies = 4000, .maxBullets = 4000, .maxPickups = 4000,
-        .spawnEveryFrames = 6, .enemiesPerSpawn = 20,
+        .spawnEverySteps = 6, .enemiesPerSpawn = 20,
         .spawnRadius = 30.0f, .spawnArc = 3.14159265f,
         .enemySpeed = 3.0f, .enemyHealth = 2.0f, .enemyRadius = 0.8f,
-        .fireEveryFrames = 2, .bulletsPerVolley = 10,
+        .fireEverySteps = 2, .bulletsPerVolley = 10,
         .bulletSpeed = 12.0f, .bulletLifetime = 2.0f, .bulletDamage = 1.0f, .bulletRadius = 0.3f,
         .pickupLifetime = 3.0f, .pickupRadius = 0.3f, .pickupValue = 1.0f,
         .collectRadius = 8.0f, .reachRadius = 1.5f,
@@ -168,9 +168,9 @@ namespace GLFD::Game {
   [[nodiscard]] constexpr SurvivorParams ManualSurvivorParams() noexcept {
     return SurvivorParams{
         .maxEnemies = 1000, .maxBullets = 1000, .maxPickups = 1000,
-        .spawnEveryFrames = 0, .enemiesPerSpawn = 0,
+        .spawnEverySteps = 0, .enemiesPerSpawn = 0,
         .spawnRadius = 0.0f, .enemySpeed = 0.0f, .enemyHealth = 1.0f, .enemyRadius = 0.5f,
-        .fireEveryFrames = 0, .bulletsPerVolley = 0,
+        .fireEverySteps = 0, .bulletsPerVolley = 0,
         .bulletSpeed = 0.0f, .bulletLifetime = 5.0f, .bulletDamage = 1.0f, .bulletRadius = 0.2f,
         .pickupLifetime = 10.0f, .pickupRadius = 0.3f, .pickupValue = 1.0f,
         .collectRadius = 0.0f, .reachRadius = 0.0f,
@@ -249,12 +249,12 @@ namespace GLFD::Game {
     ECS::Registry*      registry = nullptr;
     ECS::CommandBuffer* commands = nullptr;
 
-    std::uint64_t frame      = 0;
+    std::uint64_t step       = 0;
     float         spawnAngle = 0.0f;
     float         fireAngle  = 0.0f;
     double        experience = 0.0;
 
-    SurvivorCounts thisFrame{};
+    SurvivorCounts thisStep{};
     SurvivorCounts total{};
 
     /// `AttachSurvivor` が登録した購読 (2-1)。**`DetachSurvivor` が外す**
@@ -304,7 +304,7 @@ namespace GLFD::Game {
   inline ECS::Entity SpawnEnemy(SurvivorState& s, float x, float y,
                                 float vx, float vy) noexcept {
     ECS::Registry&  registry = *s.registry;
-    SurvivorCounts& counts   = s.thisFrame;
+    SurvivorCounts& counts   = s.thisStep;
 
     const ECS::Entity e = registry.CreateEntity();
     if (!e.IsValid()) {
@@ -332,7 +332,7 @@ namespace GLFD::Game {
   inline ECS::Entity FireBullet(SurvivorState& s, float x, float y,
                                 float vx, float vy) noexcept {
     ECS::Registry&  registry = *s.registry;
-    SurvivorCounts& counts   = s.thisFrame;
+    SurvivorCounts& counts   = s.thisStep;
 
     const ECS::Entity e = registry.CreateEntity();
     if (!e.IsValid()) {
@@ -373,7 +373,7 @@ namespace GLFD::Game {
   inline void QueuePickup(SurvivorState& s, const Components::Position& at) noexcept {
     ECS::Registry&        registry = *s.registry;
     ECS::CommandBuffer&   commands = *s.commands;
-    SurvivorCounts&       counts   = s.thisFrame;
+    SurvivorCounts&       counts   = s.thisStep;
     const SurvivorParams& p        = s.params;
 
     // **まだ適用されていない分も数える。** プールにはまだ入っていない
@@ -424,7 +424,7 @@ namespace GLFD::Game {
   inline void ResolveHit(SurvivorState& s, const Events::HitEvent& hit) noexcept {
     ECS::Registry&      registry = *s.registry;
     ECS::CommandBuffer& commands = *s.commands;
-    SurvivorCounts&     counts   = s.thisFrame;
+    SurvivorCounts&     counts   = s.thisStep;
 
     ++counts.hitsDelivered;
 
@@ -472,10 +472,10 @@ namespace GLFD::Game {
   // ステップ
   // ===========================================================================
 
-  inline Core::StepResult SpawnEnemiesStep(SurvivorState& s, GameContext&) noexcept {
+  inline Core::StageResult SpawnEnemiesStep(SurvivorState& s, GameContext&) noexcept {
     const SurvivorParams& p = s.params;
-    if (p.spawnEveryFrames == 0u || (s.frame % p.spawnEveryFrames) != 0u) {
-      return Core::StepResult::Ran;
+    if (p.spawnEverySteps == 0u || (s.step % p.spawnEverySteps) != 0u) {
+      return Core::StageResult::Ran;
     }
 
     std::size_t alive = SurvivorDetail::CountWith<Components::Health>(*s.registry);
@@ -492,13 +492,13 @@ namespace GLFD::Game {
       if (!e.IsValid()) { break; }            // 失敗は数えてある。このフレームは打ち切る
       ++alive;
     }
-    return Core::StepResult::Ran;
+    return Core::StageResult::Ran;
   }
 
-  inline Core::StepResult FireBulletsStep(SurvivorState& s, GameContext&) noexcept {
+  inline Core::StageResult FireBulletsStep(SurvivorState& s, GameContext&) noexcept {
     const SurvivorParams& p = s.params;
-    if (p.fireEveryFrames == 0u || (s.frame % p.fireEveryFrames) != 0u) {
-      return Core::StepResult::Ran;
+    if (p.fireEverySteps == 0u || (s.step % p.fireEverySteps) != 0u) {
+      return Core::StageResult::Ran;
     }
 
     std::size_t alive = SurvivorDetail::CountWith<Components::Damage>(*s.registry);
@@ -512,39 +512,39 @@ namespace GLFD::Game {
       if (!e.IsValid()) { break; }
       ++alive;
     }
-    return Core::StepResult::Ran;
+    return Core::StageResult::Ran;
   }
 
-  inline Core::StepResult MovementStep(SurvivorState&, GameContext& ctx) noexcept {
+  inline Core::StageResult MovementStep(SurvivorState&, GameContext& ctx) noexcept {
     Systems::MovementSystem::Update(ctx);
-    return Core::StepResult::Ran;
+    return Core::StageResult::Ran;
   }
 
-  inline Core::StepResult GridBuildStep(SurvivorState&, GameContext& ctx) noexcept {
+  inline Core::StageResult GridBuildStep(SurvivorState&, GameContext& ctx) noexcept {
     Systems::HitSystem::BuildGrid(ctx);
-    return (ctx.grid != nullptr) ? Core::StepResult::Ran : Core::StepResult::Failed;
+    return (ctx.grid != nullptr) ? Core::StageResult::Ran : Core::StageResult::Failed;
   }
 
-  inline Core::StepResult HitStep(SurvivorState& s, GameContext& ctx) noexcept {
-    if (ctx.grid == nullptr) { return Core::StepResult::Skipped; }
+  inline Core::StageResult HitStep(SurvivorState& s, GameContext& ctx) noexcept {
+    if (ctx.grid == nullptr) { return Core::StageResult::Skipped; }
     // **Release でも数える。** Debug は `Update` の中の assert で止まるが、
     // Release ではそれが消え、食い違ったまま古い添字で引くことになる
-    if (!Systems::HitSystem::GridMatches(ctx)) { ++s.thisFrame.gridMismatches; }
+    if (!Systems::HitSystem::GridMatches(ctx)) { ++s.thisStep.gridMismatches; }
     Systems::HitSystem::Update(ctx);
-    return Core::StepResult::Ran;
+    return Core::StageResult::Ran;
   }
 
-  inline Core::StepResult DispatchEventsStep(SurvivorState&, GameContext& ctx) noexcept {
+  inline Core::StageResult DispatchEventsStep(SurvivorState&, GameContext& ctx) noexcept {
     // **`ApplyCommands` の前で配る**(ファイル冒頭の「順序」)。エンジンの
     // `DispatchAll` は残っているが、ここで空にしてあるので空振りになる
     ctx.eventBus->DispatchAll();
-    return Core::StepResult::Ran;
+    return Core::StageResult::Ran;
   }
 
-  inline Core::StepResult LifetimeStep(SurvivorState& s, GameContext& ctx) noexcept {
+  inline Core::StageResult LifetimeStep(SurvivorState& s, GameContext& ctx) noexcept {
     ECS::Registry&      registry = *s.registry;
     ECS::CommandBuffer& commands = *s.commands;
-    SurvivorCounts&     counts   = s.thisFrame;
+    SurvivorCounts&     counts   = s.thisStep;
 
     for (auto entry : registry.View<Components::Lifetime>()) {
       const ECS::Entity     e    = std::get<0>(entry);
@@ -563,13 +563,13 @@ namespace GLFD::Game {
       if (registry.HasComponent<Components::Damage>(e)) { ++counts.bulletsExpired; }
       else                                            { ++counts.pickupsExpired; }
     }
-    return Core::StepResult::Ran;
+    return Core::StageResult::Ran;
   }
 
-  inline Core::StepResult CollectStep(SurvivorState& s, GameContext&) noexcept {
+  inline Core::StageResult CollectStep(SurvivorState& s, GameContext&) noexcept {
     ECS::Registry&        registry = *s.registry;
     ECS::CommandBuffer&   commands = *s.commands;
-    SurvivorCounts&       counts   = s.thisFrame;
+    SurvivorCounts&       counts   = s.thisStep;
     const SurvivorParams& p        = s.params;
 
     for (auto entry : registry.View<Components::Position, Components::Pickup,
@@ -591,13 +591,13 @@ namespace GLFD::Game {
       s.experience += pick.value;
       ++counts.pickupsCollected;
     }
-    return Core::StepResult::Ran;
+    return Core::StageResult::Ran;
   }
 
-  inline Core::StepResult ReachStep(SurvivorState& s, GameContext&) noexcept {
+  inline Core::StageResult ReachStep(SurvivorState& s, GameContext&) noexcept {
     ECS::Registry&        registry = *s.registry;
     ECS::CommandBuffer&   commands = *s.commands;
-    SurvivorCounts&       counts   = s.thisFrame;
+    SurvivorCounts&       counts   = s.thisStep;
     const SurvivorParams& p        = s.params;
 
     for (auto entry : registry.View<Components::Position, Components::Health,
@@ -617,12 +617,12 @@ namespace GLFD::Game {
       hp.current = 0.0f;
       ++counts.enemiesReached;
     }
-    return Core::StepResult::Ran;
+    return Core::StageResult::Ran;
   }
 
-  inline Core::StepResult ApplyCommandsStep(SurvivorState&, GameContext& ctx) noexcept {
+  inline Core::StageResult ApplyCommandsStep(SurvivorState&, GameContext& ctx) noexcept {
     ctx.registry->ApplyCommands(*ctx.commands);
-    return Core::StepResult::Ran;
+    return Core::StageResult::Ran;
   }
 
   // ===========================================================================
@@ -705,11 +705,11 @@ namespace GLFD::Game {
    * @brief **実行順序はここ 1 箇所にある** (R-26)
    *
    * @details
-   *  `RunSurvivorFrame` と `EcsSurvivorBenchmark` が**同じ配列を回す**。ベンチは段ごとに
+   *  `RunSurvivorStep` と `EcsSurvivorBenchmark` が**同じ配列を回す**。ベンチは段ごとに
    *  時間を挟むために 1 段ずつ呼ぶが、表を写さないので、順序を変えればベンチにも出る。
    *  1-6 で `kUpdateOrder` がシーンの中にあり、外から見えなかった (§19.7) ことへの答え。
    */
-  inline constexpr Core::SystemStep<SurvivorState, GameContext> kSurvivorOrder[] = {
+  inline constexpr Core::SystemStage<SurvivorState, GameContext> kSurvivorOrder[] = {
     { "SpawnEnemies",   &SpawnEnemiesStep   },
     { "FireBullets",    &FireBulletsStep    },
     { "Movement",       &MovementStep       },
@@ -724,23 +724,23 @@ namespace GLFD::Game {
 
   /// フレームの頭。このフレームの件数を空にする
   inline void BeginSurvivorFrame(SurvivorState& s) noexcept {
-    s.thisFrame = SurvivorCounts{};
+    s.thisStep = SurvivorCounts{};
   }
 
   /// フレームの終わり。件数を合計へ足し、フレームを進める
   inline void EndSurvivorFrame(SurvivorState& s) noexcept {
-    s.total.Accumulate(s.thisFrame);
-    ++s.frame;
+    s.total.Accumulate(s.thisStep);
+    ++s.step;
   }
 
-  inline void RunSurvivorFrame(SurvivorState& s, GameContext& ctx,
-                               Core::FrameReport& report) noexcept {
+  inline void RunSurvivorStep(SurvivorState& s, GameContext& ctx,
+                               Core::StageReport& report) noexcept {
     assert(s.registry == ctx.registry && s.commands == ctx.commands
-           && "RunSurvivorFrame: call AttachSurvivor with the same registry and command "
+           && "RunSurvivorStep: call AttachSurvivor with the same registry and command "
               "buffer that the context carries");
 
     BeginSurvivorFrame(s);
-    Core::RunSteps(kSurvivorOrder, s, ctx, report);
+    Core::RunStages(kSurvivorOrder, s, ctx, report);
     EndSurvivorFrame(s);
   }
 

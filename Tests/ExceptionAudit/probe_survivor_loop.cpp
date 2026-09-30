@@ -18,12 +18,12 @@
 #include "Game/SurvivorLoop.h"
 
 void RunLoop(GLFD::Game::SurvivorState& s, GLFD::GameContext& ctx,
-             GLFD::Core::FrameReport& report, GLFD::Core::FailureGate& gate) {
+             GLFD::Core::StageReport& report, GLFD::Core::FailureGate& gate) {
   GLFD::Game::AttachSurvivor(s, *ctx.registry, *ctx.commands, *ctx.eventBus);
   (void)GLFD::Game::SpawnEnemy(s, 1.0f, 2.0f, 0.0f, 0.0f);
   (void)GLFD::Game::FireBullet(s, 1.0f, 2.0f, 0.0f, 0.0f);
   GLFD::Game::BeginSurvivorFrame(s);
-  GLFD::Game::RunSurvivorFrame(s, ctx, report);
+  GLFD::Game::RunSurvivorStep(s, ctx, report);
   GLFD::Game::EndSurvivorFrame(s);
-  (void)GLFD::Game::ObserveCreationFailures(s.thisFrame, gate);
+  (void)GLFD::Game::ObserveCreationFailures(s.thisStep, gate);
 }

@@ -16,7 +16,7 @@ namespace GLFD::Core {
    *       **1 つの原因と 2 つの結果**が区別できないと、報告を読んだ人が
    *       「3 つ壊れた」と誤解する。
    */
-  enum class StepResult : std::uint8_t {
+  enum class StageResult : std::uint8_t {
     Ran,       ///< 走った
     Skipped,   ///< 前提条件が揃わないので走らせなかった
     Failed,    ///< 走ったが目的を果たせなかった
@@ -40,10 +40,10 @@ namespace GLFD::Core {
    *        見えている**、という状態を要件とする (R-26)。
    */
   template <class Host, class Ctx>
-  struct SystemStep {
-    /// 報告に出る名前。**`FrameReport` が読む**(飾りではない)
+  struct SystemStage {
+    /// 報告に出る名前。**`StageReport` が読む**(飾りではない)
     const char* name;
-    StepResult (*run)(Host&, Ctx&);
+    StageResult (*run)(Host&, Ctx&);
   };
 
   /**
@@ -56,25 +56,25 @@ namespace GLFD::Core {
    *  出力はしない。**`Logger` を呼ぶのは上層**(`Game/EcsDiagnosticsLog.h`)で、
    *  ここは記録するだけ。JSON の `ArchiveContext` と同じ分担。
    */
-  class FrameReport {
+  class StageReport {
   public:
     /**
      * @brief 記録できるステップ数の上限
      *
-     * @note **本当の防御は `RunSteps` の `static_assert` である**(表の大きさは
+     * @note **本当の防御は `RunStages` の `static_assert` である**(表の大きさは
      *       コンパイル時に分かる)。この上限と `Truncated()` が残っているのは、
      *       `Record` が公開されていてテストが直接呼べるため。
      *       **実行順序の表がここを越えたらビルドが通らない。**
      */
-    static constexpr std::uint32_t kMaxSteps = 16;
+    static constexpr std::uint32_t kMaxStages = 16;
 
     void Reset() noexcept {
       m_count     = 0;
       m_truncated = false;
     }
 
-    void Record(const char* name, StepResult result) noexcept {
-      if (m_count >= kMaxSteps) {
+    void Record(const char* name, StageResult result) noexcept {
+      if (m_count >= kMaxStages) {
         m_truncated = true;
         return;
       }
@@ -83,19 +83,19 @@ namespace GLFD::Core {
       ++m_count;
     }
 
-    [[nodiscard]] std::uint32_t StepCount() const noexcept { return m_count; }
+    [[nodiscard]] std::uint32_t StageCount() const noexcept { return m_count; }
 
     [[nodiscard]] const char* NameAt(std::uint32_t i) const noexcept {
-      assert(i < m_count && "FrameReport::NameAt: index out of range");
+      assert(i < m_count && "StageReport::NameAt: index out of range");
       return m_names[i];
     }
 
-    [[nodiscard]] StepResult ResultAt(std::uint32_t i) const noexcept {
-      assert(i < m_count && "FrameReport::ResultAt: index out of range");
+    [[nodiscard]] StageResult ResultAt(std::uint32_t i) const noexcept {
+      assert(i < m_count && "StageReport::ResultAt: index out of range");
       return m_results[i];
     }
 
-    [[nodiscard]] std::uint32_t CountOf(StepResult result) const noexcept {
+    [[nodiscard]] std::uint32_t CountOf(StageResult result) const noexcept {
       std::uint32_t n = 0;
       for (std::uint32_t i = 0; i < m_count; ++i) {
         if (m_results[i] == result) { ++n; }
@@ -105,14 +105,14 @@ namespace GLFD::Core {
 
     /// 全ステップが走ったか。**平常時はこれが true で、報告は 1 行も出ない**
     [[nodiscard]] bool AllRan() const noexcept {
-      return CountOf(StepResult::Ran) == m_count;
+      return CountOf(StageResult::Ran) == m_count;
     }
 
     [[nodiscard]] bool Truncated() const noexcept { return m_truncated; }
 
   private:
-    const char*   m_names[kMaxSteps]{};
-    StepResult    m_results[kMaxSteps]{};
+    const char*   m_names[kMaxStages]{};
+    StageResult    m_results[kMaxStages]{};
     std::uint32_t m_count     = 0;
     bool          m_truncated = false;
   };
@@ -132,11 +132,11 @@ namespace GLFD::Core {
    *        `PROFILE_SCOPE` と同じ形である。
    */
   template <class Host, class Ctx, std::size_t N>
-  void RunSteps(const SystemStep<Host, Ctx> (&steps)[N], Host& host, Ctx& ctx,
-                FrameReport& report) noexcept {
-    static_assert(N <= FrameReport::kMaxSteps,
-                  "the execution order table has more steps than FrameReport can record. "
-                  "Raise FrameReport::kMaxSteps (it is a fixed-size array on purpose: the "
+  void RunStages(const SystemStage<Host, Ctx> (&steps)[N], Host& host, Ctx& ctx,
+                StageReport& report) noexcept {
+    static_assert(N <= StageReport::kMaxStages,
+                  "the execution order table has more steps than StageReport can record. "
+                  "Raise StageReport::kMaxStages (it is a fixed-size array on purpose: the "
                   "report is written on frames where allocation failed, so it must not "
                   "allocate).");
 

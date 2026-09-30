@@ -4,7 +4,7 @@
  *
  * @details
  *  ## 本番のループをそのまま回す
- *  `RunSurvivorFrame`(シーンが呼ぶのと同じ関数)を、実物の `GameContext` で
+ *  `RunSurvivorStep`(シーンが呼ぶのと同じ関数)を、実物の `GameContext` で
  *  回している。**順序表をテスト側に写していない。** 1-6 で `kUpdateOrder` が
  *  テストから見えなかった (§19.7) ので、1-8 は表をヘッダに置いた。
  *
@@ -125,7 +125,7 @@ namespace {
   struct World {
     Harness                 harness;
     SurvivorState           state;
-    GLFD::Core::FrameReport report;
+    GLFD::Core::StageReport report;
 
     explicit World(const SurvivorParams& params) {
       state.params = params;
@@ -137,7 +137,7 @@ namespace {
 
     void Step() {
       GLFD::GameContext ctx = harness.BeginFrame();
-      GLFD::Game::RunSurvivorFrame(state, ctx, report);
+      GLFD::Game::RunSurvivorStep(state, ctx, report);
     }
 
     GLFD::ECS::Registry& Reg() { return harness.Registry(); }
@@ -231,7 +231,7 @@ namespace {
     CHECK(enemy.IsValid() && bullet.IsValid());
 
     w.Step();
-    const SurvivorCounts& f = w.state.thisFrame;
+    const SurvivorCounts& f = w.state.thisStep;
 
     CHECK(w.report.AllRan());
     // **各段が実際に起きたこと**
@@ -285,8 +285,8 @@ namespace {
     CHECK(enemy.IsValid() && bullet.IsValid());
 
     w.Step();
-    CHECK(w.state.thisFrame.kills == 1u);
-    CHECK(w.state.thisFrame.pickupsCreated == 1u);
+    CHECK(w.state.thisStep.kills == 1u);
+    CHECK(w.state.thisStep.pickupsCreated == 1u);
 
     w.Step();
     CHECK(w.state.total.pickupsCollected == 1u);
@@ -297,8 +297,8 @@ namespace {
     const Entity intruder = GLFD::Game::SpawnEnemy(w.state, 0.9f, -0.6f, 0.0f, 0.0f);
     CHECK(intruder.IsValid());
     w.Step();
-    CHECK(w.state.thisFrame.enemiesReached == 1u);
-    CHECK(w.state.thisFrame.pickupsCreated == 0u);   // 触れて消えた敵は経験値を出さない
+    CHECK(w.state.thisStep.enemiesReached == 1u);
+    CHECK(w.state.thisStep.pickupsCreated == 0u);   // 触れて消えた敵は経験値を出さない
     CHECK(!w.Reg().IsAlive(intruder));
   }
 
@@ -400,7 +400,7 @@ namespace {
                     && ViewIsExact<Damage>(w.Reg())
                     && ViewIsExact<Pickup>(w.Reg());
       scrambled = scrambled || DenseOrderScrambled(w.Reg());
-      if (DestroyedIn(w.state.thisFrame) > 0u) { ++framesDestroyed; }
+      if (DestroyedIn(w.state.thisStep) > 0u) { ++framesDestroyed; }
     }
 
     CHECK(exact);
@@ -447,7 +447,7 @@ namespace {
     w.harness.EventBus().Publish(GLFD::Events::HitEvent{ bullet2, enemy });
 
     w.Step();
-    const SurvivorCounts& f = w.state.thisFrame;
+    const SurvivorCounts& f = w.state.thisStep;
     CHECK(f.hitsDelivered == 1u);
     CHECK(f.hitsStale == 1u);        // 世代で弾いた
     CHECK(f.kills == 0u);
@@ -469,7 +469,7 @@ namespace {
     int framesWithHits = 0;
     for (int frame = 0; frame < 600; ++frame) {
       w.Step();
-      if (w.state.thisFrame.hitsDelivered > 0u) { ++framesWithHits; }
+      if (w.state.thisStep.hitsDelivered > 0u) { ++framesWithHits; }
     }
 
     CHECK(w.state.total.gridMismatches == 0u);
@@ -490,7 +490,7 @@ namespace {
       const Population p = Count(w.Reg());
       const std::size_t expected = p.enemies + p.bullets + p.pickups + w.state.total.orphans;
       if (w.Reg().AliveCount() != expected) { ++mismatches; }
-      if (CreatedIn(w.state.thisFrame) > 0u && DestroyedIn(w.state.thisFrame) > 0u) {
+      if (CreatedIn(w.state.thisStep) > 0u && DestroyedIn(w.state.thisStep) > 0u) {
         ++mixedFrames;
       }
     }
@@ -546,8 +546,8 @@ namespace {
     }
 
     w.Step();
-    CHECK(w.state.thisFrame.hitsDelivered == 1u);
-    CHECK(w.state.thisFrame.kills == 1u);
+    CHECK(w.state.thisStep.hitsDelivered == 1u);
+    CHECK(w.state.thisStep.kills == 1u);
     CHECK(!reg.IsAlive(enemy));
     CHECK(!reg.IsAlive(bullet));
     CHECK(reg.IsAlive(decoy));     // 読み違えた先は無傷
@@ -578,10 +578,10 @@ namespace {
     CHECK(enemy.IsValid() && bullet.IsValid());
 
     w.Step();                                    // 撃破。経験値は積まれただけで、まだ見えない
-    CHECK(w.state.thisFrame.pickupsCreated == 1u);
+    CHECK(w.state.thisStep.pickupsCreated == 1u);
 
     w.Step();                                    // 見えた: 期限切れと回収が同じフレーム
-    const SurvivorCounts& f = w.state.thisFrame;
+    const SurvivorCounts& f = w.state.thisStep;
     CHECK(f.pickupsExpired == 1u);               // `Lifetime` が先に積んだ
     CHECK(f.pickupsExpired + f.pickupsCollected == 1u);
     CHECK(w.harness.Commands().Report().Dropped() == 0u);
@@ -626,9 +626,9 @@ namespace {
 
     // --- フレーム N: 倒した ---------------------------------------------------
     w.Step();
-    CHECK(w.state.thisFrame.kills == 1u);
-    CHECK(w.state.thisFrame.pickupsCreated == 1u);
-    CHECK(w.state.thisFrame.pickupsCollected == 0u);   // **このフレームでは拾われない**
+    CHECK(w.state.thisStep.kills == 1u);
+    CHECK(w.state.thisStep.pickupsCreated == 1u);
+    CHECK(w.state.thisStep.pickupsCollected == 0u);   // **このフレームでは拾われない**
 
     // 経験値はフレーム N の終わりに存在し、しかも範囲の中にいる。
     // 拾われなかったのは遠いからではなく、成分が付いたのが回収の後だったから
@@ -641,7 +641,7 @@ namespace {
 
     // --- フレーム N+1: 拾われる -----------------------------------------------
     w.Step();
-    CHECK(w.state.thisFrame.pickupsCollected == 1u);
+    CHECK(w.state.thisStep.pickupsCollected == 1u);
     CHECK(w.Reg().AliveCount() == 0u);
   }
 
@@ -663,7 +663,7 @@ namespace {
     GLFD::Test::BeginCase("T-ECS-24a: a full registry skips creation, reports once, and keeps resolving kills");
 
     SurvivorParams params   = GLFD::Game::ManualSurvivorParams();
-    params.spawnEveryFrames = 1;
+    params.spawnEverySteps = 1;
     params.enemiesPerSpawn  = 1;
     params.spawnRadius      = 45.0f;
     params.spawnArc         = 0.5f;
@@ -688,7 +688,7 @@ namespace {
       w.Step();
       allRan = allRan && w.report.AllRan();
       const GLFD::Core::FailureGate::Change change =
-          GLFD::Game::ObserveCreationFailures(w.state.thisFrame, gate);
+          GLFD::Game::ObserveCreationFailures(w.state.thisStep, gate);
       if (change == GLFD::Core::FailureGate::Change::Started)   { ++started; }
       if (change == GLFD::Core::FailureGate::Change::Recovered) { ++recovered; }
     };
@@ -705,7 +705,7 @@ namespace {
     if (at != nullptr) { at->x = 33.3f; at->y = -18.7f; }
     frame();
     {
-      const SurvivorCounts& f = w.state.thisFrame;
+      const SurvivorCounts& f = w.state.thisStep;
       CHECK(f.kills == 1u);
       CHECK(f.pickupsLost == 1u);        // 経験値の置き場が無い。**数えて残す**
       CHECK(f.createFailures == 2u);     // 湧かせる分と経験値の分
@@ -716,8 +716,8 @@ namespace {
 
     // 空いた 2 枠で次の生成が通り、**直ったことを 1 回だけ**出す
     frame();
-    CHECK(w.state.thisFrame.enemiesSpawned == 1u);
-    CHECK(w.state.thisFrame.createFailures == 0u);
+    CHECK(w.state.thisStep.enemiesSpawned == 1u);
+    CHECK(w.state.thisStep.createFailures == 0u);
     CHECK(recovered == 1);
 
     CHECK(allRan);
@@ -748,7 +748,7 @@ namespace {
     }
 
     w.Step();
-    const SurvivorCounts& f = w.state.thisFrame;
+    const SurvivorCounts& f = w.state.thisStep;
     CHECK(f.kills == 4u);
     CHECK(f.pickupsCreated == 2u);
     CHECK(f.pickupsSkippedAtCap == 2u);

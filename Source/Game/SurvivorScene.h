@@ -6,7 +6,7 @@
  *
  * @details
  *  **ループの本体は `SurvivorLoop.h` にあり、ここは呼ぶだけ。** テストとベンチが回して
- *  いるのと同じ `RunSurvivorFrame` を呼ぶ。シーンが持つのは、シーンにしかできないこと
+ *  いるのと同じ `RunSurvivorStep` を呼ぶ。シーンが持つのは、シーンにしかできないこと
  *  (テクスチャ、描画、ログ)だけである。
  *
  *  ## 起動と切り替え
@@ -43,10 +43,10 @@ namespace GLFD {
   private:
     /// ループの状態。**購読者が参照で掴んでいる**(ファイル冒頭の @warning)
     Game::SurvivorState m_state;
-    Core::FrameReport   m_frameReport;
+    Core::StageReport   m_stageReport;
 
     // 診断の門 (R-46)。状態を持つので**シーンが所有する**(N-3)
-    Core::FailureGate m_frameGate;           ///< 順序表のどれかが Failed / Skipped
+    Core::FailureGate m_stageGate;           ///< 順序表のどれかが Failed / Skipped
     Core::FailureGate m_renderGate;          ///< 描画の確保失敗
     Core::FailureGate m_commandDropGate;     ///< コマンドの取りこぼし
     Core::FailureGate m_creationGate;        ///< 作ろうとして作れなかった

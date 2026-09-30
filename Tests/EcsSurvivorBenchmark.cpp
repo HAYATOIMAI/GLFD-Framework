@@ -5,8 +5,13 @@
  * @details
  *  ## 基準線は 2 本 (1-8 §1-D)
  *   1. **Boid の非回帰線** — 既存の `EcsBenchmark`。1-7 の数字(中央値 1105us)と比べる
- *   2. **1-8 の線** — これ。`RunSurvivorFrame` と**同じ順序表 `kSurvivorOrder` を**
+ *   2. **1-8 の線** — これ。`RunSurvivorStep` と**同じ順序表 `kSurvivorOrder` を**
  *      1 段ずつ時間を挟んで回す。表を写していないので、順序を変えればここにも出る
+ *
+ *  ## 言葉 (ECS 2-10)
+ *  **ここでの「frame」は、シミュレーションの刻み 1 回**(`OnUpdate` 1 回ぶん)。ベンチは描かないので
+ *  1 フレーム = 1 刻みになる。ゲームのログでは 2-10 から刻みを「step」と書くが、ベンチの出力の
+ *  `per frame` と引数の `frames` は変えていない(`run_baseline.ps1` と 2-5 以来の基準線の記録が読む)
  *
  *  ## 定常状態に入ってから測る
  *  既定の助走は 900 フレーム(15 秒)。敵は最長 10 秒で消えるので、それより長く回すと
@@ -209,16 +214,16 @@ int main(int argc, char** argv) {
     const bool measuring = (f >= warmup);
     const int  m         = f - warmup;
 
-    // **`RunSurvivorFrame` と同じ表を 1 段ずつ回す**(表を写さない)
+    // **`RunSurvivorStep` と同じ表を 1 段ずつ回す**(表を写さない)
     GLFD::Game::BeginSurvivorFrame(state);
     const auto frameStart = Clock::now();
     for (std::size_t i = 0; i < kSteps; ++i) {
       const auto t0 = Clock::now();
-      const GLFD::Core::StepResult result = GLFD::Game::kSurvivorOrder[i].run(state, ctx);
+      const GLFD::Core::StageResult result = GLFD::Game::kSurvivorOrder[i].run(state, ctx);
       const auto t1 = Clock::now();
       if (measuring) {
         g_steps[i][m] = us(t0, t1);
-        if (result != GLFD::Core::StepResult::Ran) { ++notRan; }
+        if (result != GLFD::Core::StageResult::Ran) { ++notRan; }
       }
     }
     const auto frameEnd = Clock::now();
@@ -237,7 +242,7 @@ int main(int argc, char** argv) {
 
     if (!measuring) { continue; }
 
-    const GLFD::Game::SurvivorCounts& c = state.thisFrame;
+    const GLFD::Game::SurvivorCounts& c = state.thisStep;
     g_frame[m] = us(frameStart, frameEnd);
     g_buildVertices[m] = us(vb0, vb1);
     g_vertices[m]      = static_cast<double>(vertices.GetSize());

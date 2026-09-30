@@ -19,7 +19,7 @@
 namespace {
 
   /// 経過の要約を出す間隔。**毎フレームは出さない**(10 秒に 1 行)
-  constexpr std::uint64_t kSummaryEveryFrames = 600;
+  constexpr std::uint64_t kSummaryEverySteps = 600;
 
   /**
    * @brief 敵 / 弾 / 経験値を**色で**分けて描く (1-8 論点5)
@@ -85,13 +85,13 @@ namespace GLFD {
   void SurvivorScene::OnUpdate(GameContext& ctx) {
     // **ループの本体はここに無い。** テストとベンチが回しているのと同じ関数を呼ぶ。
     // 配信 (`DispatchEvents`) と適用 (`ApplyCommands`) もこの中で終わる
-    Game::RunSurvivorFrame(m_state, ctx, m_frameReport);
+    Game::RunSurvivorStep(m_state, ctx, m_stageReport);
 
     // --- ここから下は観測だけ。状態の変わり目と、段ごとの初回だけ出す (R-46) ---
-    Game::ReportFrameSteps(m_frameReport, m_frameGate);
+    Game::ReportUpdateStages(m_stageReport, m_stageGate);
     Game::ReportAppliedCommands(ctx.commands->Report(), m_loggedFirstApply, m_commandDropGate);
-    Game::ReportSurvivorCreation(m_state.thisFrame,
-                                 Game::ObserveCreationFailures(m_state.thisFrame, m_creationGate),
+    Game::ReportSurvivorCreation(m_state.thisStep,
+                                 Game::ObserveCreationFailures(m_state.thisStep, m_creationGate),
                                  m_creationGate);
     {
       // **命中を黙って捨てない** (R-28)。キューが溢れると命中そのものが消える
@@ -101,7 +101,7 @@ namespace GLFD {
     }
     Game::ReportSurvivorFirstLap(m_state, m_lap);
 
-    if (m_state.frame % kSummaryEveryFrames == 0u) {
+    if (m_state.step % kSummaryEverySteps == 0u) {
       Game::ReportSurvivorSummary(m_state,
                                   ctx.registry->View<Components::Health>().BaseSize(),
                                   ctx.registry->View<Components::Damage>().BaseSize(),

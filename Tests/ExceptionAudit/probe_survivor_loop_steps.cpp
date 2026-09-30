@@ -19,7 +19,7 @@
 #include "Core/GameContext.h"
 #include "Game/SurvivorLoop.h"
 
-void RunSteps(GLFD::Game::SurvivorState& s, GLFD::GameContext& ctx) {
+void RunStages(GLFD::Game::SurvivorState& s, GLFD::GameContext& ctx) {
   (void)GLFD::Game::SpawnEnemiesStep(s, ctx);
   (void)GLFD::Game::FireBulletsStep(s, ctx);
   (void)GLFD::Game::DispatchEventsStep(s, ctx);

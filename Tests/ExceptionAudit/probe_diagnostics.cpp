@@ -15,12 +15,12 @@
 #include "Game/EcsDiagnosticsLog.h"
 
 void Report(const GLFD::ECS::ApplyReport& applied, bool& loggedFirst,
-            GLFD::Core::FailureGate& gate, const GLFD::Core::FrameReport& frame,
+            GLFD::Core::FailureGate& gate, const GLFD::Core::StageReport& frame,
             const GLFD::Events::BusCounters& bus, const GLFD::Systems::RenderStatus& render,
             const GLFD::Game::SurvivorCounts& counts, GLFD::Game::SurvivorLapLog& lap,
             GLFD::Game::SurvivorState& state) {
   GLFD::Game::ReportAppliedCommands(applied, loggedFirst, gate);
-  GLFD::Game::ReportFrameSteps(frame, gate);
+  GLFD::Game::ReportUpdateStages(frame, gate);
   GLFD::Game::ReportEventQueue(bus, gate);
   GLFD::Game::ReportRenderStep(render, gate);
   GLFD::Game::ReportSurvivorCreation(counts, GLFD::Core::FailureGate::Change{}, gate);
