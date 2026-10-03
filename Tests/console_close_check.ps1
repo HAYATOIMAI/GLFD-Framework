@@ -11,11 +11,16 @@
 #   C3 Ctrl+C                                        C7 while the 2-9 message box is up (probe build), then close
 #   C4 Ctrl+Break                                    C8 Ctrl+C right after launch, before the window exists
 #                                                    C9 close the console right after launch (during Initialize)
+#   C10 (conhost only) select text in the console (Edit > Select All), then close the console
 #  Expected: the log ends with the join line and "=== Engine Shutdown ===" (C2-C6 and C8 also have exactly one
 #  "console: ..." line); the process ends by itself within 15 s. C7: ends within 15 s (the log was already
 #  complete when the box came up). Exit codes are RECORDED, not asserted (a close races main's own return).
 #  C6 is only meaningful if the game thread was really in the move loop (GetGUIThreadInfo GUI_INMOVESIZE),
 #  and C8 only if the signal arrived before the frame loop started ("frame rate" line absent): both are recorded.
+#  C10: while conhost has a selection, a write to the console waits until the selection ends. The shutdown lines are
+#  written after the close, so without the console silence they wait on std::cout until the handler's limit and the
+#  OS ends the process (a build without the silence: 4030 ms, 0xC000013A, no Engine Shutdown). C10 is only
+#  meaningful if a selection was up (GetConsoleSelectionInfo through the helper); skipped without -UseConhost.
 #
 #  usage:  powershell -File Tests\console_close_check.ps1 [-Config Release|Debug] [-UseConhost] [-ExePath path]
 #          [-Cases C1,C2,...] [-OutName name]
@@ -30,12 +35,12 @@
 #  Every wait has an upper bound. Names differ in spelling, not only in case.
 # ---------------------------------------------------------------------------
 param([ValidateSet("Release", "Debug")][string]$Config = "Release", [switch]$UseConhost, [string]$ExePath = "",
-      [string[]]$Cases = @("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9"),
+      [string[]]$Cases = @("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10"),
       [string]$OutName = ("run_" + (Get-Date -Format "yyyyMMdd_HHmmss")))
 $ErrorActionPreference = "Stop"
 # `powershell -File ... -Cases C3,C4` passes ONE string "C3,C4": split it, and refuse names that are not cases
 $Cases = @($Cases | ForEach-Object { $_ -split "," } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-$unknownCases = @($Cases | Where-Object { $_ -notin @("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9") })
+$unknownCases = @($Cases | Where-Object { $_ -notin @("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10") })
 if ($unknownCases.Count -gt 0) { Write-Host "unknown case(s): $($unknownCases -join ', ')"; exit 2 }
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $gameExe  = if ($ExePath) { $ExePath } else { Join-Path $repoRoot "x64\$Config\GameLib_conteinar.exe" }
@@ -157,6 +162,16 @@ function Close-Console($started, [string[]]$before) {
   return "closed the console window ($((($w[0] -split '\|')[1])))"
 }
 
+# the selection flags of the game's console (0 = none), or -1 when the helper could not tell
+function Get-SelectionFlags($game, [string]$tag) {
+  $r = Join-Path $outDir "$tag.selection.txt"
+  $h = Start-Process -FilePath $ctrlSend -ArgumentList "$($game.Id) 9 `"$r`"" -WindowStyle Hidden -PassThru
+  if (-not $h.WaitForExit(10000)) { $h.Kill(); return -1 }
+  $text = (Get-Content $r -ErrorAction SilentlyContinue) -join " "
+  if ($text -match "^selection flags 0x([0-9a-fA-F]+)") { return [Convert]::ToInt32($Matches[1], 16) }
+  return -1
+}
+
 function Send-Ctrl($game, [int]$kind, [string]$tag) {
   $r = Join-Path $outDir "$tag.ctrlsend.txt"
   # its own hidden console: run from this script's console, AttachConsole failed with 5 (already attached)
@@ -181,6 +196,7 @@ foreach ($case in $Cases) {
     if (-not (Test-Path $probeExe)) { "C7  SKIPPED  (no probe build at $probeExe; run Tests\render_fault_check.ps1 first)" | Tee-Object -FilePath $result -Append | Write-Host; continue }
     $exe = $probeExe; $envs = @{ GLFD_RENDER_FAULT = "present=0x887A0005@432,reason=0x887A0007@0" }
   }
+  if ($case -eq "C10" -and -not $UseConhost) { "C10 SKIPPED  (a selection that holds the output is conhost's; run with -UseConhost)" | Tee-Object -FilePath $result -Append | Write-Host; continue }
   $log = Join-Path $workDir "Game.log"
   Remove-Item $log -ErrorAction SilentlyContinue
   $before = @([GlfdCloseCheck]::ConsoleWindows())
@@ -224,6 +240,18 @@ foreach ($case in $Cases) {
         $notes += "game thread in the move/size loop before the close: $pre"
         $t0 = Get-Date; $action = Close-Console $started $before
       }
+      "C10" {
+        $w = @(Find-GameConsole $started $before)
+        if ($w.Count -eq 1 -and ($w[0] -split "\|")[1] -eq "ConsoleWindowClass") {
+          # WM_SYSCOMMAND 0xFFF5 = Edit > Select All of the console window's system menu
+          [void][GlfdCloseCheck]::PostMessage([IntPtr][long](($w[0] -split "\|")[0]), 0x0112, [IntPtr]0xFFF5, [IntPtr]::Zero)
+        }
+        [void](Wait-Until { (Get-SelectionFlags $game $tag) -gt 0 } 5)
+        $flags = Get-SelectionFlags $game $tag
+        $pre = $flags -gt 0
+        $notes += "selection up before the close: $pre (flags $flags)"
+        $t0 = Get-Date; $action = Close-Console $started $before
+      }
       "C7" {
         $boxUp = Wait-Until { $game.Refresh(); $game.HasExited -or ([GlfdCloseCheck]::FindDialog([uint32]$game.Id) -ne [IntPtr]::Zero) } 20
         $pre = [GlfdCloseCheck]::FindDialog([uint32]$game.Id) -ne [IntPtr]::Zero
@@ -249,11 +277,11 @@ foreach ($case in $Cases) {
   $ok = $ended -and $action -notlike "NOT_RUN*"
   if ($case -notin @("C8", "C9") -and $hwnd -eq [IntPtr]::Zero) { $ok = $false }   # C8 / C9 act before the window exists
   # C5 / C6 / C7 test a state; if the game was not in it, the case did not test what it is for
-  if ($case -in @("C5", "C6", "C7") -and -not $pre) { $ok = $false; $notes += "NOT_RUN as meant: the precondition did not hold" }
+  if ($case -in @("C5", "C6", "C7", "C10") -and -not $pre) { $ok = $false; $notes += "NOT_RUN as meant: the precondition did not hold" }
   if ($joined -ne 1) { $ok = $false; $notes += "join line x$joined" }
   if ($lastLine -notlike "*=== Engine Shutdown ===*") { $ok = $false; $notes += "last line is not Engine Shutdown: $lastLine" }
-  if ($case -in @("C2", "C3", "C4", "C5", "C6", "C8", "C9") -and $console -ne 1) { $ok = $false; $notes += "console line x$console" }
-  if ($case -eq "C9") {
+  if ($case -in @("C2", "C3", "C4", "C5", "C6", "C8", "C9", "C10") -and $console -ne 1) { $ok = $false; $notes += "console line x$console" }
+  if ($case -in @("C9", "C10")) {
     $limit = @($lines | Where-Object { $_ -match "a close waits up to (\d+) ms" } | ForEach-Object { [int]$Matches[1] })
     $notes += "close -> end {0:N0} ms against the handler's limit {1} ms" -f $ms, ($(if ($limit.Count) { $limit[0] } else { "?" }))
   }
