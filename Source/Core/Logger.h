@@ -24,8 +24,14 @@ namespace GLFD::Core {
     // シングルトンアクセス
     static Logger& Get();
 
+    /// ファイルを開けなければ false。そのときは理由 (パスとエラーのコード) をコンソールと
+    /// OutputDebugString に 1 行書き、ファイルに書けていないことを覚える (ECS 2-11)。ゲームは止めない
     bool Initialize(const std::string& filePath = "engine.log");
     void Shutdown();
+
+    /// ログのファイルに書けているか (ECS 2-11)。書けていなければ、2-9 の知らせは「Game.log を送って
+    /// ください」と言わず「Game.log を書けませんでした」と伝える
+    bool FileOpen() const;
 
     // ログ出力関数
     void Log(LogLevel level, const std::string& message);
@@ -40,10 +46,12 @@ namespace GLFD::Core {
 
   private:
     Logger() = default;
+    /// "[HH:MM:SS] [INFO] message\n" を作る (Log と、ファイルを開けなかった行が使う)
+    static std::string FormatLine(LogLevel level, const std::string& message);
     ~Logger();
 
     std::ofstream m_fileStream;
-    std::mutex m_mutex; // スレッドセーフ用
+    mutable std::mutex m_mutex; // スレッドセーフ用
 
     /// コンソールを UTF-8 に切り替えられたか (2-4)。false なら端末側で
     /// 日本語が化ける。ファイルと OutputDebugString は常に UTF-8 で正しい

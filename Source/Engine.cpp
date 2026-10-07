@@ -36,7 +36,6 @@
 
 #include <chrono>
 #include <cstdint>
-#include <iostream>   // Initialize の std::cerr。以前は JobSystem.h 経由で届いていた (ECS 2-4)
 #include <string>
 #include <thread>
 
@@ -138,10 +137,7 @@ namespace GLFD {
     m_renderer = std::make_unique<Graphics::DX11Renderer>();
     if (!m_renderer->Initialize(m_window->GetHWND(),
                                 m_config->window.width, m_config->window.height)) {
-#ifdef _DEBUG
-      std::cerr << "DX11 Init Failed!" << std::endl;
-#endif // DEBUG
-      LOG_ERROR("DX11 Init Failed!");
+      LOG_ERROR("DX11 Init Failed!");   // the reason is the line above it (ECS 2-11)
       SetExit(Graphics::ExitReason::StartupFailed, "the graphics (DX11) could not be initialized");
       m_isRunning = false;
       return;
@@ -374,8 +370,10 @@ namespace GLFD {
     wchar_t workDir[512] = {};
     const DWORD n = ::GetCurrentDirectoryW(static_cast<DWORD>(sizeof workDir / sizeof workDir[0]), workDir);
     const Graphics::RenderFailure none{};
+    // Game.log could not be opened: the box must not ask for it (ECS 2-11)
     Graphics::FormatExitMessage(m_exitMessage, reason, m_renderer ? m_renderer->Failure() : none, what,
-                                (n > 0 && n < sizeof workDir / sizeof workDir[0]) ? workDir : nullptr);
+                                (n > 0 && n < sizeof workDir / sizeof workDir[0]) ? workDir : nullptr,
+                                Core::Logger::Get().FileOpen());
   }
 
   void GameEngine::Render() {

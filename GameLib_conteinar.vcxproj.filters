@@ -231,6 +231,9 @@
     <ClInclude Include="Source\Graphics\RenderHealthLog.h">
       <Filter>Graphics</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Graphics\StartupFailureLog.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Resource\IResourceLoader.h">
       <Filter>Resource</Filter>
     </ClInclude>

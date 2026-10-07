@@ -115,6 +115,7 @@
     <ClInclude Include="Source\Graphics\RenderFaultProbe.h" />
     <ClInclude Include="Source\Graphics\RenderHealth.h" />
     <ClInclude Include="Source\Graphics\RenderHealthLog.h" />
+    <ClInclude Include="Source\Graphics\StartupFailureLog.h" />
     <ClInclude Include="Source\Graphics\RenderSystem.h" />
     <ClInclude Include="Source\Graphics\RenderStatus.h" />
     <ClInclude Include="Source\Graphics\SimpleVertex.h" />

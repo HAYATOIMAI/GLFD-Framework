@@ -10,7 +10,8 @@ namespace GLFD::Graphics {
   class ConstantBuffer {
   public:
     // 作成 (初期化)
-    bool Initialize(ID3D11Device* device) {
+    // returns the HRESULT so the caller can write the reason to Game.log (ECS 2-11)
+    HRESULT Initialize(ID3D11Device* device) {
       D3D11_BUFFER_DESC bd = {};
       bd.Usage = D3D11_USAGE_DEFAULT;
       bd.ByteWidth = sizeof(T);
@@ -24,8 +25,7 @@ namespace GLFD::Graphics {
       bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
       bd.CPUAccessFlags = 0; // UpdateSubresourceを使うので0
 
-      HRESULT hr = device->CreateBuffer(&bd, nullptr, &m_buffer);
-      return SUCCEEDED(hr);
+      return device->CreateBuffer(&bd, nullptr, &m_buffer);
     }
 
     // データを更新してGPUへ転送

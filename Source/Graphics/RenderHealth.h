@@ -218,16 +218,29 @@ namespace GLFD::Graphics {
     }
   }
 
-  /// 知らせの 2 段目: どうすればよいか
-  [[nodiscard]] inline const wchar_t* ExitAdvice(const RenderFailure& failure) noexcept {
-    if (!IsDeviceRemoved(failure) || failure.removedReason == DXGI_ERROR_INVALID_CALL) { return L"ゲームの不具合の可能性が高いので、Game.log を送ってください。"; }
+  /// 知らせの 2 段目: どうすればよいか。
+  /// `logWritten` が false (Game.log を開けなかった) なら、Game.log を送るよう頼まない (ECS 2-11)
+  [[nodiscard]] inline const wchar_t* ExitAdvice(const RenderFailure& failure, bool logWritten = true) noexcept {
+    if (!IsDeviceRemoved(failure) || failure.removedReason == DXGI_ERROR_INVALID_CALL) {
+      return logWritten ? L"ゲームの不具合の可能性が高いので、Game.log を送ってください。" : L"ゲームの不具合の可能性が高いです。";
+    }
     switch (failure.removedReason) {
       case DXGI_ERROR_DEVICE_RESET:
       case DXGI_ERROR_DEVICE_HUNG:
-      case DXGI_ERROR_DRIVER_INTERNAL_ERROR: return L"GPU が無くなったわけではありません。ゲームをもう一度起動してください。\n何度も起きる場合は、グラフィックス ドライバを更新し、Game.log を送ってください。";
-      default:                               return L"ゲームをもう一度起動してください。\n何度も起きる場合は、グラフィックス ドライバを更新し、Game.log を送ってください。";
+      case DXGI_ERROR_DRIVER_INTERNAL_ERROR:
+        return logWritten ? L"GPU が無くなったわけではありません。ゲームをもう一度起動してください。\n何度も起きる場合は、グラフィックス ドライバを更新し、Game.log を送ってください。"
+                          : L"GPU が無くなったわけではありません。ゲームをもう一度起動してください。\n何度も起きる場合は、グラフィックス ドライバを更新してください。";
+      default:
+        return logWritten ? L"ゲームをもう一度起動してください。\n何度も起きる場合は、グラフィックス ドライバを更新し、Game.log を送ってください。"
+                          : L"ゲームをもう一度起動してください。\n何度も起きる場合は、グラフィックス ドライバを更新してください。";
     }
   }
+
+  /// 知らせの最後の行の頭と終わり: ログの場所か、書けなかったこと (ECS 2-11)
+  [[nodiscard]] inline const wchar_t* ExitLogLabel(bool logWritten) noexcept {
+    return logWritten ? L"ログ: " : L"Game.log を書けませんでした (";
+  }
+  [[nodiscard]] inline const wchar_t* ExitLogTail(bool logWritten) noexcept { return logWritten ? L"" : L")"; }
 
   /**
    * @brief 利用者への知らせの文(メッセージボックス用)を組み立てる
@@ -235,16 +248,18 @@ namespace GLFD::Graphics {
    *          日本語の文はこのヘッダ(UTF-8 BOM)のワイド文字列だけに置く。テストは \\u で照らす
    * @param what      起動の失敗なら何ができなかったか(ASCII)。描画の失敗なら使わない
    * @param workDir   作業フォルダ(起動の失敗の多くは、ここを取り違えて起きる)
+   * @param logWritten Game.log に書けているか。false なら「送ってください」の代わりに「書けませんでした」(ECS 2-11)
    * @return 書いた文字数。`Normal` なら空文字列を書いて 0
    */
   inline int FormatExitMessage(wchar_t (&out)[kExitMessageLength], ExitReason reason, const RenderFailure& failure,
-                               const char* what, const wchar_t* workDir) noexcept {
+                               const char* what, const wchar_t* workDir, bool logWritten = true) noexcept {
     out[0] = L'\0';
     const wchar_t* folder = (workDir != nullptr) ? workDir : L"(unknown)";
     if (reason == ExitReason::StartupFailed) {
       return std::swprintf(out, kExitMessageLength,
-                           L"ゲームを起動できませんでした。\n原因: %hs\n\n作業フォルダ: %ls\nゲームはこのフォルダから Resource\\ と Source\\Shaders\\ を読みます。リポジトリの直下 (または Visual Studio) から起動してください。\n\nログ: %ls\\Game.log",
-                           (what != nullptr) ? what : "unknown", folder, folder);
+                           L"ゲームを起動できませんでした。\n原因: %hs\n\n作業フォルダ: %ls\nゲームはこのフォルダから Resource\\ と Source\\Shaders\\ を読みます。リポジトリの直下 (または Visual Studio) から起動してください。\n\n%ls%ls\\Game.log%ls",
+                           (what != nullptr) ? what : "unknown", folder,
+                           ExitLogLabel(logWritten), folder, ExitLogTail(logWritten));
     }
     if (reason == ExitReason::RenderFailed) {
       const char* returned = HResultName(failure.returned);
@@ -252,13 +267,14 @@ namespace GLFD::Graphics {
       return std::swprintf(out, kExitMessageLength,
                            L"%ls\n\n%ls\n\n"
                            L"%hs: %hs (0x%08lX) / removed reason: %hs (0x%08lX)\n"
-                           L"ログ: %ls\\Game.log",
-                           ExitHeadline(failure), ExitAdvice(failure),
+                           L"%ls%ls\\Game.log%ls",
+                           ExitHeadline(failure), ExitAdvice(failure, logWritten),
                            (failure.where != nullptr) ? failure.where : "?",
                            (returned != nullptr) ? returned : "unknown",
                            static_cast<unsigned long>(failure.returned),
                            (reasonName != nullptr) ? reasonName : "unknown",
-                           static_cast<unsigned long>(failure.removedReason), folder);
+                           static_cast<unsigned long>(failure.removedReason),
+                           ExitLogLabel(logWritten), folder, ExitLogTail(logWritten));
     }
     return 0;
   }

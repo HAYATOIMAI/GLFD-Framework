@@ -1,5 +1,5 @@
 #include "Texture.h"
-#include <iostream>
+#include "StartupFailureLog.h"
 #include <vector>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -14,8 +14,9 @@ namespace GLFD::Graphics {
 
     unsigned char* data = stbi_load(filename.c_str(), &width, &height, &channels, 4);
 
+    // ECS 2-11: the reasons go to Game.log (they used to go to std::cerr, or nowhere)
     if (!data) {
-      std::cerr << "Failed to load texture: " << filename << std::endl;
+      LOG_ERROR("texture: could not load %s: %s", filename.c_str(), stbi_failure_reason());
       return false;
     }
 
@@ -40,10 +41,17 @@ namespace GLFD::Graphics {
     // メモリ解放 (GPUに転送したので不要)
     stbi_image_free(data);
 
-    if (FAILED(hr)) return false;
+    if (FAILED(hr)) {
+      ReportStartupCall("texture", "creating the texture", hr);
+      return false;
+    }
 
     // 3. シェーダーリソースビュー (SRV) 作成
     hr = device->CreateShaderResourceView(m_texture.Get(), nullptr, &m_srv);
-    return SUCCEEDED(hr);
+    if (FAILED(hr)) {
+      ReportStartupCall("texture", "creating the shader resource view", hr);
+      return false;
+    }
+    return true;
   }
 }

@@ -20,7 +20,11 @@
 #   H4 Map fails, device not lost  -> keeps running; ONE pair of skipped-draw lines; closing ends with 0
 #   H5 OCCLUDED, then TEST lost    -> the TDR order: stops at "Present(TEST)", no "resumed", exit != 0
 #   H6 startup failure             -> the GAME build started from x64\Release (the wrong folder):
-#                                     box with the working folder, exit != 0
+#                                     box with the working folder, exit != 0; the REASON is in Game.log
+#                                     ("shader: could not read ...", ECS 2-11 T-ECS-47; it used to go to std::cerr only)
+#   H7 startup failure, no log     -> as H6, with a DIRECTORY named Game.log in the working folder, so the log file
+#                                     cannot be opened (ECS 2-11): the box says "Game.log could not be written
+#                                     (path)" and does not point to the log. The directory exists only during H7
 #  The box is found by the script (a #32770 window of the game process), its text is
 #  recorded, and it is closed with IDOK. The game has no switch to hide the box.
 #
@@ -102,9 +106,11 @@ function Wait-Until([scriptblock]$cond, [double]$seconds) {
 }
 
 function Run-Case([string]$caseName, [string]$exePath, [string]$workDir, [string]$fault,
-                  [bool]$expectBox, [string[]]$mustLog, [string[]]$mustNotLog, [int]$runSeconds) {
+                  [bool]$expectBox, [string[]]$mustLog, [string[]]$mustNotLog, [int]$runSeconds,
+                  [string[]]$boxMust = @(), [string[]]$boxMustNot = @(), [switch]$noLogFile) {
   $logPath = Join-Path $workDir "Game.log"
   Remove-Item $logPath -ErrorAction SilentlyContinue
+  if ($noLogFile) { New-Item -ItemType Directory -Path $logPath | Out-Null }   # the Logger cannot open a directory
   $env:GLFD_RENDER_FAULT = $fault
   $proc = Start-Process -FilePath $exePath -WorkingDirectory $workDir -PassThru
   $env:GLFD_RENDER_FAULT = $null
@@ -117,7 +123,7 @@ function Run-Case([string]$caseName, [string]$exePath, [string]$workDir, [string
   if (-not $proc.HasExited) { $box = [GlfdFaultWin]::FindDialog([uint32]$proc.Id) }
   if ($box -ne [IntPtr]::Zero) {
     $boxText = [GlfdFaultWin]::DialogText($box)
-    if (Test-Path $logPath) { $lastLineAtBox = (Get-Content $logPath | Select-Object -Last 1) }
+    if (Test-Path $logPath -PathType Leaf) { $lastLineAtBox = (Get-Content $logPath | Select-Object -Last 1) }
     $proc.Refresh(); $cpuAtBox = $proc.TotalProcessorTime.TotalSeconds
     # press the box's only button (BM_CLICK). WM_COMMAND IDOK posted to the box did not close it (first run)
     $button = [GlfdFaultWin]::FindButton($box)
@@ -135,13 +141,19 @@ function Run-Case([string]$caseName, [string]$exePath, [string]$workDir, [string
   $ended = $proc.WaitForExit(15000)
   if (-not $ended) { $proc.Kill(); [void]$proc.WaitForExit(5000); $notes += "DID NOT EXIT within 15 s (killed)" }
   $code = if ($ended) { $proc.ExitCode } else { -1 }
-  $log = if (Test-Path $logPath) { Get-Content $logPath } else { @() }
-  Copy-Item $logPath (Join-Path $outDir "$caseName.Game.log") -ErrorAction SilentlyContinue
+  $log = if (Test-Path $logPath -PathType Leaf) { Get-Content $logPath } else { @() }
+  if (Test-Path $logPath -PathType Leaf) { Copy-Item $logPath (Join-Path $outDir "$caseName.Game.log") }
+  if ($noLogFile) {
+    if (-not (Test-Path $logPath -PathType Container)) { $notes += "Game.log is no longer the directory" }
+    Remove-Item $logPath -Recurse -Force -ErrorAction SilentlyContinue
+  }
 
   $ok = $ended
   if ($expectBox) {
     if ($box -eq [IntPtr]::Zero) { $ok = $false; $notes += "EXPECTED a box, none appeared" }
-    elseif ($lastLineAtBox -notmatch "=== Engine Shutdown ===") { $ok = $false; $notes += "the box came BEFORE 'Engine Shutdown'" }
+    elseif (-not $noLogFile -and $lastLineAtBox -notmatch "=== Engine Shutdown ===") { $ok = $false; $notes += "the box came BEFORE 'Engine Shutdown'" }
+    foreach ($part in $boxMust)    { if (-not $boxText.Contains($part)) { $ok = $false; $notes += "EXPECTED the box to say '$part'" } }
+    foreach ($part in $boxMustNot) { if ($boxText.Contains($part))      { $ok = $false; $notes += "EXPECTED the box NOT to say '$part'" } }
     if ($code -eq 0) { $ok = $false; $notes += "EXPECTED a non-zero exit code" }
   }
   else {
@@ -156,7 +168,10 @@ function Run-Case([string]$caseName, [string]$exePath, [string]$workDir, [string
     $hits = @($log | Where-Object { $_ -like "*$pattern*" }).Count
     if ($hits -ne 0) { $ok = $false; $notes += "EXPECTED no line with '$pattern', found $hits" }
   }
-  if (@($log | Where-Object { $_ -like "*every worker joined*" }).Count -ne 1) { $ok = $false; $notes += "no 'every worker joined' line" }
+  if ($noLogFile) {
+    if ($log.Count -ne 0) { $ok = $false; $notes += "EXPECTED no log file, found $($log.Count) line(s)" }
+  }
+  elseif (@($log | Where-Object { $_ -like "*every worker joined*" }).Count -ne 1) { $ok = $false; $notes += "no 'every worker joined' line" }
   $verdict = if ($ok) { "OK" } else { "NOT AS EXPECTED" }
   $line = "{0,-3} {1,-16} exit {2,3}  box {3,-5} {4}" -f $caseName, $verdict, $code, ($box -ne [IntPtr]::Zero), (($notes | Where-Object { $_ -notlike "box text*" -and $_ -notlike "last log*" -and $_ -notlike "cpu*" }) -join "; ")
   $line | Add-Content (Join-Path $outDir "result.txt")
@@ -165,6 +180,10 @@ function Run-Case([string]$caseName, [string]$exePath, [string]$workDir, [string
   return $ok
 }
 
+foreach ($d in @($repoRoot, (Split-Path -Parent $gameExe))) {
+  $left = Join-Path $d "Game.log"
+  if (Test-Path $left -PathType Container) { Remove-Item $left -Recurse -Force; Write-Host "removed a Game.log directory left in $d" }
+}
 $lost    = "the graphics device was lost"
 $results = @()
 $results += Run-Case "H1" $probeExe $repoRoot "" $false @() @("render:") 6
@@ -172,7 +191,10 @@ $results += Run-Case "H2" $probeExe $repoRoot "present=0x887A0005@432,reason=0x8
 $results += Run-Case "H3" $probeExe $repoRoot "map=0x8007000E@432,reason=0x887A0005@0" $true @("$lost at Map: E_OUTOFMEMORY") @("not drawing this frame") 20
 $results += Run-Case "H4" $probeExe $repoRoot "map=0x8007000E@432+3" $false @("not drawing this frame", "drawing again after 3 frame(s)") @("stopping the game") 8
 $results += Run-Case "H5" $probeExe $repoRoot "present=0x087A0001@432+1,test=0x887A0005@0,reason=0x887A0006@0" $true @("$lost at Present(TEST): DXGI_ERROR_DEVICE_REMOVED") @("resumed after") 20
-$results += Run-Case "H6" $gameExe (Split-Path -Parent $gameExe) "" $true @("DX11 Init Failed!") @() 20
+$results += Run-Case "H6" $gameExe (Split-Path -Parent $gameExe) "" $true @("shader: could not read Source/Shaders/particle.hlsl", "DX11 Init Failed!") @() 20
+$gameDir = Split-Path -Parent $gameExe
+$results += Run-Case "H7" $gameExe $gameDir "" $true @() @() 20 -noLogFile `
+              -boxMust @("Game.log を書けませんでした ($gameDir\Game.log)") -boxMustNot @("ログ: ")
 
 $failed = @($results | Where-Object { -not $_ }).Count
 Write-Host ("{0} of {1} cases as expected. details: {2}" -f ($results.Count - $failed), $results.Count, (Join-Path $outDir "result.txt"))

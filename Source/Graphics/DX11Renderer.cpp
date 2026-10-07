@@ -1,6 +1,6 @@
 #include "DX11Renderer.h"
 #include "RenderFaultProbe.h"
-#include <iostream>
+#include "StartupFailureLog.h"
 
 namespace GLFD::Graphics {
   DX11Renderer::DX11Renderer() = default;
@@ -40,8 +40,10 @@ namespace GLFD::Graphics {
       &m_deviceContext
     );
 
+    // ECS 2-11: every reason below goes to Game.log with the HRESULT (they used to go to std::cerr only,
+    // and five of them said nothing at all)
     if (FAILED(hr)) {
-      std::cerr << "Failed to create D3D11 Device." << std::endl;
+      ReportStartupCall("graphics", "creating the D3D11 device and swap chain", hr);
       return false;
     }
 
@@ -51,14 +53,14 @@ namespace GLFD::Graphics {
     // 失敗する形でしか分からなかった
     hr = m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer);
     if (FAILED(hr)) {
-      std::cerr << "Failed to get the swap chain's back buffer." << std::endl;
+      ReportStartupCall("graphics", "getting the swap chain's back buffer", hr);
       return false;
     }
 
     hr = m_device->CreateRenderTargetView(backBuffer.Get(), nullptr, &m_renderTargetView);
 
     if (FAILED(hr)) {
-      std::cerr << "Failed to create RenderTargetView." << std::endl;
+      ReportStartupCall("graphics", "creating the render target view", hr);
       return false;
     }
 
@@ -79,7 +81,11 @@ namespace GLFD::Graphics {
     if (!m_shader.Initialize(m_device.Get())) return false;
 
     // 定数バッファ初期化
-    if (!m_cbGlobal.Initialize(m_device.Get())) return false;
+    hr = m_cbGlobal.Initialize(m_device.Get());
+    if (FAILED(hr)) {
+      ReportStartupCall("graphics", "creating the constant buffer", hr);
+      return false;
+    }
 
     if (!CreateVertexBuffer()) return false;
 
@@ -94,7 +100,10 @@ namespace GLFD::Graphics {
     rd.DepthClipEnable = TRUE;
 
     hr = m_device->CreateRasterizerState(&rd, &m_rasterizerState);
-    if (FAILED(hr)) return false;
+    if (FAILED(hr)) {
+      ReportStartupCall("graphics", "creating the rasterizer state", hr);
+      return false;
+    }
 
     m_deviceContext->RSSetState(m_rasterizerState.Get());
 
@@ -108,7 +117,10 @@ namespace GLFD::Graphics {
     sd.MaxLOD = D3D11_FLOAT32_MAX;
 
     hr = m_device->CreateSamplerState(&sd, &m_samplerState);
-    if (FAILED(hr)) return false;
+    if (FAILED(hr)) {
+      ReportStartupCall("graphics", "creating the sampler state", hr);
+      return false;
+    }
 
     return true;
   }
@@ -244,8 +256,9 @@ namespace GLFD::Graphics {
     bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; // 書き込み許可
     // 戻り値を見る (ECS 2-9)。以前は見ずに true を返していたので、作れなくても空の頂点バッファのまま
     // 起動していた (毎フレームの Map が失敗し続ける形になる)
-    if (FAILED(m_device->CreateBuffer(&bd, nullptr, &m_vertexBuffer))) {
-      std::cerr << "Failed to create the vertex buffer." << std::endl;
+    const HRESULT hr = m_device->CreateBuffer(&bd, nullptr, &m_vertexBuffer);
+    if (FAILED(hr)) {
+      ReportStartupCall("graphics", "creating the vertex buffer", hr);
       return false;
     }
 
@@ -279,7 +292,7 @@ namespace GLFD::Graphics {
     auto hr = m_device->CreateBlendState(&bd, &m_blendState);
 
     if (FAILED(hr)) {
-      std::cerr << "Failed to create Blend State." << std::endl;
+      ReportStartupCall("graphics", "creating the blend state", hr);
       return false;
     }
 

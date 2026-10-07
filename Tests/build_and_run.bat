@@ -114,6 +114,8 @@ rem  SimulationClockTests (2-8) ÇÕñ{ï®ÇÃ ReportStepDrops Ç∆ Logger Ç≈êfífÇÃçsÇì
 if /i "%NAME%"=="SimulationClockTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
 rem  RenderHealthTests (2-9) ÇÕñ{ï®ÇÃ ReportRenderFailure / ReportSkippedDraws Ç∆ Logger Ç≈êfífÇÃçsÇì«Çﬁ
 if /i "%NAME%"=="RenderHealthTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
+rem  StartupLogTests (2-11) writes the real startup failure lines through the Logger and reads them back
+if /i "%NAME%"=="StartupLogTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
 set "OBJDIR=%OUTDIR%\%NAME%"
 if not exist "%OBJDIR%" mkdir "%OBJDIR%"
 
