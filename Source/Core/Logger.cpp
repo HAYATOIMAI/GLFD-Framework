@@ -54,8 +54,9 @@ namespace GLFD::Core {
                   "this run writes no log file; lines go to the console only",
                   shownPath, err, errText, winErr);
     const std::string finalMsg = FormatLine(LogLevel::Error, line);
-    if (gLogToConsole.load(std::memory_order_relaxed)) { std::cout << finalMsg; }
+    // Log ‚Æ“¯‚¶‡”Ô: ‘Ò‚½‚³‚ê“¾‚éƒRƒ“ƒ\[ƒ‹‚ðÅŒã‚É (ECS 2-11 ‚ÌŒˆ’è)
     ::OutputDebugStringA(finalMsg.c_str());
+    if (gLogToConsole.load(std::memory_order_relaxed)) { std::cout << finalMsg; }
     return false;
   }
 
