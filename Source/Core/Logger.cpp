@@ -94,19 +94,24 @@ namespace GLFD::Core {
     std::lock_guard<std::mutex> lock(m_mutex);
     const std::string finalMsg = FormatLine(level, message);
 
-    // コンソール出力。UTF-8 へ切り替えられていない場合、日本語を含む行は
-    // 端末側で化ける(ファイルと OutputDebugString は影響を受けない)
-    if (gLogToConsole.load(std::memory_order_relaxed)) {   // ECS 2-10: コンソールが閉じられたら書かない
-      std::cout << finalMsg;
+    // **出口の順番: ファイル → OutputDebugString → コンソール** (ECS 2-11)。本当の記録はファイル。
+    // conhost で利用者が文字を選んでいる間はコンソールへの書き込みが戻らない。2-10 まではコンソールが
+    // 先だったので、止まった行はファイルにも残らなかった。OutputDebugString もデバッガをつないでいる間は
+    // 待たされ得るので、ファイルを待たされ得る出口のすべてより前に置く。
+    // コンソールで止まること自体は残る (負債。別のスレッドで書けば止まらないが、終了の順番に
+    // 戻らないかもしれない部品が増える)
+    if (m_fileStream.is_open()) {
+      m_fileStream << finalMsg;
+      m_fileStream.flush(); // 行ごとに OS へ渡す。途中で切られても、書き終わった行は残る
     }
 
     // デバッガの出力ウィンドウ。診断の行をダブルクリックで辿れるようにする
     ::OutputDebugStringA(finalMsg.c_str());
 
-    // ファイル出力
-    if (m_fileStream.is_open()) {
-      m_fileStream << finalMsg;
-      m_fileStream.flush(); // クラッシュ時にログが残るようにフラッシュ
+    // コンソール。UTF-8 へ切り替えられていない場合、日本語を含む行は端末で化ける
+    // (ファイルと OutputDebugString は影響を受けない)
+    if (gLogToConsole.load(std::memory_order_relaxed)) {   // ECS 2-10: コンソールが閉じかけなら書かない
+      std::cout << finalMsg;
     }
   }
 }

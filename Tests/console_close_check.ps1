@@ -12,6 +12,7 @@
 #   C4 Ctrl+Break                                    C8 Ctrl+C right after launch, before the window exists
 #                                                    C9 close the console right after launch (during Initialize)
 #   C10 (conhost only) select text in the console (Edit > Select All), then close the console
+#   C11 (conhost only) select text, minimise the game (it writes "paused"), Esc, then X on the game window
 #  Expected: the log ends with the join line and "=== Engine Shutdown ===" (C2-C6 and C8 also have exactly one
 #  "console: ..." line); the process ends by itself within 15 s. C7: ends within 15 s (the log was already
 #  complete when the box came up). Exit codes are RECORDED, not asserted (a close races main's own return).
@@ -21,6 +22,12 @@
 #  written after the close, so without the console silence they wait on std::cout until the handler's limit and the
 #  OS ends the process (a build without the silence: 4030 ms, 0xC000013A, no Engine Shutdown). C10 is only
 #  meaningful if a selection was up (GetConsoleSelectionInfo through the helper); skipped without -UseConhost.
+#  C11 (ECS 2-11, T-ECS-48): the game still stops at the console write while the selection is up (recorded debt),
+#  but the line must ALREADY be in Game.log (the Logger writes the file first since 2-11). Before 2-11 the line was
+#  in neither. Judged: the "paused" line reaches Game.log within 5 s while the selection is up, and the game then
+#  ends through the normal shutdown. Skipped without -UseConhost.
+#  The game window and console come to the front and take the keyboard: the script does not start when someone used
+#  the machine in the last -MinIdleSeconds (exit 3), and a case with user input during it is not judged OK.
 #
 #  usage:  powershell -File Tests\console_close_check.ps1 [-Config Release|Debug] [-UseConhost] [-ExePath path]
 #          [-Cases C1,C2,...] [-OutName name]
@@ -29,18 +36,18 @@
 #   the default terminal (Windows Terminal on this machine).
 #  C7 needs the probe build x64\ProbeRelease\ (Tests\render_fault_check.ps1 builds it); skipped if missing.
 #  Output: a NEW folder Tests\build\console_close\<OutName>\ (result.txt + each case's Game.log).
-#  Exit codes: 0 every case as expected / 1 at least one not / 2 could not build the helper
+#  Exit codes: 0 every case as expected / 1 at least one not / 2 could not build the helper / 3 machine in use
 #  SAFETY: only a console window that appeared after the launch and belongs to this game (its title is the exe
 #  path, or it is owned by the conhost this script started) is ever closed.
 #  Every wait has an upper bound. Names differ in spelling, not only in case.
 # ---------------------------------------------------------------------------
 param([ValidateSet("Release", "Debug")][string]$Config = "Release", [switch]$UseConhost, [string]$ExePath = "",
-      [string[]]$Cases = @("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10"),
-      [string]$OutName = ("run_" + (Get-Date -Format "yyyyMMdd_HHmmss")))
+      [string[]]$Cases = @("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11"),
+      [string]$OutName = ("run_" + (Get-Date -Format "yyyyMMdd_HHmmss")), [int]$MinIdleSeconds = 60)
 $ErrorActionPreference = "Stop"
 # `powershell -File ... -Cases C3,C4` passes ONE string "C3,C4": split it, and refuse names that are not cases
 $Cases = @($Cases | ForEach-Object { $_ -split "," } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-$unknownCases = @($Cases | Where-Object { $_ -notin @("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10") })
+$unknownCases = @($Cases | Where-Object { $_ -notin @("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11") })
 if ($unknownCases.Count -gt 0) { Write-Host "unknown case(s): $($unknownCases -join ', ')"; exit 2 }
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $gameExe  = if ($ExePath) { $ExePath } else { Join-Path $repoRoot "x64\$Config\GameLib_conteinar.exe" }
@@ -77,6 +84,12 @@ public delegate bool EnumProc(IntPtr h, IntPtr l);
 [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
 [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
 [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
+[DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr h, int cmd);
+[DllImport("user32.dll")] public static extern IntPtr SendMessageTimeout(IntPtr h, uint msg, IntPtr w, IntPtr l, uint flags, uint ms, out IntPtr res);
+public static bool Responds(IntPtr h) { IntPtr r; return SendMessageTimeout(h, 0, IntPtr.Zero, IntPtr.Zero, 0x2, 1000, out r) != IntPtr.Zero; }
+[StructLayout(LayoutKind.Sequential)] public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
+[DllImport("user32.dll")] static extern bool GetLastInputInfo(ref LASTINPUTINFO i);
+public static uint IdleMs() { var i = new LASTINPUTINFO(); i.cbSize = 8; GetLastInputInfo(ref i); return (uint)Environment.TickCount - i.dwTime; }
 [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
 [StructLayout(LayoutKind.Sequential)] public struct RECT { public int l, t, r, b; }
 [StructLayout(LayoutKind.Sequential)] public struct GUITHREADINFO { public int cbSize; public int flags; public IntPtr hwndActive, hwndFocus, hwndCapture, hwndMenuOwner, hwndMoveSize, hwndCaret; public RECT rcCaret; }
@@ -124,6 +137,13 @@ public static IntPtr FindDialog(uint pid) {
   return found;
 }
 '@
+}
+
+# the rule of 2-10 (dev method 5.8p): windows that come to the front take the keys of whoever is using the machine
+$idleAtStart = [GlfdCloseCheck]::IdleMs()
+if ($idleAtStart -lt [uint32]($MinIdleSeconds * 1000)) {
+  ("NOT STARTED: the machine was used {0:N0} ms ago (needs {1} s without input)" -f $idleAtStart, $MinIdleSeconds) | Tee-Object -FilePath $result -Append | Write-Host
+  exit 3
 }
 
 function Wait-Until([scriptblock]$cond, [double]$seconds) {
@@ -196,13 +216,15 @@ foreach ($case in $Cases) {
     if (-not (Test-Path $probeExe)) { "C7  SKIPPED  (no probe build at $probeExe; run Tests\render_fault_check.ps1 first)" | Tee-Object -FilePath $result -Append | Write-Host; continue }
     $exe = $probeExe; $envs = @{ GLFD_RENDER_FAULT = "present=0x887A0005@432,reason=0x887A0007@0" }
   }
+  if ($case -eq "C11" -and -not $UseConhost) { "C11 SKIPPED  (the selection that holds the output is conhost's; run with -UseConhost)" | Tee-Object -FilePath $result -Append | Write-Host; continue }
   if ($case -eq "C10" -and -not $UseConhost) { "C10 SKIPPED  (a selection that holds the output is conhost's; run with -UseConhost)" | Tee-Object -FilePath $result -Append | Write-Host; continue }
   $log = Join-Path $workDir "Game.log"
   Remove-Item $log -ErrorAction SilentlyContinue
   $before = @([GlfdCloseCheck]::ConsoleWindows())
   $started = Start-Game $exe $envs
   $game = $started.game
-  $notes = @(); $action = ""; $t0 = $null; $pre = $true; $hwnd = [IntPtr]::Zero
+  $notes = @(); $action = ""; $t0 = $null; $pre = $true; $hwnd = [IntPtr]::Zero; $pausedInFile = $false
+  $caseStart = Get-Date
   if ($null -eq $game) { "$case  LAUNCH_FAILED" | Tee-Object -FilePath $result -Append | Write-Host; $allOk = $false; continue }
   try {
 
@@ -252,6 +274,30 @@ foreach ($case in $Cases) {
         $notes += "selection up before the close: $pre (flags $flags)"
         $t0 = Get-Date; $action = Close-Console $started $before
       }
+      "C11" {
+        $w = @(Find-GameConsole $started $before)
+        $cw = if ($w.Count -eq 1 -and ($w[0] -split "\|")[1] -eq "ConsoleWindowClass") { [IntPtr][long](($w[0] -split "\|")[0]) } else { [IntPtr]::Zero }
+        if ($cw -ne [IntPtr]::Zero) { [void][GlfdCloseCheck]::PostMessage($cw, 0x0112, [IntPtr]0xFFF5, [IntPtr]::Zero) }   # Select All
+        [void](Wait-Until { (Get-SelectionFlags $game $tag) -gt 0 } 5)
+        $flagsBefore = Get-SelectionFlags $game $tag
+        # minimise: the game writes "paused". Async: the game thread stops at the console write and a synchronous
+        # ShowWindow would wait for it with no limit
+        [void][GlfdCloseCheck]::ShowWindowAsync($hwnd, 6)
+        $pausedInFile = Wait-Until { (@(Get-Content $log) -match 'paused \(window minimized\)').Count -gt 0 } 5
+        $responds = [GlfdCloseCheck]::Responds($hwnd)
+        $flagsAfter = Get-SelectionFlags $game $tag
+        $pre = $flagsBefore -gt 0 -and $flagsAfter -gt 0
+        $notes += "selection up from before the minimise until after the look: $pre (flags $flagsBefore / $flagsAfter)"
+        $notes += "'paused' line in Game.log while the selection was up: $pausedInFile"
+        $notes += "game window responding while selected: $responds (the stop itself is the recorded debt)"
+        if ($cw -ne [IntPtr]::Zero) {   # Esc ends the selection; the game goes on
+          [void][GlfdCloseCheck]::PostMessage($cw, 0x0100, [IntPtr]0x1B, [IntPtr]0x00010001)
+          [void][GlfdCloseCheck]::PostMessage($cw, 0x0101, [IntPtr]0x1B, [IntPtr]0xC0010001)
+        }
+        [void](Wait-Until { (Get-SelectionFlags $game $tag) -eq 0 } 5)
+        $t0 = Get-Date; [void][GlfdCloseCheck]::PostMessage($hwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+        $action = "Select All, minimise, Esc, then WM_CLOSE to the game window"
+      }
       "C7" {
         $boxUp = Wait-Until { $game.Refresh(); $game.HasExited -or ([GlfdCloseCheck]::FindDialog([uint32]$game.Id) -ne [IntPtr]::Zero) } 20
         $pre = [GlfdCloseCheck]::FindDialog([uint32]$game.Id) -ne [IntPtr]::Zero
@@ -277,7 +323,11 @@ foreach ($case in $Cases) {
   $ok = $ended -and $action -notlike "NOT_RUN*"
   if ($case -notin @("C8", "C9") -and $hwnd -eq [IntPtr]::Zero) { $ok = $false }   # C8 / C9 act before the window exists
   # C5 / C6 / C7 test a state; if the game was not in it, the case did not test what it is for
-  if ($case -in @("C5", "C6", "C7", "C10") -and -not $pre) { $ok = $false; $notes += "NOT_RUN as meant: the precondition did not hold" }
+  if ($case -eq "C11" -and -not $pausedInFile) { $ok = $false; $notes += "the 'paused' line was NOT in Game.log while the console was stuck" }
+  # someone used the machine during the case: the windows may have taken their keys. not judged OK
+  $idleAfter = [GlfdCloseCheck]::IdleMs()
+  if ($idleAfter -lt ((Get-Date) - $caseStart).TotalMilliseconds) { $ok = $false; $notes += ("USER INPUT during the case ({0:N0} ms ago): not judged" -f $idleAfter) }
+  if ($case -in @("C5", "C6", "C7", "C10", "C11") -and -not $pre) { $ok = $false; $notes += "NOT_RUN as meant: the precondition did not hold" }
   if ($joined -ne 1) { $ok = $false; $notes += "join line x$joined" }
   if ($lastLine -notlike "*=== Engine Shutdown ===*") { $ok = $false; $notes += "last line is not Engine Shutdown: $lastLine" }
   if ($case -in @("C2", "C3", "C4", "C5", "C6", "C8", "C9", "C10") -and $console -ne 1) { $ok = $false; $notes += "console line x$console" }

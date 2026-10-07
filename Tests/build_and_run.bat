@@ -116,6 +116,8 @@ rem  RenderHealthTests (2-9) ‚Í–{•¨‚Ì ReportRenderFailure / ReportSkippedDraws ‚
 if /i "%NAME%"=="RenderHealthTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
 rem  StartupLogTests (2-11) writes the real startup failure lines through the Logger and reads them back
 if /i "%NAME%"=="StartupLogTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
+rem  LogExitOrderTests (2-11) blocks the console exit of the real Logger and reads the file meanwhile
+if /i "%NAME%"=="LogExitOrderTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
 set "OBJDIR=%OUTDIR%\%NAME%"
 if not exist "%OBJDIR%" mkdir "%OBJDIR%"
 

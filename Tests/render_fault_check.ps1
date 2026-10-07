@@ -30,10 +30,13 @@
 #
 #  usage:  powershell -File Tests\render_fault_check.ps1 [-SkipBuild] [-OutName name]
 #  Output: a NEW folder Tests\build\render_fault\<OutName>\ per run (result.txt + each Game.log).
-#  Exit codes: 0 every case as expected / 1 at least one case not / 2 build failed
+#  Exit codes: 0 every case as expected / 1 at least one case not / 2 build failed / 3 machine in use
+#  The game windows and boxes come to the front and take the keyboard (2-10: a box was closed by the keys of
+#  someone watching a video): the script does not start when someone used the machine in the last
+#  -MinIdleSeconds, and a case with user input during it is not judged OK (dev method 5.8p).
 #  Every wait has an upper bound. Names differ in spelling, not only in case.
 # ---------------------------------------------------------------------------
-param([switch]$SkipBuild, [string]$OutName = ("run_" + (Get-Date -Format "yyyyMMdd_HHmmss")))
+param([switch]$SkipBuild, [string]$OutName = ("run_" + (Get-Date -Format "yyyyMMdd_HHmmss")), [int]$MinIdleSeconds = 60)
 $ErrorActionPreference = "Stop"
 $repoRoot  = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $probeDir  = Join-Path $repoRoot "x64\ProbeRelease\"
@@ -66,6 +69,9 @@ public delegate bool EnumProc(IntPtr h, IntPtr l);
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, System.Text.StringBuilder s, int n);
 [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
 [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+[StructLayout(LayoutKind.Sequential)] public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
+[DllImport("user32.dll")] static extern bool GetLastInputInfo(ref LASTINPUTINFO i);
+public static uint IdleMs() { var i = new LASTINPUTINFO(); i.cbSize = 8; GetLastInputInfo(ref i); return (uint)Environment.TickCount - i.dwTime; }
 public static IntPtr FindDialog(uint pid) {
   IntPtr found = IntPtr.Zero;
   EnumWindows((h, l) => {
@@ -109,6 +115,7 @@ function Run-Case([string]$caseName, [string]$exePath, [string]$workDir, [string
                   [bool]$expectBox, [string[]]$mustLog, [string[]]$mustNotLog, [int]$runSeconds,
                   [string[]]$boxMust = @(), [string[]]$boxMustNot = @(), [switch]$noLogFile) {
   $logPath = Join-Path $workDir "Game.log"
+  $caseStart = Get-Date
   Remove-Item $logPath -ErrorAction SilentlyContinue
   if ($noLogFile) { New-Item -ItemType Directory -Path $logPath | Out-Null }   # the Logger cannot open a directory
   $env:GLFD_RENDER_FAULT = $fault
@@ -172,6 +179,8 @@ function Run-Case([string]$caseName, [string]$exePath, [string]$workDir, [string
     if ($log.Count -ne 0) { $ok = $false; $notes += "EXPECTED no log file, found $($log.Count) line(s)" }
   }
   elseif (@($log | Where-Object { $_ -like "*every worker joined*" }).Count -ne 1) { $ok = $false; $notes += "no 'every worker joined' line" }
+  $idleAfter = [GlfdFaultWin]::IdleMs()
+  if ($idleAfter -lt ((Get-Date) - $caseStart).TotalMilliseconds) { $ok = $false; $notes += ("USER INPUT during the case ({0:N0} ms ago): not judged" -f $idleAfter) }
   $verdict = if ($ok) { "OK" } else { "NOT AS EXPECTED" }
   $line = "{0,-3} {1,-16} exit {2,3}  box {3,-5} {4}" -f $caseName, $verdict, $code, ($box -ne [IntPtr]::Zero), (($notes | Where-Object { $_ -notlike "box text*" -and $_ -notlike "last log*" -and $_ -notlike "cpu*" }) -join "; ")
   $line | Add-Content (Join-Path $outDir "result.txt")
@@ -180,6 +189,11 @@ function Run-Case([string]$caseName, [string]$exePath, [string]$workDir, [string
   return $ok
 }
 
+$idleAtStart = [GlfdFaultWin]::IdleMs()
+if ($idleAtStart -lt [uint32]($MinIdleSeconds * 1000)) {
+  Write-Host ("NOT STARTED: the machine was used {0:N0} ms ago (needs {1} s without input)" -f $idleAtStart, $MinIdleSeconds)
+  exit 3
+}
 foreach ($d in @($repoRoot, (Split-Path -Parent $gameExe))) {
   $left = Join-Path $d "Game.log"
   if (Test-Path $left -PathType Container) { Remove-Item $left -Recurse -Force; Write-Host "removed a Game.log directory left in $d" }
