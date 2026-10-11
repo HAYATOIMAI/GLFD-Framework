@@ -118,6 +118,9 @@ rem  StartupLogTests (2-11) writes the real startup failure lines through the Lo
 if /i "%NAME%"=="StartupLogTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
 rem  LogExitOrderTests (2-11) blocks the console exit of the real Logger and reads the file meanwhile
 if /i "%NAME%"=="LogExitOrderTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
+rem  CollisionObservationTests (2-12) runs the real grid + collision + EventBus and writes the observation lines
+if /i "%NAME%"=="CollisionObservationTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp %ROOT%\Source\Physics\SpatialHashGrid.cpp %ROOT%\Source\Threading\JobSystem.cpp %ROOT%\Source\Threading\ThreadPool.cpp %ROOT%\Source\Core\StackAllocator.cpp"
+if /i "%NAME%"=="CollisionObservationTests" set "EXTRA_FLAGS=/wd4324"
 set "OBJDIR=%OUTDIR%\%NAME%"
 if not exist "%OBJDIR%" mkdir "%OBJDIR%"
 

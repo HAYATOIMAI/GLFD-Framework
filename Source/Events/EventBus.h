@@ -169,6 +169,28 @@ namespace GLFD::Events {
     }
 
     /**
+     * @brief 型 T の購読者の数 (ECS 2-12)。チャネルが無ければ 0。**チャネルを作らない**
+     *
+     * @details
+     *  発行する系が**刻みの頭でメインのスレッドから 1 回だけ**聞き、居なければその刻みは
+     *  発行しない(2-12 の B')。購読の足し外しは刻みの間のメインでしか起きないので、
+     *  並列の本体には読んだ値を渡せば足りる(原子的にしなくてよい)。
+     *  `Publish` の中で 1 件ごとに聞く形(B)は採らない: 1 件ごとの `Assure`(共有の鍵と
+     *  型の表の検索)が残り、2-12 の測定で費用の半分しか消えなかった
+     */
+    template <typename T>
+    [[nodiscard]] std::size_t SubscriberCountOf() const noexcept {
+      const size_t typeHash = TypeInfo::GetID<T>();
+      std::shared_lock<std::shared_mutex> lock(m_mutex);
+      for (const auto& entry : m_typeMap) {
+        if (entry.typeHash == typeHash) {
+          return (m_channels[entry.index] != nullptr) ? m_channels[entry.index]->SubscriberCount() : 0u;
+        }
+      }
+      return 0u;
+    }
+
+    /**
      * @brief 全てのチャネルのイベントを配信する (Main Thread / Update Phase)
      */
     void DispatchAll() {

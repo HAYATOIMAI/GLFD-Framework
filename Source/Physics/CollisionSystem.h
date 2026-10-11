@@ -11,11 +11,20 @@
 #include "../Core/GameContext.h"
 #include "../Core/HardwareConstants.h"
 #include "ECS/View.h"
+#include <atomic>
 #include <cassert>
+#include <cstddef>
+#include <cstdint>
 #include <immintrin.h>
 #include <tuple>
 
 namespace GLFD::Systems {
+  /// 1 刻みの衝突の検出の結果 (ECS 2-12)。**観測は数で行う**(イベントを配らなくても、検出が動いていることが見える)
+  struct CollisionStepResult {
+    std::uint32_t contacts  = 0;   ///< 検出した重なり。1 体の側から 1 件(1 組は最大 2 件。16 件の打ち切りで片側だけのこともある)
+    std::size_t   colliders = 0;   ///< 衝突体(Position + Velocity + Collider)の数
+  };
+
   class CollisionSystem {
   public:
     /// 1 体あたりの費用 [us]。CollisionSystem(20000 体、30-300 フレーム目。群れの密度で変わる)をメインだけで回して測った値
@@ -25,7 +34,7 @@ namespace GLFD::Systems {
     static constexpr size_t kGrain = Thread::GrainFor(kCostPerEntityUs);
 
     // メイン処理
-    static void Update(GameContext& context) {
+    static CollisionStepResult Update(GameContext& context) {
 
       auto& eventBus = *context.eventBus;
       auto& grid = *context.grid;
@@ -42,7 +51,9 @@ namespace GLFD::Systems {
                                          Components::Velocity,
                                          Components::Collider>();
       const size_t count = view.BaseSize();
-      if (count == 0 || gridCount == 0 || gridPositions == nullptr) return;
+      CollisionStepResult result;
+      result.colliders = count;
+      if (count == 0 || gridCount == 0 || gridPositions == nullptr) return result;
 
       // **1-7: `Clear()` を消した。これが衝突検出の修復そのものである。**
       //
@@ -59,7 +70,16 @@ namespace GLFD::Systems {
                 "The dense indices stored in the grid no longer mean what they meant (1-5).");
 
       // 分け方は ParallelFor.h の 1 か所 (ECS 2-6)
+      // **購読者が居るときだけ配る** (ECS 2-12 の B')。刻みの頭でメインから 1 回だけ聞き、並列の本体には
+      // 読んだ値を渡す(購読の足し外しは刻みの間のメインでしか起きない)。2-11 までは購読者が数えるだけの
+      // ために配っていて、密な群れで 1 刻み最大 12 万件を積み、1 件 43～136 ns 払って溢れていた。
+      // **購読者が居れば今までどおり 1 件ずつ配る。** ただし、その規模で使えることの保証ではない(2-12 の記録)
+      const bool publish = eventBus.SubscriberCountOf<Events::CollisionEvent>() != 0u;
+      // 検出した数。**塊ごとに手元で数え、塊の終わりに 1 回だけ足す**(1 件ごとの原子的な操作は持たない)
+      std::atomic<std::uint32_t> contacts{ 0u };
+
       Thread::ParallelForChunks(*context.jobSystem, count, kGrain, [&](size_t start, size_t end) {
+          std::uint32_t found = 0;
           for (auto entry : view.Slice(start, end)) {
             const ECS::Entity     self = std::get<0>(entry);
             Components::Position& posA = std::get<1>(entry);
@@ -121,11 +141,14 @@ namespace GLFD::Systems {
                 // @note **この経路はまだ動いていない。** 上の Clear() の後に
                 //       再挿入が無いので Query は何も返さない (ECS-0 1-1)。
                 //       **1-7 で衝突検出を直せば、ここはそのまま動く。**
-                eventBus.Publish<Events::CollisionEvent>({
-                  self,
-                  other,
-                  impact
-                  });
+                ++found;
+                if (publish) {
+                  eventBus.Publish<Events::CollisionEvent>({
+                    self,
+                    other,
+                    impact
+                    });
+                }
 
                 float force = penetration * 0.5f; // 反発係数的なもの
 
@@ -137,7 +160,11 @@ namespace GLFD::Systems {
               return true;
               });
           }
+          if (found != 0u) { contacts.fetch_add(found, std::memory_order_relaxed); }
           });
+      // ParallelForChunks は WaitFor の前に戻らないので、ここで全部の塊が足し終わっている
+      result.contacts = contacts.load(std::memory_order_relaxed);
+      return result;
     }
   };
 }

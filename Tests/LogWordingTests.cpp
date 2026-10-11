@@ -125,14 +125,14 @@ namespace {
       for (int i = 0; i < 3; ++i) { GLFD::Game::ReportUpdateStages(bad, gate); }
       GLFD::Game::ReportUpdateStages(good, gate);
     }
-    // 衝突(Boid): 初めて届いた刻み、溢れ 2 刻み -> 戻る
+    // 衝突(Boid): 初めて検出した刻み、0 件が 2 刻み -> 戻る (ECS 2-12 からイベントではなく数で観測する)
     {
       FailureGate gate;
       bool first = false;
-      GLFD::Game::ReportCollisionObservation(1500u, 0u, 1400u, first, gate);
-      GLFD::Game::ReportCollisionObservation(18001u, 1617u, 16384u, first, gate);
-      GLFD::Game::ReportCollisionObservation(17000u, 616u, 16384u, first, gate);
-      GLFD::Game::ReportCollisionObservation(1600u, 0u, 1600u, first, gate);
+      GLFD::Game::ReportCollisionContacts(1500u, 20000u, first, gate);
+      GLFD::Game::ReportCollisionContacts(0u, 20000u, first, gate);
+      GLFD::Game::ReportCollisionContacts(0u, 20000u, first, gate);
+      GLFD::Game::ReportCollisionContacts(1600u, 20000u, first, gate);
     }
     // Survivor: 段の初回、全段がそろった、作れない 2 刻み -> 戻る、溢れ 3 刻み -> 戻る、要約、初期値
     {
@@ -185,9 +185,9 @@ namespace {
     CheckStepLine(lines, "update stages: all systems ran again", "after 3 step(s) (3 bad step(s) total)");
     CHECK(FindOne(lines, "frame steps") < 0);
     // 45a: 刻みの行
-    CheckStepLine(lines, "collision: first", "collision: first step with hits");
-    CheckStepLine(lines, "published this step. the channel holds", "dropped 1617 of 18001 published this step");
-    CheckStepLine(lines, "event queue: no longer overflowing after 2", "after 2 step(s) (2 bad step(s) total)");
+    CheckStepLine(lines, "collision: first", "collision: first step with hits. contacts=1500");
+    CheckStepLine(lines, "collision: no contacts detected", "this step although 20000 colliders exist");
+    CheckStepLine(lines, "collision: detecting contacts again after 2", "after 2 step(s) (2 bad step(s) total)");
     CheckStepLine(lines, "survivor: first enemy spawned", "at step 211 (2 in that step)");
     CheckStepLine(lines, "survivor: every stage of the loop", "(by step 211)");
     CheckStepLine(lines, "survivor: could not create entities", "this step");

@@ -161,46 +161,40 @@ namespace GLFD::Game {
   // ---------------------------------------------------------------------------
 
   /**
-   * @brief 衝突が実際に動いていることの観測点 (1-7)
+   * @brief 衝突の検出が動いていることの観測点 (1-7 / R-27。2-12 でイベントから数に替えた)
    *
    * @details
    *  **ECS-0 で「衝突が 1 件も検出されていない」ことに誰も気づかなかったのは、
-   *  購読者が 0 件で観測点が存在しなかったため**である。同じ状態のまま
-   *  修復すると、直ったかどうかも分からない。
+   *  購読者が 0 件で観測点が存在しなかったため**である。1-7 から 2-11 までは、Boid が
+   *  `CollisionEvent` を購読して数えていた。2-12 で Boid は購読をやめた(購読者が居なければ
+   *  `CollisionSystem` は発行しない。密な群れで 1 刻み最大 12 万件を積んで溢れていた)。
+   *  観測は `CollisionSystem` が返す**検出の数**で行う。
    *
-   *  出し方は 1-4 / 1-6 と同じ考え方:
-   *   - **初めて衝突が届いたフレームだけ** 1 行出す(動いたことの証拠)
-   *   - **キューの取りこぼし**は `FailureGate` で状態の変わり目だけ出す
+   *  - **初めて検出した刻みだけ** 1 行(動いたことの証拠。1-7 の行の引き継ぎ)
+   *  - **衝突体が 2 体以上あるのに 0 件**の刻みが続く間を `FailureGate` で、始まりと止みだけ出す。
+   *    1-7 の行は最初の 1 回しか見ていなかったので、**途中で検出が壊れても何も出なかった**(2-12 手順1)
    *
-   *  毎フレームの件数は出さない。衝突数は毎フレーム変わるので、出すと
-   *  60 行/秒になる。
+   *  Boid では 0 件の刻みは起きない(2-12 の測定: 1 刻みの最小 435 件、最初の 30 刻みでも 904 件)ので、
+   *  1 刻みで始まりとする。疎な場面で使うなら、この前提を見直すこと。毎刻みの件数は出さない(R-46)
    *
-   *  @param published / dropped この 1 フレームで発行された数と捨てられた数
-   *  @param delivered  購読者に届いた数(**1 フレーム前のぶん**。発行は
-   *                    `OnUpdate` 中、配信は `DispatchAll` なので 1 フレームずれる)
+   *  @param contacts  この刻みに検出した重なり(`CollisionStepResult::contacts`)
+   *  @param colliders この刻みの衝突体の数
    */
-  inline void ReportCollisionObservation(std::uint32_t published, std::uint32_t dropped,
-                                         std::uint32_t delivered, bool& loggedFirstHit,
-                                         Core::FailureGate& overflowGate) {
-    if (!loggedFirstHit && delivered != 0u) {
+  inline void ReportCollisionContacts(std::uint32_t contacts, std::size_t colliders,
+                                      bool& loggedFirstHit, Core::FailureGate& noContacts) {
+    if (!loggedFirstHit && contacts != 0u) {
       loggedFirstHit = true;
-      LOG_INFO("collision: first step with hits. published=%u delivered=%u dropped=%u",
-               published, delivered, dropped);
+      LOG_INFO("collision: first step with hits. contacts=%u colliders=%zu", contacts, colliders);
     }
 
-    const Core::FailureGate::Change change = overflowGate.Observe(dropped != 0u);
+    const Core::FailureGate::Change change = noContacts.Observe(colliders >= 2u && contacts == 0u);
     if (change == Core::FailureGate::Change::Started) {
-      // **黙って捨てない** (R-28)。ここは 1-7 まで printf がコメントアウト
-      // されていた場所である
-      LOG_ERROR("event queue overflow: dropped %u of %u published this step. "
-                "the channel holds %zu",
-                dropped, published,
-                Events::EventChannel<Events::CollisionEvent>::QUEUE_CAPACITY);
+      LOG_ERROR("collision: no contacts detected this step although %zu colliders exist. "
+                "the collision detection may be broken", colliders);
     }
     else if (change == Core::FailureGate::Change::Recovered) {
-      LOG_INFO("event queue: no longer overflowing after %u step(s) "
-               "(%u bad step(s) total)",
-               overflowGate.LastStreakLength(), overflowGate.TotalFailures());
+      LOG_INFO("collision: detecting contacts again after %u step(s) (%u bad step(s) total)",
+               noContacts.LastStreakLength(), noContacts.TotalFailures());
     }
   }
 

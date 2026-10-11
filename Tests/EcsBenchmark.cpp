@@ -91,7 +91,9 @@ namespace {
 
   using Clock = std::chrono::steady_clock;
 
-  constexpr int kMaxFrames = 4096;
+  /// 2-12 で 4096 から上げた。Boid の衝突のイベントは 3,400〜4,300 刻みで溢れ始めていたので、
+  /// 溢れないことを 3 分ぶん(約 11,250 刻み)確かめられるようにする (T-ECS-49)
+  constexpr int kMaxFrames = 12000;
   constexpr int kStageCount = 6;
 
   const char* const kStageNames[kStageCount] = {
@@ -107,6 +109,7 @@ namespace {
   double g_frameTotal[kMaxFrames];
   double g_published[kMaxFrames];   ///< 1-7: 1 フレームの発行数
   double g_dropped[kMaxFrames];     ///< 1-7: 1 フレームの取りこぼし
+  double g_contacts[kMaxFrames];    ///< 2-12: CollisionSystem が検出した重なり
 
   void SortAscending(double* values, int count) {
     // 挿入ソート。数百件なので十分で、<algorithm> を持ち込まずに済む
@@ -301,8 +304,9 @@ int main(int argc, char** argv) {
     const auto t3 = Clock::now();
     ApplyWorldBounds(registry, bx, by);
     const auto t4 = Clock::now();
-    GLFD::Systems::CollisionSystem::Update(ctx);
+    const GLFD::Systems::CollisionStepResult collisions = GLFD::Systems::CollisionSystem::Update(ctx);
     const auto t5 = Clock::now();
+    g_contacts[f] = static_cast<double>(collisions.contacts);
     registry.ApplyCommands(commands);
     const auto t6 = Clock::now();
 
@@ -352,6 +356,20 @@ int main(int argc, char** argv) {
               "frame (measured)", total.median, total.mean, total.min, total.p95);
   std::printf("(sum of the per-stage medians: %.1fus)\n", medianTotal);
   GLFD::Bench::PrintRow("frame", "frame", total.median, total.mean, total.min, total.p95);
+  // 2-12: 溢れの合計は並べ替える前に数える (T-ECS-49 の collision_overflow_check.ps1 が読む)。
+  // このベンチは CollisionEvent を購読しないので、2-12 から衝突のイベントは発行されない(B')
+  {
+    int    framesWithDrops = 0;
+    double droppedTotal = 0.0, publishedTotal = 0.0, contactsMin = -1.0;
+    for (int f = warmup; f < frames; ++f) {
+      if (g_dropped[f] > 0.0) { ++framesWithDrops; }
+      droppedTotal   += g_dropped[f];
+      publishedTotal += g_published[f];
+      if (contactsMin < 0.0 || g_contacts[f] < contactsMin) { contactsMin = g_contacts[f]; }
+    }
+    std::printf("overflow: frames_with_drops=%d dropped_total=%.0f published_total=%.0f contacts_min=%.0f measured=%d\n",
+                framesWithDrops, droppedTotal, publishedTotal, contactsMin, measured);
+  }
   const Summary pub  = Summarize(g_published + warmup, measured);
   const Summary drop = Summarize(g_dropped + warmup, measured);
   std::printf("\ncollision events published per frame: median %.0f  min %.0f  p95 %.0f\n",
@@ -360,6 +378,10 @@ int main(int argc, char** argv) {
               drop.median, drop.p95);
   GLFD::Bench::PrintRow("count", "events_published", pub.median, pub.mean, pub.min, pub.p95);
   GLFD::Bench::PrintRow("count", "events_dropped", drop.median, drop.mean, drop.min, drop.p95);
+  const Summary contacts = Summarize(g_contacts + warmup, measured);
+  std::printf("collision contacts detected per frame: median %.0f  min %.0f  p95 %.0f\n",
+              contacts.median, contacts.min, contacts.p95);
+  GLFD::Bench::PrintRow("count", "contacts", contacts.median, contacts.mean, contacts.min, contacts.p95);
 
   std::printf("\naverage cores used while measuring: %.2f (process times)  %.2f (cycles, approx)"
               "  over %.3fs\n", cpu.coresByTimes, cpu.coresByCycles, cpu.wallSec);

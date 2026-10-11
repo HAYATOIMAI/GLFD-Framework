@@ -71,17 +71,14 @@ namespace GLFD {
     Core::FailureGate m_commandDropGate;     ///< コマンドの取りこぼし (1-8 / R-46)
 
     /**
-     * 衝突の観測点 (1-7 / R-27)。**購読者が数えるだけ**で、
-     * `CommandBuffer` には何も積まない(破棄を積むのは 1-8)。
-     *
-     * @note 配信は `DispatchAll`(`OnUpdate` の後)なので、**ここに溜まるのは
-     *       1 フレーム前のぶん**である
+     * 衝突の観測点 (1-7 / R-27。2-12 で数に替えた)。**2-12 から `CollisionEvent` を購読しない**
+     * (購読者が居なければ `CollisionSystem` は発行しない)。系が返す検出の数で観測する
      */
-    std::uint32_t m_collisionsDelivered = 0;
-    bool          m_loggedFirstCollision = false;
-
-    /// 2-1: `OnExit` で外すための控え。**捨てると use-after-free になる**
-    Events::SubscriptionId m_collisionSubscription{};
+    bool              m_loggedFirstCollision = false;
+    Core::FailureGate m_noContactsGate;          ///< 衝突体が居るのに 0 件(検出が壊れた)
+    std::uint32_t     m_contacts     = 0;        ///< この刻みに検出した重なり
+    std::size_t       m_colliders    = 0;        ///< この刻みの衝突体の数
+    bool              m_collisionRan = false;    ///< この刻みに Collision の段が動いたか
   };
 
 }

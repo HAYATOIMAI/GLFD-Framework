@@ -117,22 +117,10 @@ namespace GLFD {
     ReloadConfig(ctx);
     const GameConfig& config = *m_config;
 
-    if (!ctx.eventBus->Register<Events::CollisionEvent>()) {
-      LOG_ERROR("BoidDemoScene: could not create the CollisionEvent channel");
-    }
-
-    // **観測点** (1-7 / R-27)。ECS-0 で衝突が 1 件も動いていないことに誰も
-    // 気づかなかったのは、**購読者が 0 件だった**ためである。
-    // ここは数えるだけで、破棄は積まない(1-8 の仕事)
-    m_collisionsDelivered = 0;              // 入り直しても前回の数を持ち越さない
-    m_collisionSubscription = ctx.eventBus->Subscribe<Events::CollisionEvent>(
-        this, [](void* context, const Events::CollisionEvent&) {
-          ++static_cast<BoidDemoScene*>(context)->m_collisionsDelivered;
-        });
-    if (!m_collisionSubscription.IsValid()) {
-      LOG_ERROR("BoidDemoScene: could not subscribe to CollisionEvent. "
-                "collisions will not be observed");
-    }
+    // **衝突は購読しない** (ECS 2-12)。購読者が居なければ CollisionSystem は CollisionEvent を発行しない(B')。
+    // 2-11 までは数えるためだけに購読し、密な群れで 1 刻み最大 12 万件を積んで溢れていた。観測は系が返す数で行う
+    m_loggedFirstCollision = false;          // 入り直しても前回の状態を持ち越さない
+    m_noContactsGate = Core::FailureGate{};
 
     std::mt19937 gen(12345);
     std::uniform_real_distribution<float> posDist(config.world.spawnRange[0],
@@ -202,15 +190,11 @@ namespace GLFD {
       LogConfigDump(*m_config, ctx.globalResource);
     }
 
-    // **前フレームの衝突を報告する** (1-7)。発行は `OnUpdate` の中、配信は
-    // `DispatchAll`(このシーンの外)なので、揃って読めるのは次のフレームの頭になる
+    // **溢れの観測は残す** (1-7 / R-28)。Boid は 2-12 から衝突を発行しないので、溢れたら別の発行者が居る
     {
       const Events::BusCounters counters = ctx.eventBus->Counters();
-      Game::ReportCollisionObservation(counters.published, counters.dropped,
-                                       m_collisionsDelivered, m_loggedFirstCollision,
-                                       m_eventOverflowGate);
+      Game::ReportEventQueue(counters, m_eventOverflowGate);
       ctx.eventBus->ResetCounters();
-      m_collisionsDelivered = 0;
     }
 
     // =======================================================================
@@ -267,15 +251,25 @@ namespace GLFD {
           return Core::StageResult::Ran;
         } },
 
-      { "Collision", [](BoidDemoScene&, GameContext& c) {
+      { "Collision", [](BoidDemoScene& self, GameContext& c) {
           if (c.grid == nullptr) { return Core::StageResult::Skipped; }   // 近傍探索に要る
-          Systems::CollisionSystem::Update(c);
+          // 検出の数を受け取って観測する (ECS 2-12)。押し返しは系の中で済んでいる
+          const Systems::CollisionStepResult r = Systems::CollisionSystem::Update(c);
+          self.m_contacts     = r.contacts;
+          self.m_colliders    = r.colliders;
+          self.m_collisionRan = true;
           return Core::StageResult::Ran;
         } },
     };
 
     Core::StageReport stageReport;
+    m_collisionRan = false;
     Core::RunStages(kUpdateOrder, *this, ctx, stageReport);
+
+    // 衝突の観測 (ECS 2-12)。初めて検出した刻みと、衝突体が居るのに 0 件が続いた間の始まりと止みを出す
+    if (m_collisionRan) {
+      Game::ReportCollisionContacts(m_contacts, m_colliders, m_loggedFirstCollision, m_noContactsGate);
+    }
 
     // **構造変更をここで適用する** (1-4)。反復中に積まれたものがフレーム境界で
     // まとめて効く。CollisionSystem の後に置いたのは、破棄を積む最有力の候補が
@@ -305,13 +299,9 @@ namespace GLFD {
   }
 
   void BoidDemoScene::OnExit(GameContext& ctx) {
-    // `IScene.h` の契約。**購読を外してからエンティティを消す**
-    const bool removed = ctx.eventBus->Unsubscribe(m_collisionSubscription);
-    m_collisionSubscription = Events::SubscriptionId{};
+    // 2-12 から購読は無い(衝突は数で観測する)。エンティティを消す
     const std::uint32_t destroyed = ctx.registry->DestroyAll();
-    LOG_INFO("BoidDemoScene: OnExit. subscription %s, %u entit%s destroyed",
-             removed ? "removed" : "was already gone",
-             destroyed, (destroyed == 1u) ? "y" : "ies");
+    LOG_INFO("BoidDemoScene: OnExit. %u entit%s destroyed", destroyed, (destroyed == 1u) ? "y" : "ies");
   }
 
   void BoidDemoScene::ApplyWorldBounds(GameContext& ctx) {
