@@ -18,6 +18,7 @@
 
 #include "../Graphics/RenderSystem.h"
 #include "../Graphics/DX11Renderer.h"
+#include "../Graphics/ScreenMapping.h"
 
 
 #include "../Physics/CollisionSystem.h"
@@ -228,10 +229,10 @@ namespace GLFD {
         } },
 
       { "Interaction", [](BoidDemoScene& self, GameContext& c) {
+          // ƒNƒŠƒbƒN‚Í•`‰æ‚Æ“¯‚¶‘Î‰ž‚Ì‹t‚Å¢ŠE‚É’¼‚· (ECS 2-13)
           const InteractionConfig& in = self.m_config->interaction;
-          Systems::InteractionSystem::Update(*c.registry, *c.jobSystem, *c.input, *c.window,
-                                             in.explosionRadius, in.explosionForce,
-                                             in.screenScale);
+          Systems::InteractionSystem::Update(*c.registry, *c.jobSystem, *c.input, self.ScreenMappingFor(c),
+                                             in.explosionRadius, in.explosionForce);
           return Core::StageResult::Ran;
         } },
 
@@ -293,8 +294,7 @@ namespace GLFD {
     // Ž¸”s‚µ‚Ä‚à–Ù‚Á‚Ä 1 ƒtƒŒ[ƒ€•`‚©‚¸‚É–ß‚Á‚Ä‚¢‚½
     const Systems::RenderStatus status =
         Systems::RenderSystem::Update(*ctx.registry, *ctx.renderer, ctx.frameResource,
-                                      ctx.totalTime,
-                                      ctx.window->GetWidth(), ctx.window->GetHeight());
+                                      ctx.totalTime, ScreenMappingFor(ctx));
     Game::ReportRenderStatus(status, m_renderGate);
   }
 
@@ -302,6 +302,13 @@ namespace GLFD {
     // 2-12 ‚©‚çw“Ç‚Í–³‚¢(Õ“Ë‚Í”‚ÅŠÏ‘ª‚·‚é)BƒGƒ“ƒeƒBƒeƒB‚ðÁ‚·
     const std::uint32_t destroyed = ctx.registry->DestroyAll();
     LOG_INFO("BoidDemoScene: OnExit. %u entit%s destroyed", destroyed, (destroyed == 1u) ? "y" : "ies");
+  }
+
+  Graphics::ScreenMapping BoidDemoScene::ScreenMappingFor(const GameContext& ctx) const {
+    // **•Ç‚Ìc(`halfExtent.y`)‚ð‰æ–Ê‚Ìã‰º‚Ì’[‚É‡‚í‚¹‚é** (ECS 2-13 ‚Ì”»’f A)B‰¡‚Í‘‹‚Ìc‰¡”ä‚ÅŒˆ‚Ü‚èA
+    // 16:9 ‚Ì‘‹‚Å‚Í•Ç‚ÌŠO‚ª—]”’‚É‚È‚éB•`‰æ‚ÆƒNƒŠƒbƒN‚ª‚±‚Ì 1 ‚©Š‚©‚çì‚é‚Ì‚ÅAF5 ‚Å `halfExtent` ‚ð
+    // •Ï‚¦‚é‚Æ•ÇE•`‰æEƒNƒŠƒbƒN‚ªˆê‚É•Ï‚í‚é(2-12 ‚Ü‚Å‚Í•`‰æ‚¾‚¯ `1/85, 1/64` ‚Ì’¼‘‚«‚Ì‚Ü‚Ü‚¾‚Á‚½)
+    return Graphics::ScreenMappingOf(m_config->world.halfExtent[1], ctx.window->GetWidth(), ctx.window->GetHeight());
   }
 
   void BoidDemoScene::ApplyWorldBounds(GameContext& ctx) {

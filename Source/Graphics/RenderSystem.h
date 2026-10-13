@@ -1,7 +1,8 @@
 #pragma once
 
 #include "DX11Renderer.h"
-#include "RenderStatus.h"   // RenderStatus は ECS も DX11 も引き込まないヘッダへ移した (ECS 2-3)
+#include "RenderStatus.h"
+#include "ScreenMapping.h"   // 世界 → NDC の対応。クリックの逆変換と同じもの (ECS 2-13)   // RenderStatus は ECS も DX11 も引き込まないヘッダへ移した (ECS 2-3)
 #include "../ECS/Registry.h"
 #include "../ECS/Components.h"
 #include "../ECS/View.h"
@@ -17,8 +18,10 @@ namespace GLFD::Systems {
   class RenderSystem {
   public:
     // メイン処理
-    /// @param width / height 実際のウィンドウサイズ。**設定の型に依存させない**ため
-    ///        GameConfig ではなく値で受け取る(レンダラを単体で試せる形を保つ)
+    /// @param screen 世界 → NDC の対応 (ECS 2-13)。**クリックの逆変換(`InteractionSystem`)と同じものを渡す。**
+    ///        縦の見える半寸法(Boid は `world.halfExtent.y`)と実際のウィンドウサイズから
+    ///        `ScreenMappingOf` で作る。**設定の型に依存させない**ため値で受け取る
+    ///        (レンダラを単体で試せる形を保つ)
     /// @param frameResource 頂点の一時バッファの確保元。**フレームごとに Reset
     ///        されるもの**を渡すこと。以前は関数ローカルの `static std::vector`
     ///        で、N-1(STL コンテナ)と N-3(グローバル可変状態)に抵触し、
@@ -26,26 +29,13 @@ namespace GLFD::Systems {
     [[nodiscard]] static RenderStatus Update(ECS::Registry& registry,
                        Graphics::DX11Renderer& renderer,
                        Memory::IMemoryResource* frameResource, float time,
-                       int windowWidth, int windowHeight) {
+                       const Graphics::ScreenMapping& screen) {
 
       // 画面クリア (黒)
      renderer.BeginFrame();
 
-     // 定数バッファ更新
-     float width = static_cast<float>(windowWidth);
-     float height = static_cast<float>(windowHeight);
-     //float aspect = width / height;
-
-     // 高さ0対策
-     if (height < 1.0f) height = 1.0f;
-
-     // 必ず float として計算する
-     float aspect = width / height;
-
-     // 値がおかしい場合の安全策 (1.0を入れておく)
-     if (aspect < 0.0001f) aspect = 1.0f;
-
-     renderer.UpdateGlobalConstants(aspect, time);
+     // 定数バッファ更新。縦横比は対応が持つ(幅・高さ 0 の守りもそちら。ECS 2-13)
+     renderer.UpdateGlobalConstants(screen.aspect, time);
 
       // 全ての位置を取得。**単一型なので飛ばされる要素が無く、
       // dense 配列をそのまま舐められる** (1-5)
@@ -63,11 +53,8 @@ namespace GLFD::Systems {
         return RenderStatus{ RenderStatus::Outcome::VertexBufferUnavailable, count };
       }
 
-      // 画面サイズ定数 (GameConfigから取ると良い)
-      // ワールド座標(-50~50) を NDC座標(-1.0~1.0) に変換する係数
-      // アスペクト比修正は一旦無視して正方形として扱う
-      const float scaleX = 1.0f / 85.0f; // 画面端が85くらい
-      const float scaleY = 1.0f / 64.0f;
+      // 世界 → NDC は `screen` が持つ (ECS 2-13)。2-12 まではここに `1/85, 1/64` の直書きがあり、
+      // 1024x768 の窓を前提にした値で、16:9 の窓では縦に潰れていた。壁(`halfExtent`)とも別の値だった
 
       // データ変換
       if (pData == nullptr) {
@@ -81,8 +68,8 @@ namespace GLFD::Systems {
       constexpr float kBoidRadiusNdc = 0.05f;
       for (size_t i = 0; i < count; ++i) {
         vertices[i].Pos = DirectX::XMFLOAT4(
-          pData[i].x * scaleX,
-          pData[i].y * scaleY,
+          screen.NdcX(pData[i].x),
+          screen.NdcY(pData[i].y),
           kBoidRadiusNdc,
           1.0f
         );

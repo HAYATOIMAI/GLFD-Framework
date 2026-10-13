@@ -118,6 +118,7 @@
     <ClInclude Include="Source\Graphics\StartupFailureLog.h" />
     <ClInclude Include="Source\Graphics\RenderSystem.h" />
     <ClInclude Include="Source\Graphics\RenderStatus.h" />
+    <ClInclude Include="Source\Graphics\ScreenMapping.h" />
     <ClInclude Include="Source\Graphics\SimpleVertex.h" />
     <ClInclude Include="Source\Graphics\Shader.h" />
     <ClInclude Include="Source\Graphics\SimpleWindow.h" />

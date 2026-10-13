@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "../Core/FailureGate.h"
+#include "../Graphics/ScreenMapping.h"
 #include "../Events/EventChannel.h"
 
 #include <cstdint>
@@ -31,6 +32,8 @@ namespace GLFD {
 
   private:
     void ApplyWorldBounds(GameContext& ctx);
+    /// 世界と画面の対応。描画とクリックが**同じこれ**を使う (ECS 2-13)
+    Graphics::ScreenMapping ScreenMappingFor(const GameContext& ctx) const;
 
     /**
      * @brief 設定を読み直す。**成功したときだけ差し替える**
