@@ -1,6 +1,16 @@
 #include "SimpleWindow.h"
 
 namespace GLFD::Graphics {
+  namespace {
+    /// **枠の大きさを利用者が変えられない窓** (ECS 2-13 の判断 D3)。`WS_OVERLAPPEDWINDOW` から
+    /// 枠のドラッグ(`WS_THICKFRAME`)と最大化(`WS_MAXIMIZEBOX`)を外す。最小化は残す
+    /// (2-8 の「隠れている間は止める」が使う)。
+    /// 2-12 までは枠を変えられたが、スワップチェーン・ビューポート・`GetWidth/GetHeight` は起動時の
+    /// 大きさのままで、絵は引き伸ばされ、クリックもずれた(2-13 手順1 で実測)。
+    /// 本当に追随させる(`WM_SIZE` → `ResizeBuffers`)のは別のフェーズ
+    constexpr DWORD kWindowStyle = WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
+  }
+
   SimpleWindow::SimpleWindow(const std::wstring& title, int width, int height) : 
     m_width(width), m_height(height) {
     // 1. ウィンドウクラスの登録
@@ -13,12 +23,12 @@ namespace GLFD::Graphics {
 
     // 2. ウィンドウサイズの調整（クライアント領域を指定サイズにする）
     RECT rect = { 0, 0, width, height };
-    AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
+    AdjustWindowRect(&rect, kWindowStyle, FALSE);
 
     // 3. ウィンドウ作成
     m_hwnd = CreateWindowEx(
       0, L"GameLibWindow", title.c_str(),
-      WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+      kWindowStyle | WS_VISIBLE,
       CW_USEDEFAULT, CW_USEDEFAULT,
       rect.right - rect.left, rect.bottom - rect.top,
       nullptr, nullptr, GetModuleHandle(nullptr), this
