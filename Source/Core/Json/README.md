@@ -476,7 +476,7 @@ F5 の差分も**ファイルごと**に出ます(方式 B は「マージ後の
 
 ## 8. バージョン移行の書き方
 
-**動いている実例が `Source/Core/GameConfig.h` にある**(v1 -> v2 の改名)。
+**動いている実例が `Source/Core/GameConfig.h` にある**(v1 -> v2 の改名、v2 -> v3 の鍵の削除)。
 次にやる人はそこと `Tests/JsonVersionMigrationTests.cpp` を見るのが早い。
 
 `$version` はルートの予約キーで、読み込み時に `ar.Version()` で引ける (R3-7)。
@@ -502,6 +502,25 @@ void Serialize(Ar& ar, WorldConfig& v) {
   // ...
 }
 ```
+
+### 鍵を消す移行(v2 -> v3 の実例。ECS 2-13)
+
+メンバを消すだけだと、古いファイルに残っている鍵が `UnknownField` の警告になる。
+**古い版のときだけ、捨てる値に読む**(`GameConfig.h` の `DiscardRemovedInV3`)。読んだ鍵は未知と数えられない。
+
+```cpp
+template <class Ar>
+void DiscardRemovedInV3(Ar& ar, StringView key, float defaultValue) {
+  if constexpr (Ar::IsReading()) {
+    if (ar.Version() < 3u) {
+      float discarded = defaultValue;
+      (void)ar.Member(key, discarded, defaultValue);
+    }
+  }
+}
+```
+
+v3 のファイルにその鍵を書くと、`UnknownField` の警告になる(もう使われない値だと分かる)。
 
 ### 規約 — 比較は必ず `<` で書く
 
@@ -533,7 +552,8 @@ void Serialize(Ar& ar, WorldConfig& v) {
 
 未来の版を拒否するのは、**その版でフィールドの意味が変わっていた場合に誤った値を
 静かに使う**ことになるため。ロード失敗は既定値で継続できるが、誤った値での継続は
-説明できない (R1-1f)。実機の出力はこうなる。
+説明できない (R1-1f)。実機の出力はこうなる(v2 のときのもの。v3 では版の数字が 3 になり、v1 からの注記は
+`GameConfigMigrationNote` が 2 段を連ねた 1 行になる)。
 
 ```
 [WARN] Resource/GameConfig.jsonc: migrated $version 1 -> 2 (world.bounds -> world.halfExtent)

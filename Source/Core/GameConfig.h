@@ -55,8 +55,12 @@ namespace GLFD {
    *       移行が累積して合成される
    *
    * @note v1 -> v2: `world.bounds` を `world.halfExtent` へ改名した (A-2)
+   * @note v2 -> v3: 使われていない 2 つの値を消した (ECS 2-13)。
+   *       `simulation.timeStep`(刻みは `kSimulationStep` の定数。2-8 で「読んでいるが使っていない」と記録)と
+   *       `interaction.screenScale`(クリックは描画と同じ対応の逆で求めるようになった)。
+   *       v2 以前のファイルにあるこの 2 つの鍵は、読んで捨てる(`UnknownField` にしない)
    */
-  inline constexpr std::uint32_t kGameConfigVersion = 2;
+  inline constexpr std::uint32_t kGameConfigVersion = 3;
 
   /**
    * @brief `fileVersion` をこのビルドが読めるか (A-2 論点2)
@@ -86,11 +90,14 @@ namespace GLFD {
    *
    * @note 文言を**スキーマの持ち主側**に置いてある。ログを出すのは
    *       `GameConfigLog.h` だが、移行を足す人が 2 つのファイルを探さずに済む。
-   *       多段になったら `fileVersion` から現在までの各段を連ねる形へ変えること
+   *       **`fileVersion` から現在までの各段を連ねる**(v3 で 2 段になった)
    */
   [[nodiscard]] inline constexpr const char*
   GameConfigMigrationNote(std::uint32_t fileVersion) noexcept {
-    if (fileVersion < 2u) { return "world.bounds -> world.halfExtent"; }
+    if (fileVersion < 2u) {
+      return "world.bounds -> world.halfExtent; simulation.timeStep and interaction.screenScale dropped (unused)";
+    }
+    if (fileVersion < 3u) { return "simulation.timeStep and interaction.screenScale dropped (unused)"; }
     return "";
   }
 
@@ -203,9 +210,23 @@ namespace GLFD {
 
   struct SimulationConfig {
     std::int32_t entityCount = kDefaultEntityCount;
-    float        timeStep    = 0.016f;
     float        maxSpeed    = 2.0f;
   };
+
+  /**
+   * @brief v2 以前のファイルにある、v3 で消した鍵を読んで捨てる (ECS 2-13)
+   * @details 読まないと、古いファイルのこの鍵が `UnknownField` の警告になる。**比較は `<` で書く**
+   *          (v1 も v0 も通る。A-2)。書くときは何もしない(移行は一方向)
+   */
+  template <class Ar>
+  void DiscardRemovedInV3(Ar& ar, StringView key, float defaultValue) {
+    if constexpr (Ar::IsReading()) {
+      if (ar.Version() < 3u) {
+        float discarded = defaultValue;
+        (void)ar.Member(key, discarded, defaultValue);
+      }
+    }
+  }
 
   template <class Ar>
   void Serialize(Ar& ar, SimulationConfig& v) {
@@ -231,22 +252,22 @@ namespace GLFD {
       }
     }
 
-    (void)ar.Member("timeStep", v.timeStep, 0.016f);
+    // v3 で消した (ECS 2-13)。刻みは `kSimulationStep` の定数で、この値はどこからも使われていなかった (2-8)
+    DiscardRemovedInV3(ar, "timeStep", 0.016f);
     (void)ar.Member("maxSpeed", v.maxSpeed, 2.0f);
   }
 
   struct InteractionConfig {
     float explosionRadius = 20.0f;
     float explosionForce  = 50.0f;
-    /// スクリーン座標 → ワールド座標の倍率。RenderSystem と合わせる
-    float screenScale     = 6.0f;
   };
 
   template <class Ar>
   void Serialize(Ar& ar, InteractionConfig& v) {
     (void)ar.Member("explosionRadius", v.explosionRadius, 20.0f);
     (void)ar.Member("explosionForce", v.explosionForce, 50.0f);
-    (void)ar.Member("screenScale", v.screenScale, 6.0f);
+    // v3 で消した (ECS 2-13)。クリックは描画と同じ対応(`Graphics::ScreenMapping`)の逆で世界に直す
+    DiscardRemovedInV3(ar, "screenScale", 6.0f);
   }
 
   // ---------------------------------------------------------------------------

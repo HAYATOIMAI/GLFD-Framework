@@ -423,7 +423,7 @@ namespace {
     char      json[512];
     const int written = std::snprintf(
         json, sizeof(json),
-        "{ \"$version\": 2,"
+        "{ \"$version\": 3,"
         "  \"window\": { \"width\": 800, \"title\": \"%.*s\" },"
         "  \"simulation\": { \"entityCount\": 5000, \"maxSpeed\": 3.5 },"
         "  \"boidProfiles\": [ { \"viewRadius\": 7.0 } ] }",
@@ -510,7 +510,7 @@ namespace {
     // --- 3. 直して読み直す ---------------------------------------------------
     {
       static const char kFixed[] =
-        "{ \"$version\": 2,"
+        "{ \"$version\": 3,"
         "  \"window\": { \"width\": 1600 },"
         "  \"simulation\": { \"entityCount\": 7000, \"maxSpeed\": 1.25 } }";
       CHECK(WriteBytesUtf8Path(path, kFixed, sizeof(kFixed) - 1));

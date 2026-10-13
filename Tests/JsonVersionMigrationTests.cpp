@@ -9,6 +9,8 @@
  *
  *  題材は v1 -> v2 の改名 `world.bounds` -> `world.halfExtent`。
  *  実体は半分の寸法なのに全体の幅と読める名前だったので、人工的な改名ではない。
+ *  v2 -> v3 (ECS 2-13) は鍵の削除 `simulation.timeStep` / `interaction.screenScale`。
+ *  古いファイルでは読んで捨て(警告しない)、v3 のファイルでは未知の鍵になる。
  *
  *   - **T-61** 移行そのもの。v1 が読め、旧名が新メンバに入り、Issue が 0 件で、
  *     書き出しは常に最新版になる
@@ -80,12 +82,22 @@ namespace {
     "  \"simulation\": { \"entityCount\": 100, \"maxSpeed\": 1.5 },\n"
     "}\n";
 
-  /// v2(現行形式)。同じ値を新名で書いたもの
+  /// v2。新名で書き、**v3 で消した 2 つの鍵を含む**(2-12 までの出荷ファイルと同じ形)
   const char* const kV2Config =
     "{ \"$version\": 2,\n"
     "  \"window\": { \"width\": 640, \"height\": 480, \"title\": \"v2\" },\n"
     "  \"world\": { \"halfExtent\": [12.0, 34.0], \"colliderRadius\": 0.5 },\n"
+    "  \"simulation\": { \"entityCount\": 100, \"timeStep\": 0.016, \"maxSpeed\": 1.5 },\n"
+    "  \"interaction\": { \"explosionRadius\": 7.0, \"screenScale\": 6.0 },\n"
+    "}\n";
+
+  /// v3(現行形式)。v2 から消した 2 つの鍵が無い
+  const char* const kV3Config =
+    "{ \"$version\": 3,\n"
+    "  \"window\": { \"width\": 640, \"height\": 480, \"title\": \"v3\" },\n"
+    "  \"world\": { \"halfExtent\": [12.0, 34.0], \"colliderRadius\": 0.5 },\n"
     "  \"simulation\": { \"entityCount\": 100, \"maxSpeed\": 1.5 },\n"
+    "  \"interaction\": { \"explosionRadius\": 7.0 },\n"
     "}\n";
 
   // ---------------------------------------------------------------------------
@@ -260,11 +272,11 @@ namespace {
     CHECK(load.config->simulation.entityCount == 100);
   }
 
-  void TestV2FixtureLoads() {
-    GLFD::Test::BeginCase("T-61: a v2 file loads through the current branch");
+  void TestCurrentFixtureLoads() {
+    GLFD::Test::BeginCase("T-61: a current (v3) file loads through the current branch");
 
     MigrationLoad load;
-    CHECK(load.Run(kV2Config, nullptr));
+    CHECK(load.Run(kV3Config, nullptr));
     CHECK(load.config != nullptr);
     if (load.config == nullptr) { return; }
 
@@ -294,8 +306,8 @@ namespace {
     JsonStringBuffer buffer(arena);
     CHECK(SaveToJson(*load.config, buffer, GLFD::kGameConfigVersion, /*pretty=*/true));
 
-    // v1 を読んで保存すると v2 になる。**旧名は 1 度も出ない**
-    CHECK(Contains(buffer.View(), "\"$version\": 2"));
+    // v1 を読んで保存すると現行の版 (v3) になる。**旧名は 1 度も出ない**
+    CHECK(Contains(buffer.View(), "\"$version\": 3"));
     CHECK(Contains(buffer.View(), "\"halfExtent\""));
     CHECK(!Contains(buffer.View(), "\"bounds\""));
 
@@ -322,13 +334,76 @@ namespace {
     CHECK(IsSupportedGameConfigVersion(old.observer.Version(VersionObserver::kBase)));
 
     MigrationLoad current;
-    CHECK(current.Run(kV2Config, nullptr));
+    CHECK(current.Run(kV3Config, nullptr));
     CHECK(!GameConfigWasMigrated(current.observer.Version(VersionObserver::kBase)));
 
     // 何が変わったかの 1 行。**移行が起きた版でだけ中身がある**
     CHECK(std::strlen(GameConfigMigrationNote(0u)) > 0);
     CHECK(std::strlen(GameConfigMigrationNote(1u)) > 0);
+    CHECK(std::strlen(GameConfigMigrationNote(2u)) > 0);
     CHECK(std::strlen(GameConfigMigrationNote(GLFD::kGameConfigVersion)) == 0);
+  }
+
+  void TestV2DropsRemovedKeys() {
+    GLFD::Test::BeginCase("T-61: v2 -> v3 drops timeStep / screenScale without a warning; in v3 they are unknown");
+
+    // (a) v2: 2 つの鍵は読んで捨てる。Issue は 0 件、ほかの値は読める
+    {
+      MigrationLoad load;
+      CHECK(load.Run(kV2Config, nullptr));
+      CHECK(load.config != nullptr);
+      if (load.config != nullptr) {
+        CHECK(load.observer.Version(VersionObserver::kBase) == 2u);
+        CHECK(load.observer.IssueCount(VersionObserver::kBase) == 0u);
+        CHECK(!load.observer.SawUnknown(VersionObserver::kBase));
+        CHECK(load.config->simulation.maxSpeed == 1.5f);
+        CHECK(load.config->interaction.explosionRadius == 7.0f);
+        CHECK(GameConfigWasMigrated(2u));
+
+        // 書き出すと v3 で、消した鍵は出ない
+        JsonArena        arena(&load.mock);
+        JsonStringBuffer buffer(arena);
+        CHECK(SaveToJson(*load.config, buffer, GLFD::kGameConfigVersion, /*pretty=*/true));
+        CHECK(Contains(buffer.View(), "\"$version\": 3"));
+        CHECK(!Contains(buffer.View(), "\"timeStep\""));
+        CHECK(!Contains(buffer.View(), "\"screenScale\""));
+      }
+    }
+
+    // (b) v1 にあっても同じ(`< 3` は 2 より前も含む。移行が累積する)
+    {
+      MigrationLoad load;
+      CHECK(load.Run("{ \"$version\": 1, \"world\": { \"bounds\": [3.0, 4.0] },"
+                     " \"simulation\": { \"timeStep\": 0.02 }, \"interaction\": { \"screenScale\": 5.0 } }",
+                     nullptr));
+      CHECK(load.observer.IssueCount(VersionObserver::kBase) == 0u);
+      if (load.config != nullptr) { CHECK(load.config->world.halfExtent[0] == 3.0f); }
+    }
+
+    // (c) v3 のファイルに書くと未知の鍵(もう使われない値だと分かる)。ほかの値は読める
+    {
+      MigrationLoad load;
+      CHECK(load.Run("{ \"$version\": 3, \"simulation\": { \"timeStep\": 0.02, \"maxSpeed\": 2.5 } }", nullptr));
+      CHECK(load.observer.SawUnknown(VersionObserver::kBase));
+      if (load.config != nullptr) { CHECK(load.config->simulation.maxSpeed == 2.5f); }
+    }
+    {
+      MigrationLoad load;
+      CHECK(load.Run("{ \"$version\": 3, \"interaction\": { \"screenScale\": 6.0 } }", nullptr));
+      CHECK(load.observer.SawUnknown(VersionObserver::kBase));
+    }
+
+    // (d) 上書きは基底と同じ版で読む: 基底が v2 なら捨てる、v3 なら未知
+    {
+      MigrationLoad load;
+      CHECK(load.Run(kV2Config, "{ \"interaction\": { \"screenScale\": 9.0 } }"));
+      CHECK(!load.observer.SawUnknown(VersionObserver::kLocal));
+    }
+    {
+      MigrationLoad load;
+      CHECK(load.Run(kV3Config, "{ \"interaction\": { \"screenScale\": 9.0 } }"));
+      CHECK(load.observer.SawUnknown(VersionObserver::kLocal));
+    }
   }
 
   // ===========================================================================
@@ -341,7 +416,7 @@ namespace {
     MigrationLoad load;
 
     // まず正常に読んでおく。**直前の設定が残ることまで見る** (R3-37)
-    CHECK(load.Run(kV2Config, nullptr));
+    CHECK(load.Run(kV3Config, nullptr));
     CHECK(load.config != nullptr);
     if (load.config == nullptr) { return; }
     const GameConfig* const before = load.config.get();
@@ -446,10 +521,10 @@ namespace {
       }
     }
 
-    // --- 基底が v2(通常のケース)---------------------------------------------
+    // --- 基底が現行の版(通常のケース)-----------------------------------------
     {
       MigrationLoad load;
-      CHECK(load.Run(kV2Config, "{ \"world\": { \"halfExtent\": [1.0, 2.0] } }"));
+      CHECK(load.Run(kV3Config, "{ \"world\": { \"halfExtent\": [1.0, 2.0] } }"));
       CHECK(load.config != nullptr);
       if (load.config != nullptr) {
         CHECK(load.observer.Version(VersionObserver::kLocal) == GLFD::kGameConfigVersion);
@@ -462,7 +537,7 @@ namespace {
     // 2 段目だけ v1 として読まれていた。その状態ではここが逆の結果になる
     {
       MigrationLoad load;
-      CHECK(load.Run(kV2Config, "{ \"world\": { \"bounds\": [1.0, 2.0] } }"));
+      CHECK(load.Run(kV3Config, "{ \"world\": { \"bounds\": [1.0, 2.0] } }"));
       if (load.config != nullptr) {
         CHECK(load.observer.SawUnknown(VersionObserver::kLocal));
         CHECK(load.config->world.halfExtent[0] == 12.0f);   // 基底の値のまま
@@ -474,12 +549,12 @@ namespace {
     GLFD::Test::BeginCase("T-63: a $version written in the overlay is ignored (R2-18q)");
 
     MigrationLoad load;
-    CHECK(load.Run(kV2Config,
+    CHECK(load.Run(kV3Config,
                    "{ \"$version\": 1, \"world\": { \"halfExtent\": [1.0, 2.0] } }"));
     CHECK(load.config != nullptr);
     if (load.config == nullptr) { return; }
 
-    // 宣言された 1 ではなく、基底の 2 が使われる
+    // 宣言された 1 ではなく、基底の版 (3) が使われる
     CHECK(load.observer.Version(VersionObserver::kLocal) == GLFD::kGameConfigVersion);
 
     // したがって上書きは**新名**として効く(1 が効いていれば無視されていた)
@@ -504,9 +579,10 @@ int main() {
   GLFD::Test::BeginSuite("JsonVersionMigration (A-2)");
 
   TestV1FixtureLoadsIntoNewMember();
-  TestV2FixtureLoads();
+  TestCurrentFixtureLoads();
   TestWritingIsAlwaysNewest();
   TestMigrationIsDetectable();
+  TestV2DropsRemovedKeys();
 
   TestFutureVersionIsRejected();
   TestMissingVersionReadsAsOldest();

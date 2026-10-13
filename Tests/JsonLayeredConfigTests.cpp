@@ -442,7 +442,7 @@ namespace {
   /// 実物の `GameConfig` と同じ形の土台。**日本語は書かない (C5297)**
   const char* const kBaseConfig =
     "// shared, hand written. comments survive because nothing rewrites this file\n"
-    "{ \"$version\": 2,\n"
+    "{ \"$version\": 3,\n"
     "  \"window\": { \"width\": 1280, \"height\": 720, \"title\": \"shared\" },\n"
     "  \"world\": { \"halfExtent\": [85.0, 64.0] },\n"
     "  \"simulation\": { \"entityCount\": 20000, \"maxSpeed\": 2.0 },\n"
