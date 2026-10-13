@@ -19,7 +19,7 @@
  *  なるように窓の縦横比から決める。Survivor が 2-3 で採った形と同じ。
  *   - Boid は `world.halfExtent.y`(壁の縦)を渡す。壁の上下が画面の上下の端に来る。
  *     横は 16:9 の窓なら壁(±halfExtent.x)より広く見え、壁の外が余白になる (2-13 の判断 A)
- *   - Survivor(上下 34 単位)は `SurvivorScreenOf` が同じ形で作っている
+ *   - Survivor は上下 34 単位(`kSurvivorVisibleHalfY`)を渡す。`SurvivorScreenOf` はこの対応から横の縮尺を取る
  *
  *  ## 座標の向き
  *   - NDC は右が +x、**上が +y**(D3D のビューポート)
