@@ -7,6 +7,7 @@
 #include "../ECS/View.h"
 #include "../Graphics/DX11Renderer.h"
 #include "../Graphics/RenderSystem.h"
+#include "../Graphics/ScreenMapping.h"
 
 #include "EcsDiagnosticsLog.h"
 #include "SurvivorComponents.h"
@@ -40,19 +41,18 @@ namespace {
 
     renderer.BeginFrame();
 
-    const float width  = static_cast<float>(windowWidth);
-    float       height = static_cast<float>(windowHeight);
-    if (height < 1.0f) { height = 1.0f; }
-    float aspect = width / height;
-    if (aspect < 0.0001f) { aspect = 1.0f; }
-    renderer.UpdateGlobalConstants(aspect, time);
+    // 世界と画面の対応は Boid と同じ 1 本 (ECS 2-13)。シェーダーに渡す縦横比もここから取る
+    // (2-12 までは `RenderSystem` と同じ計算の写しがここにあった)
+    const Graphics::ScreenMapping screen =
+        Graphics::ScreenMappingOf(Game::kSurvivorVisibleHalfY, windowWidth, windowHeight);
+    renderer.UpdateGlobalConstants(screen.aspect, time);
 
     // 頂点を組むのは `Game/SurvivorRender.h`。**テストとベンチも同じ関数を呼ぶ** (2-3)
     DynamicArray<Graphics::SimpleVertex> vertices(frameResource);
     // 大きさは当たり判定の半径。小さすぎるものは 4 px まで引き上げる (2-3 (3))。
     // 横の縮尺は窓の縦横比から決め、1 単位の画素を縦横で揃える (2-3 (4))
     const Systems::RenderStatus status = Game::BuildSurvivorVertices(
-        registry, Game::SurvivorDrawRadiiOf(params), Game::SurvivorScreenOf(windowWidth, windowHeight), vertices);
+        registry, Game::SurvivorDrawRadiiOf(params), Game::SurvivorScreenOf(screen), vertices);
     if (status.outcome != Systems::RenderStatus::Outcome::Drawn) {
       // **黙って諦めない** (R-28)。報告はシーンが門を通して出す
       renderer.EndFrame();

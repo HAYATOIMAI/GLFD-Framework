@@ -39,7 +39,8 @@
  *
  *  ## 縦横の縮尺
  *  **1 単位あたりの画素を縦横で同じにする** (2-3 (4))。縦は `kSurvivorScaleY`(上下 34 単位)の
- *  まま、横は窓の縦横比から決める(`SurvivorScreenOf`)。これで当たり判定の円が画面でも円になり、
+ *  まま、横は窓の縦横比から決める(`SurvivorScreenOf`。2-13 から Boid と同じ `Graphics::ScreenMappingOf`
+ *  で作る)。これで当たり判定の円が画面でも円になり、
  *  描く丸の大きさ(縦で決めている)とも横方向で一致する。1-8 から 2-3 (3) までは横が 4:3 の値
  *  (1/45)の固定で、16:9 の窓では縦に潰れていた
  *
@@ -52,6 +53,7 @@
 #include "../ECS/Registry.h"
 #include "../ECS/View.h"
 #include "../Graphics/RenderStatus.h"
+#include "../Graphics/ScreenMapping.h"
 #include "../Graphics/SimpleVertex.h"
 #include "SurvivorComponents.h"
 
@@ -59,9 +61,11 @@
 
 namespace GLFD::Game {
 
-  /// ワールド座標から NDC への縦の縮尺(上下 34 単位が見える。1-8 で決めた値)。
-  /// 横は窓の縦横比で決める(`SurvivorScreenOf`)
-  inline constexpr float kSurvivorScaleY = 1.0f / 34.0f;
+  /// 縦に見える半寸法(上下 34 単位が見える。1-8 で決めた値)。世界と画面の対応は Boid と同じ
+  /// `Graphics::ScreenMappingOf` にこの値を渡して作る (ECS 2-13)
+  inline constexpr float kSurvivorVisibleHalfY = 34.0f;
+  /// ワールド座標から NDC への縦の縮尺。横は窓の縦横比で決める(`SurvivorScreenOf`)
+  inline constexpr float kSurvivorScaleY = 1.0f / kSurvivorVisibleHalfY;
 
   struct SurvivorColor {
     float r, g, b;
@@ -101,14 +105,18 @@ namespace GLFD::Game {
   };
 
   /**
-   * @brief 窓の大きさ(画素)から横の縮尺と半径の下限を作る
-   * @details NDC の横 2 が幅 w 画素、縦 2 が高さ h 画素。1 単位の画素を縦横で揃えるには
-   *          `scaleX * w = kSurvivorScaleY * h`。幅・高さが 0(最小化中など)でも割り算で壊れない
+   * @brief 世界と画面の対応から、横の縮尺と半径の下限を取る
+   * @details **横の縮尺は対応(`Graphics::ScreenMappingOf`)が決める** (ECS 2-13)。Boid と同じ 1 本で、
+   *          `scaleX * w = scaleY * h`(1 単位の画素を縦横で揃える)。2-12 まではここに同じ式の写しがあった。
+   *          半径の下限は Survivor だけのものなので、ここに残す
    */
+  [[nodiscard]] inline SurvivorScreen SurvivorScreenOf(const Graphics::ScreenMapping& screen) noexcept {
+    return SurvivorScreen{ screen.scaleX, kSurvivorMinRadiusPx * 2.0f / screen.height };
+  }
+
+  /// 窓の大きさ(画素)から作る。幅・高さが 0(最小化中など)でも割り算で壊れない(対応が 1 として扱う)
   [[nodiscard]] inline SurvivorScreen SurvivorScreenOf(int windowWidth, int windowHeight) noexcept {
-    const float w = (windowWidth  < 1) ? 1.0f : static_cast<float>(windowWidth);
-    const float h = (windowHeight < 1) ? 1.0f : static_cast<float>(windowHeight);
-    return SurvivorScreen{ kSurvivorScaleY * h / w, kSurvivorMinRadiusPx * 2.0f / h };
+    return SurvivorScreenOf(Graphics::ScreenMappingOf(kSurvivorVisibleHalfY, windowWidth, windowHeight));
   }
 
   /**
