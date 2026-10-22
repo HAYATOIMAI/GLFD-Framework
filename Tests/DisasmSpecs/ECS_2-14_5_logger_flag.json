@@ -1,0 +1,11 @@
+﻿{
+  "commit": "2-14 commit 5 (Logger::m_consoleCodePageChanged)",
+  "edited": [
+    {"match": "?Initialize@Logger@Core@GLFD@@", "why": "the store of the flag removed"},
+    {"match": "??0Logger@Core@GLFD@@", "why": "constructor: the member and its initializer removed"},
+    {"match": "?Get@Logger@Core@GLFD@@", "why": "inlines the constructor of its function-local static: the only difference is the removed store mov byte ptr [instance+158h],1 (158h = 344 = m_consoleCodePageChanged)"}
+  ],
+  "classes": [{"name": "Logger", "removed": [{"offset": 344, "size": 8, "member": "m_consoleCodePageChanged (bool, the last member; 8 with the tail padding)"}]}],
+  "sizes": [[352, 344, "sizeof Logger"]],
+  "stack": {"functions": [], "deltas": []}
+}

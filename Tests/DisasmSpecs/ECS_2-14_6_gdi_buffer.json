@@ -1,0 +1,10 @@
+﻿{
+  "commit": "2-14 commit 6 (SimpleWindow GDI buffer)",
+  "edited": [
+    {"match": "??0SimpleWindow@Graphics@GLFD@@", "why": "constructor: InitBuffer() removed"},
+    {"match": "??1SimpleWindow@Graphics@GLFD@@", "why": "destructor: VirtualFree removed (now = default)"}
+  ],
+  "classes": [{"name": "SimpleWindow", "removed": [{"offset": 16, "size": 56, "member": "m_bufferMemory (8) / m_bmi (44) + tail padding; the last members"}]}],
+  "sizes": [[72, 16, "sizeof SimpleWindow"]],
+  "stack": {"functions": [], "deltas": []}
+}

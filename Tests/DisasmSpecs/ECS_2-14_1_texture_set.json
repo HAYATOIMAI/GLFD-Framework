@@ -1,0 +1,22 @@
+﻿{
+  "commit": "2-14 commit 1 (texture set), 8f4ac60 -> d88391f",
+  "edited": [
+    {"match": "??0DX11Renderer@Graphics@GLFD@@", "why": "constructor: m_samplerState / m_currentTexture removed"},
+    {"match": "??1DX11Renderer@Graphics@GLFD@@", "why": "destructor: m_samplerState removed"},
+    {"match": "?DrawPoints@DX11Renderer@", "why": "PSSetShaderResources / PSSetSamplers removed"},
+    {"match": "?Initialize@DX11Renderer@", "why": "CreateSamplerState removed"},
+    {"match": "??0GameEngine@GLFD@@", "why": "constructor: m_resourceManager removed"},
+    {"match": "??1GameEngine@GLFD@@", "why": "ReleaseAll removed"},
+    {"match": "?Initialize@GameEngine@", "why": "ResourceManager creation / registration / GameContext field removed"},
+    {"match": "?Update@GameEngine@", "why": "GameContext field removed"},
+    {"match": "?Render@GameEngine@", "why": "GameContext field removed"},
+    {"match": "?Run@GameEngine@", "why": "inlines Render (its GameContext copy lost 2 instructions)"}
+  ],
+  "classes": [
+    {"name": "GameEngine", "removed": [{"offset": 88, "size": 8, "member": "m_resourceManager"}]},
+    {"name": "DX11Renderer", "removed": [{"offset": 136, "size": 8, "member": "m_samplerState"},
+                                         {"offset": 144, "size": 8, "member": "m_currentTexture"}]}
+  ],
+  "sizes": [[160, 144, "sizeof DX11Renderer"], [2200, 2192, "sizeof GameEngine"], [120, 112, "sizeof GameContext"]],
+  "stack": {"functions": ["main"], "deltas": [16, 8], "why": "GameEngine (2200 -> 2192) lives on main's stack; 16 = 8 rounded up to the 16-byte frame alignment"}
+}

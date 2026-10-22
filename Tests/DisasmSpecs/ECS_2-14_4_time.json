@@ -1,0 +1,25 @@
+﻿{
+  "commit": "2-14 commit 4 (time), 485ee82 -> working tree",
+  "edited": [
+    {"match": "?UpdateGlobalConstants@DX11Renderer@", "why": "the time parameter and ConstantBufferData::Time removed"},
+    {"match": "?Update@RenderSystem@Systems@GLFD@@", "why": "the time parameter removed"},
+    {"match": "?OnRender@BoidDemoScene@", "why": "no longer passes ctx.totalTime"},
+    {"match": "?DrawSurvivor@", "why": "the time parameter removed"},
+    {"match": "?OnRender@SurvivorScene@", "why": "no longer passes ctx.totalTime (DrawSurvivor inlined)"},
+    {"match": "??0GameEngine@GLFD@@", "why": "constructor: m_totalTime removed"},
+    {"match": "?Initialize@GameEngine@", "why": "GameContext::totalTime removed from the initializer"},
+    {"match": "?Update@GameEngine@", "why": "m_totalTime += dt and the GameContext field removed"},
+    {"match": "?Render@GameEngine@", "why": "GameContext field removed"},
+    {"match": "?Run@GameEngine@", "why": "inlines Update / Render"}
+  ],
+  "classes": [
+    {"name": "GameEngine", "removed": [{"offset": 124, "size": 4, "until": 136, "member": "m_totalTime (float); padding absorbs it from 136 on"}]},
+    {"name": "GameContext", "removed": [{"offset": 96, "size": 8, "member": "totalTime (float 4 + padding 4 in front of sceneManager)"}]}
+  ],
+  "sizes": [[112, 104, "sizeof GameContext"]],
+  "stack": {"functions": [], "deltas": []},
+  "stack_objects": [
+    {"function": "main", "class": "GameEngine", "register": "rbp", "base": -160,
+     "why": "main builds GameEngine at rsp+60h (lea rcx,[rsp+60h] before ??0GameEngine) and rbp = rsp+100h (lea rbp,[rsp-1400h]; sub rsp,1500h)"}
+  ]
+}
