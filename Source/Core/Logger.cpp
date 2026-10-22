@@ -30,10 +30,9 @@ namespace GLFD::Core {
     // 正しく書けているのに、コンソールだけが既定のコードページで化けるので、
     // **初期化で 1 回だけ**切り替える。出力のたびに呼ぶ類のものではない。
     // 出力先がコンソールでない(リダイレクトされている)場合などは失敗するが、
-    // その場合もログ自体は成立するので続行する
-    if (::SetConsoleOutputCP(CP_UTF8) == 0) {
-      m_consoleCodePageChanged = false;
-    }
+    // その場合もログ自体は成立するので続行する。結果は記録しない(2-4 から記録していた
+    // m_consoleCodePageChanged は読まれていなかったので ECS 2-14 で消した)
+    (void)::SetConsoleOutputCP(CP_UTF8);
 
     errno = 0;
     m_fileStream.open(filePath, std::ios::out | std::ios::trunc);
