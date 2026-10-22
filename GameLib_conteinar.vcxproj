@@ -33,7 +33,6 @@
     <ClCompile Include="Source\Graphics\DX11Renderer.cpp" />
     <ClCompile Include="Source\Graphics\Shader.cpp" />
     <ClCompile Include="Source\Graphics\SimpleWindow.cpp" />
-    <ClCompile Include="Source\Graphics\Texture.cpp" />
     <ClCompile Include="Source\main.cpp" />
     <ClCompile Include="Source\Physics\SpatialHashGrid.cpp" />
     <ClCompile Include="Source\Threading\JobSystem.cpp" />
@@ -41,8 +40,6 @@
     <ClCompile Include="Source\Scene\SceneManager.cpp" />
     <ClCompile Include="Source\Game\BoidDemoScene.cpp" />
     <ClCompile Include="Source\Game\SurvivorScene.cpp" />
-    <ClCompile Include="Source\Resource\ResourceManager.cpp" />
-    <ClCompile Include="Source\Resource\TextureLoader.cpp" />
     <!-- ECS 2-9: the definition of RenderFaultProbe::Inject. Built ONLY when GLFDProbeDefines contains
          GLFD_RENDER_FAULT_PROBE (msbuild /p:GLFDProbeDefines=GLFD_RENDER_FAULT_PROBE /p:OutDir=... /p:IntDir=...).
          The game build never has it, so a stray GLFD_RENDER_FAULT_PROBE fails to link there. -->
@@ -122,7 +119,6 @@
     <ClInclude Include="Source\Graphics\SimpleVertex.h" />
     <ClInclude Include="Source\Graphics\Shader.h" />
     <ClInclude Include="Source\Graphics\SimpleWindow.h" />
-    <ClInclude Include="Source\Graphics\Texture.h" />
     <ClInclude Include="Source\Physics\CollisionComponents.h" />
     <ClInclude Include="Source\Physics\CollisionSystem.h" />
     <ClInclude Include="Source\Physics\SpatialHashGrid.h" />
@@ -134,10 +130,6 @@
     <ClInclude Include="Source\Scene\IScene.h" />
     <ClInclude Include="Source\Scene\SceneManager.h" />
     <ClInclude Include="Source\Game\BoidDemoScene.h" />
-    <ClInclude Include="Source\Resource\ResourceHandle.h" />
-    <ClInclude Include="Source\Resource\IResourceLoader.h" />
-    <ClInclude Include="Source\Resource\ResourceManager.h" />
-    <ClInclude Include="Source\Resource\TextureLoader.h" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="Source\Shaders\Particle.hlsl">

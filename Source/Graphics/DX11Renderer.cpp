@@ -107,21 +107,6 @@ namespace GLFD::Graphics {
 
     m_deviceContext->RSSetState(m_rasterizerState.Get());
 
-    D3D11_SAMPLER_DESC sd = {};
-    sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR; // 滑らかに補間
-    sd.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;   // 端っこを引き伸ばさない
-    sd.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-    sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-    sd.ComparisonFunc = D3D11_COMPARISON_NEVER;
-    sd.MinLOD = 0;
-    sd.MaxLOD = D3D11_FLOAT32_MAX;
-
-    hr = m_device->CreateSamplerState(&sd, &m_samplerState);
-    if (FAILED(hr)) {
-      ReportStartupCall("graphics", "creating the sampler state", hr);
-      return false;
-    }
-
     return true;
   }
 
@@ -214,13 +199,6 @@ namespace GLFD::Graphics {
     // 画面での歯: Tests\render_point_check.ps1(決まった位置に置いた点がすべて描かれるか)
     m_deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
 
-    if (m_currentTexture) {
-      m_deviceContext->PSSetShaderResources(0, 1, m_currentTexture->GetAddress());
-    }
-
-    // テクスチャとサンプラーをPSステージにセット
-    m_deviceContext->PSSetSamplers(0, 1, m_samplerState.GetAddressOf());
-
     // ジオメトリシェーダーに定数バッファを渡す
     m_deviceContext->GSSetConstantBuffers(0, 1, m_cbGlobal.GetAddress());
 
@@ -236,15 +214,6 @@ namespace GLFD::Graphics {
   void DX11Renderer::UpdateGlobalConstants(float aspectRatio, float time) {
     ConstantBufferData data = { aspectRatio, time, {0, 0} };
     m_cbGlobal.Update(m_deviceContext.Get(), data);
-  }
-
-  void DX11Renderer::SetTexture(Texture* texture) {
-    if (texture == nullptr) {
-      assert("Texture is nullptr");
-      return;
-    }
-
-    m_currentTexture = texture;
   }
 
   bool DX11Renderer::CreateVertexBuffer() {

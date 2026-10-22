@@ -72,13 +72,12 @@ rem ---------------------------------------------------------------------------
 set /a SUITES+=1
 set "NAME=%~2"
 
-rem  スイート個別の追加ソース。既定は無し。
-rem  TemplateInstantiationTests (E-1) だけは ResourceStorage<T>::Load が
-rem  LOG_ERROR を呼ぶため Logger.cpp が要る。全スイートへ足すと Json 側の
-rem  スイートにまで Logger を持ち込むことになるので、個別に足す
+rem  スイート個別の追加ソース。既定は無し。全スイートへ足すと Json 側のスイートにまで
+rem  Logger などを持ち込むことになるので、個別に足す。
+rem  (TemplateInstantiationTests は ResourceStorage<T>::Load の LOG_ERROR のために Logger.cpp を
+rem   足していた。ResourceManager が 2-14 で消えたので、今は要らない)
 set "EXTRA_SOURCES="
 set "EXTRA_FLAGS="
-if /i "%NAME%"=="TemplateInstantiationTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
 rem  EcsDiagnosticsTests (1-6) は SpatialHashGrid の確保失敗を直接見るので実装が要る
 if /i "%NAME%"=="EcsDiagnosticsTests" set "EXTRA_SOURCES=%ROOT%\Source\Physics\SpatialHashGrid.cpp"
 rem  EcsCollisionTests (1-7) は本番の GridBuildSystem / CollisionSystem を呼ぶ

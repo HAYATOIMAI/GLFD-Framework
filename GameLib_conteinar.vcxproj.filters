@@ -3,7 +3,6 @@
   <ItemGroup>
     <ClCompile Include="Source\Core\InputSystem.cpp" />
     <ClCompile Include="Source\Engine.cpp" />
-    <ClCompile Include="Source\Graphics\Texture.cpp" />
     <ClCompile Include="Source\main.cpp" />
     <ClCompile Include="Source\Core\Json\JsonArena.cpp">
       <Filter>Json</Filter>
@@ -44,12 +43,6 @@
     <ClCompile Include="Source\Core\StackAllocator.cpp">
       <Filter>Core</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Resource\ResourceManager.cpp">
-      <Filter>Resource</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Resource\TextureLoader.cpp">
-      <Filter>Resource</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Physics\SpatialHashGrid.cpp">
       <Filter>Physics</Filter>
     </ClCompile>
@@ -74,7 +67,6 @@
     <ClInclude Include="Source\Core\TypeInfo.h" />
     <ClInclude Include="Source\Engine.h" />
     <ClInclude Include="Source\Graphics\ConstantBuffer.h" />
-    <ClInclude Include="Source\Graphics\Texture.h" />
     <ClInclude Include="Source\Core\Json\Json.h">
       <Filter>Json</Filter>
     </ClInclude>
@@ -237,18 +229,6 @@
     <ClInclude Include="Source\Graphics\ScreenMapping.h">
       <Filter>Graphics</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Resource\IResourceLoader.h">
-      <Filter>Resource</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Resource\ResourceHandle.h">
-      <Filter>Resource</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Resource\ResourceManager.h">
-      <Filter>Resource</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Resource\TextureLoader.h">
-      <Filter>Resource</Filter>
-    </ClInclude>
     <ClInclude Include="Source\Physics\SpatialHashGrid.h">
       <Filter>Physics</Filter>
     </ClInclude>
@@ -338,9 +318,6 @@
     </Filter>
     <Filter Include="Shaders">
       <UniqueIdentifier>{b01ff433-0c26-4f86-a07b-f3dd2b661ab7}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Resource">
-      <UniqueIdentifier>{8e13ad2b-f651-4e35-83fb-122c016712d3}</UniqueIdentifier>
     </Filter>
     <Filter Include="Physics">
       <UniqueIdentifier>{ff7df573-17a9-4b03-8fdf-c31a8f7929b4}</UniqueIdentifier>

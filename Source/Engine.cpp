@@ -26,9 +26,6 @@
 #include "Graphics/DX11Renderer.h"
 #include "Graphics/RenderHealthLog.h"
 
-#include "Resource/ResourceManager.h"
-#include "Resource/TextureLoader.h"
-
 #include "Scene/SceneManager.h"
 #include "Game/BoidDemoScene.h"
 #include "Game/SceneCatalog.h"
@@ -59,9 +56,6 @@ namespace {
 namespace GLFD {
   GameEngine::GameEngine() = default;
   GameEngine::~GameEngine() {
-    if (m_resourceManager) {
-      m_resourceManager->ReleaseAll();
-    }
     // **JobSystem を先に止めてから書く** (ECS 2-4)。以前は Logger を閉じた後、
     // メンバの破棄で join していたので、"Engine Shutdown" は join より前に書かれ、
     // **ハングしていてもログの最後の行は正常終了と同じだった** (9 回中 9 回ハングを実測)。
@@ -144,10 +138,6 @@ namespace GLFD {
     }
     LOG_INFO("=== DX11 Initialize Success ===");
 
-    m_resourceManager = std::make_unique<Resource::ResourceManager>();
-    m_resourceManager->RegisterLoader<Graphics::Texture>(
-        std::make_unique<Resource::TextureLoader>());
-
     m_sceneManager = std::make_unique<Scene::SceneManager>(m_stackResource.get());
 
     GameContext initCtx{
@@ -164,13 +154,8 @@ namespace GLFD {
         0.0f,
         m_renderer.get(),
         0.0f,
-        m_sceneManager.get(),
-        m_resourceManager.get()
+        m_sceneManager.get()
     };
-
-    // 2-3: 描画はテクスチャを使わなくなった(PS が丸を描く)ので、particle.png は読まない。
-    // 以前はここで読み、読めなければ起動を止めていた。TextureLoader の登録と型は残す
-    // (利用者 0。開発手法 3.11 の削除候補として記録した)
 
     // The start scene comes from the config (ECS 1-8); 2-1 added the runtime
     // switch. Both read the same table in SceneCatalog.h, so a scene name
@@ -313,8 +298,7 @@ namespace GLFD {
         dt,
         m_renderer.get(),
         m_totalTime,
-        m_sceneManager.get(),
-        m_resourceManager.get()
+        m_sceneManager.get()
     };
 
     // 入力は Run がフレームに 1 回読み、この刻みの頭で BeginStep を済ませてある (ECS 2-8)
@@ -405,8 +389,7 @@ namespace GLFD {
         0.0f,
         m_renderer.get(),
         m_totalTime,
-        m_sceneManager.get(),
-        m_resourceManager.get()
+        m_sceneManager.get()
     };
 
     m_sceneManager->Render(ctx);

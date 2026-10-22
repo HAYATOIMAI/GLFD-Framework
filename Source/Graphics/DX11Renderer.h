@@ -14,7 +14,6 @@
 #include <vector>
 #include "Shader.h"
 #include "ConstantBuffer.h"
-#include "Texture.h"
 #include "SimpleVertex.h"   // 頂点の型は d3d11.h を引き込まない軽いヘッダへ移した (ECS 2-3)
 
 #pragma comment(lib, "d3d11.lib")
@@ -62,12 +61,8 @@ namespace GLFD::Graphics {
 
     void UpdateGlobalConstants(float aspectRatio, float time);
 
-    void SetTexture(Texture* texture);
-
     // デバイスコンテキスト取得
     ID3D11DeviceContext* GetDeviceContext() const { return m_deviceContext.Get(); }
-    // デバイス取得
-    ID3D11Device* GetDevice() const { return m_device.Get(); }
   private:
     Microsoft::WRL::ComPtr<ID3D11Device>           m_device;
     Microsoft::WRL::ComPtr<ID3D11DeviceContext>    m_deviceContext;
@@ -85,9 +80,6 @@ namespace GLFD::Graphics {
     ParticleShader m_shader;
     ConstantBuffer<ConstantBufferData>   m_cbGlobal;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_vertexBuffer;
-
-    Microsoft::WRL::ComPtr<ID3D11SamplerState> m_samplerState;
-    Texture* m_currentTexture = nullptr; // 描画するテクスチャ
 
     // バッファの最大容量 (これを超えたら分割して描画)
     static const int MAX_PARTICLES = 100000;

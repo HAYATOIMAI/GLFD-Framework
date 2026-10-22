@@ -5,7 +5,6 @@ namespace GLFD::Thread { class JobSystem; }
 namespace GLFD::ECS { class Registry; class CommandBuffer; }
 namespace GLFD::Events { class EventBus; }
 namespace GLFD::Graphics { class SimpleWindow; class DX11Renderer; }
-namespace GLFD::Resource { class ResourceManager; }
 namespace GLFD::Physics  { class SpatialHashGrid; }
 namespace GLFD::Core { class InputSystem; class FileManager; class CloseRequest; }
 namespace GLFD::Scene { class SceneManager; }
@@ -60,8 +59,6 @@ namespace GLFD {
 
     std::unique_ptr<Core::InputSystem> m_inputSystem = nullptr;
     std::unique_ptr<Core::FileManager> m_fileManager = nullptr;
-
-    std::unique_ptr<Resource::ResourceManager> m_resourceManager = nullptr;
 
     std::unique_ptr<Scene::SceneManager> m_sceneManager = nullptr;
 

@@ -17,7 +17,6 @@ namespace GLFD::Scene { class SceneManager; }
 // 先に使い切る**。この構造体はポインタしか持たず、`ctx.fileManager` を
 // 参照しているコードも 0 件なので、使う側が include すればよい
 namespace GLFD::Core  { class FileManager; }
-namespace GLFD::Resource { class ResourceManager; }
 
 namespace GLFD {
   struct GameContext {
@@ -42,6 +41,5 @@ namespace GLFD {
     Graphics::DX11Renderer*   renderer;
     float                     totalTime;
     Scene::SceneManager*      sceneManager;
-    Resource::ResourceManager* resourceManager;
   };
 }

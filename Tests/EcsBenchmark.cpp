@@ -292,8 +292,7 @@ int main(int argc, char** argv) {
         GLFD::Core::kSimulationStep,
         nullptr,          // renderer
         static_cast<float>(f) * GLFD::Core::kSimulationStep,
-        nullptr,          // sceneManager
-        nullptr           // resourceManager
+        nullptr           // sceneManager
     };
 
     const auto t0 = Clock::now();

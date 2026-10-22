@@ -8,8 +8,8 @@
  *  `DetachSurvivor` も本物を呼ぶ。**写した手順を試すのではない。**
  *
  *  ## 押さえられないもの
- *  **`SurvivorScene` / `BoidDemoScene` そのものは呼べない。** `OnEnter` が
- *  `ResourceManager` からテクスチャを読み、DX11 を要求するためである。ここで
+ *  **`SurvivorScene` / `BoidDemoScene` そのものは呼べない。** 描画が DX11 を要求するためである
+ *  (以前は `OnEnter` が `ResourceManager` からテクスチャを読んでいた。その経路は 2-3 で外れ、型ごと 2-14 で消えた)。ここで
  *  固定できるのは `SceneManager` の側(外し忘れの検出と安全網、エンティティの
  *  後始末、往復)であって、**実物のシーンがその契約を守っているかではない**。
  *  それは実機での往復が受け持つ。
@@ -79,7 +79,6 @@ namespace {
       ctx.renderer       = nullptr;
       ctx.totalTime      = 0.0f;
       ctx.sceneManager   = &scenes;
-      ctx.resourceManager = nullptr;
       return ctx;
     }
   };

@@ -69,7 +69,6 @@
 #include "ECS/Registry.h"
 #include "ECS/View.h"
 #include "Events/EventBus.h"
-#include "Resource/ResourceManager.h"
 
 #pragma warning(pop)
 
@@ -251,15 +250,7 @@ template class GLFD::DynamicArray<AuditTypes::Throwy>;
 template class GLFD::Events::EventChannel<AuditTypes::Pod>;
 template class GLFD::Events::EventChannel<AuditTypes::NonTrivial>;
 
-// ===========================================================================
-// 5. GLFD::Resource::ResourceStorage<T>
-// ===========================================================================
-//
-// `ResourceManager::GetByKey<T>` / `Release<T>` の先にある。どちらの
-// メンバテンプレートも呼び出し 0 件だった。
-
-template class GLFD::Resource::ResourceStorage<AuditTypes::Pod>;
-template class GLFD::Resource::ResourceStorage<AuditTypes::NonTrivial>;
+// (5. `GLFD::Resource::ResourceStorage<T>` は 2-14 で型ごと消えた。下の棚卸しの「削除済み(2-14)」を参照)
 
 // ---------------------------------------------------------------------------
 // メンバ関数テンプレート
@@ -296,16 +287,6 @@ namespace {
   GLFD::Events::SubscriptionId (GLFD::Events::EventBus::* const kSubscribeNonTrivial)(
       void*, GLFD::Events::EventChannel<NonTrivial>::EventCallback)
     = &GLFD::Events::EventBus::Subscribe<NonTrivial>;
-
-  // --- Resource::ResourceManager::GetByKey<T> / Release<T> ---
-  Pod* (GLFD::Resource::ResourceManager::* const kGetByKeyPod)(const std::string&)
-    = &GLFD::Resource::ResourceManager::GetByKey<Pod>;
-  NonTrivial* (GLFD::Resource::ResourceManager::* const kGetByKeyNonTrivial)(const std::string&)
-    = &GLFD::Resource::ResourceManager::GetByKey<NonTrivial>;
-  void (GLFD::Resource::ResourceManager::* const kReleasePod)(GLFD::Resource::ResourceHandle<Pod>)
-    = &GLFD::Resource::ResourceManager::Release<Pod>;
-  void (GLFD::Resource::ResourceManager::* const kReleaseNonTrivial)(GLFD::Resource::ResourceHandle<NonTrivial>)
-    = &GLFD::Resource::ResourceManager::Release<NonTrivial>;
 
   // --- ECS::View<...> ---
   // **`View<...>::Get<T>` は 1-5 で無くなった。** 成分は反復子が参照で返すように
@@ -377,7 +358,6 @@ namespace {
 //   GLFD::ECS::SparseSet<T>                 3 系統の型で通した
 //   GLFD::DynamicArray<T>                   3 系統の型で通した
 //   GLFD::Events::EventChannel<T>           EventBus::Subscribe<T> ごと通した
-//   GLFD::Resource::ResourceStorage<T>      GetByKey<T> / Release<T> ごと通した
 //   GLFD::Memory::StackAllocator::New<T,..> メンバ関数テンプレート
 //   GLFD::ECS::View<...>::begin/end/Slice   1-5 で Get<T> の代わりに置いた
 //   GLFD::ECS::View<...>::Iterator::operator*
@@ -445,6 +425,42 @@ namespace {
 //   Source/main.cpp:3 の #include "Core/HashMap.h"   削除。main() は HashMap を
 //     使っていなかった。削除後も main.cpp は単体でコンパイルできる
 //
+// --- 削除済み(ECS 2-14)-----------------------------------------------------
+//
+// **使われていないことは、消した状態で建つことで確かめた**(grep で参照が見つからないだけでは、
+// 使われていない証明にならない)。ソリューション・全スイート・ベンチ・例外の監査が建ち、残った
+// 翻訳単位の機械語は、消した行を持つ関数のほかは変わらなかった。
+// 理由は書き分ける: 利用者 0 / 壊れていた / その両方。
+//
+//   [1] テクスチャの一式                                       理由: 利用者 0(一箇所だけ壊れていた)
+//     Graphics::Texture / Resource::TextureLoader / Resource::ResourceManager / ResourceStorage /
+//     IResourceStorage / TypeMapEntry / ResourceHandle / HashString / IResourceLoader /
+//     GameContext::resourceManager / DX11Renderer::SetTexture / m_currentTexture / GetDevice /
+//     サンプラー(m_samplerState と PSSetSamplers) / Source/Graphics/stb_image.h / Resource/particle.png
+//     - 2-3 で「使うのをやめるだけ」にした(要件書 §28.3)。以来 Load / Get / GetByKey / Release の
+//       呼び出しは 0 件で、Engine が作って登録し、破棄するだけだった
+//     - **壊れていたもの**: SetTexture の assert("Texture is nullptr") は、文字列リテラルが常に真なので
+//       決して発火しなかった(守りを置いたつもりで、何も検査していなかった)
+//     - サンプラーは毎フレーム PSSetSamplers(0) で結び付けていたが、Particle.hlsl は Texture2D も
+//       SamplerState も宣言していない(PS は UV から丸を描くだけ)。外しても描画は変わらない(撮って比べた)
+//     - 例外の監査の対象外だった(Texture.cpp / TextureLoader.cpp / ResourceManager.cpp の行が無かった)
+//     **残す知見(再び要るときのために)**:
+//      - 読み込み: stbi_load(path, &w, &h, &ch, 4) で RGBA に揃える → D3D11_TEXTURE2D_DESC
+//        (R8G8B8A8_UNORM / MipLevels 1 / USAGE_IMMUTABLE / BIND_SHADER_RESOURCE)、SysMemPitch = w * 4 で
+//        CreateTexture2D → stbi_image_free → CreateShaderResourceView(texture, nullptr)。失敗の理由は
+//        stbi_failure_reason() と HRESULT を Game.log へ(2-11 の ReportStartupCall)
+//      - サンプラー: MIN_MAG_MIP_LINEAR / CLAMP x3 / COMPARISON_NEVER / MaxLOD = D3D11_FLOAT32_MAX。
+//        描くたびに PSSetShaderResources(0) と PSSetSamplers(0)
+//      - stb_image は v2.30。ライセンスは MIT か public domain (Unlicense) の 2 択。
+//        STB_IMAGE_IMPLEMENTATION を 1 つの .cpp でだけ定義する
+//      - ResourceManager の形: 型ごとの保管庫を TypeInfo::GetID<T> で引き、鍵は FNV-1a の文字列
+//        ハッシュ、同じ鍵は読み直さない、読む処理は IResourceLoader<T> に差し込む。
+//        N-1 (std::vector / std::string / std::unique_ptr) と N-3 (HeapResource の関数ローカル static) に
+//        抵触していた。作り直すなら IMemoryResource の上で
+//      - 2-3 で使うのをやめた理由: 種類を色で見分けるため、PS が頂点色の丸を描く形に替えた
+//      - デバイスの消失(2-9)の「作り直す資源は、すべて DX11Renderer の中」は、テクスチャを
+//        数えていなかった(読まれていなかったので実害は無し)。消したので記述どおりになった
+//
 // --- 直したもの(第1段)-------------------------------------------------------
 //
 //   Source/Core/StackResource.h   Deallocate の C4100 x3。[[maybe_unused]] を付けた
@@ -483,7 +499,6 @@ int main() {
   RecordCompiled("E-1: ECS::SparseSet<T> instantiates for POD / non-trivial / throwing-move");
   RecordCompiled("E-1: DynamicArray<T>::Resize instantiates for all three families");
   RecordCompiled("E-1: Events::EventChannel<T> and EventBus::Subscribe<T> instantiate");
-  RecordCompiled("E-1: Resource::ResourceStorage<T>, GetByKey<T> and Release<T> instantiate");
   RecordCompiled("E-1: Memory::StackAllocator::New<T, Args...> instantiates");
 
   // const 経路だけは実行しないと ODR 使用にならないメンバがあるので一度通す

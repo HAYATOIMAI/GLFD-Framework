@@ -82,7 +82,7 @@ namespace {
           &m_global, &m_frame, g_jobs, &m_registry, &m_commands, &m_eventBus,
           nullptr, nullptr, nullptr, nullptr,
           GLFD::Core::kSimulationStep,
-          nullptr, 0.0f, nullptr, nullptr };
+          nullptr, 0.0f, nullptr };
     }
 
     [[nodiscard]] Entity Spawn(float x, float y, float radius) {
