@@ -51,6 +51,7 @@ ADDR = re.compile(r"^\s+[0-9A-F]{16}: (?:[0-9A-F]{2} )+\s*")
 HEX = re.compile(r"\b[0-9A-F]{8,16}h\b")
 ANON = re.compile(r"`anonymous namespace'|\?A0x[0-9a-f]+")
 JMP = re.compile(r"\b[0-9A-F]{16}\b")
+DISP = re.compile(r"([+-])0+([0-9A-F]+h)\b")
 NUMTOK = re.compile(r"\b(?:[0-9][0-9A-F]*h|[0-9A-F]+h|\d+)\b")
 STACKREG = ("rsp", "rbp")
 
@@ -95,7 +96,12 @@ def functions(asm_path):
         m = ADDR.match(line)
         if not m:
             continue
-        ins = HEX.sub("ADDR", ANON.sub("ANON", line[m.end():]))
+        ins = ANON.sub("ANON", line[m.end():])
+        # a 32-bit displacement is printed with leading zeros ([rcx+00000081h]); one that fits in 8 bits is not
+        # ([rcx+79h]). Read both as values, so a member that moves across 127 is a number change, not an
+        # "address" (found in 2-15: GameEngine::ExitReason, m_exitReason 129 -> 121)
+        ins = DISP.sub(lambda d: d.group(1) + ("0" if d.group(2)[0] in "ABCDEF" else "") + d.group(2), ins)
+        ins = HEX.sub("ADDR", ins)
         ins = JMP.sub("TARGET", ins)
         body.append(re.sub(r"\s+", " ", ins).strip())
     if cur is not None:
