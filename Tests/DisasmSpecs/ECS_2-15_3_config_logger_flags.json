@@ -1,0 +1,17 @@
+﻿{
+  "commit": "2-15 commit 3 (ConfigDiagnosticsLogger::Migrated / Rejected and m_sawBase)",
+  "edited": [
+    {"match": "??R?$ConfigDiagnosticsLogger", "why": "operator(): the store m_sawBase = true removed"},
+    {"match": "??RConfigDiagnosticsLogger@GLFD@@", "why": "operator(): the store m_sawBase = true removed"},
+    {"match": "??0ConfigDiagnosticsLogger@GLFD@@", "why": "constructor: m_sawBase removed; the two bools were zeroed with one 2-byte store (mov word ptr [rcx+4],0), now one byte"},
+    {"match": "??$ReloadGameConfig@AEAVConfigDiagnosticsLogger@GLFD@@", "why": "inlines operator() (lost the store); the compiler re-allocated registers (296 -> 302 instructions)"},
+    {"match": "?Initialize@GameEngine@", "why": "inlines the constructor (2-byte -> 1-byte store) and SawLocal() (m_sawLocal 5 -> 4 on its stack: [rbp-3Bh] -> [rbp-3Ch])"},
+    {"match": "?ReloadConfig@BoidDemoScene@", "why": "inlines the constructor (2-byte -> 1-byte store)"}
+  ],
+  "classes": [
+    {"name": "ConfigDiagnosticsLogger", "removed": [{"offset": 4, "size": 1, "member": "m_sawBase (bool); sizeof stays 8"}]}
+  ],
+  "sizes": [],
+  "stack": {"functions": [], "deltas": []},
+  "stack_objects": []
+}

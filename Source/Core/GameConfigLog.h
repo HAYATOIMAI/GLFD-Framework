@@ -83,7 +83,6 @@ namespace GLFD {
       LogConfigDiagnostics(doc, ctx, path);
 
       if (layer == ConfigLayer::Base) {
-        m_sawBase     = true;
         m_baseVersion = ctx.Version();
         LogBaseVersion(path);
         return;
@@ -105,16 +104,6 @@ namespace GLFD {
     [[nodiscard]] std::uint32_t Version()  const noexcept { return m_baseVersion; }
     /// `.local.json` が実在して読まれたか(不在は正常なので false になる)
     [[nodiscard]] bool          SawLocal() const noexcept { return m_sawLocal; }
-
-    /// 古い版を読んで移行分岐を通ったか (A-2)。**基底を読んだ後にだけ意味がある**
-    [[nodiscard]] bool Migrated() const noexcept {
-      return m_sawBase && GameConfigWasMigrated(m_baseVersion);
-    }
-
-    /// このビルドより新しい版で、`ReloadGameConfig` が読み込みを断ったか (A-2)
-    [[nodiscard]] bool Rejected() const noexcept {
-      return m_sawBase && !IsSupportedGameConfigVersion(m_baseVersion);
-    }
 
   private:
     /// 基底の版について伝えるべきことを出す (A-2 論点2/3/5)
@@ -139,7 +128,6 @@ namespace GLFD {
     }
 
     std::uint32_t m_baseVersion = 0;
-    bool          m_sawBase     = false;
     bool          m_sawLocal    = false;
   };
 

@@ -525,6 +525,13 @@ namespace {
 //   [2] Graphics::DX11Renderer::GetDeviceContext                         理由: 利用者 0
 //     - 呼び出しは Source/ / テスト / ベンチ / 監査の probe のどれにも 0 件。ヘッダーの中だけの
 //       関数なのでリンカの一覧には出ない。m_deviceContext は DX11Renderer の中で使い続ける
+//   [3] ConfigDiagnosticsLogger::Migrated / Rejected                     理由: 利用者 0
+//     - 消す前に、移行と拒否の行が Game.log に出ることを実機で確かめた($version 0 / 1 / 2 で
+//       "migrated $version N -> 3"、99 で "newer than this build ... not loaded")。行を出すのは
+//       読み込みで呼ばれる LogBaseVersion で、問い合わせの Migrated() / Rejected() は誰も呼んで
+//       いなかった(観測点は抜けていない)
+//     - 連鎖: m_sawBase を読むのは Migrated / Rejected だけだったので、書かれるだけの値になる。
+//       一緒に消した(2-14 の「書かれるだけで読まれない値」と同じ線)
 //
 // --- 直したもの(第1段)-------------------------------------------------------
 //
