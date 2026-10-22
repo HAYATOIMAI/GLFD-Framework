@@ -33,50 +33,9 @@ namespace GLFD::Graphics {
       rect.right - rect.left, rect.bottom - rect.top,
       nullptr, nullptr, GetModuleHandle(nullptr), this
     );
-
-    // 4. 描画バッファ (DIBSection) の初期化
-    InitBuffer();
-  }
-  SimpleWindow::~SimpleWindow() {
-    if (m_bufferMemory) VirtualFree(m_bufferMemory, 0, MEM_RELEASE);
   }
 
-  void SimpleWindow::Clear(uint32_t color) {
-    // 32bitカラー (0x00RRGGBB)
-    // 高速化のため、本来はSIMDやmemset32を使うべきだが、今回はループで
-    // または黒(0)ならmemsetで一撃
-    if (color == 0) {
-      std::memset(m_bufferMemory, 0, m_width * m_height * sizeof(uint32_t));
-    }
-    else {
-     auto* pixel = static_cast<uint32_t*>(m_bufferMemory);
-      for (int i = 0; i < m_width * m_height; ++i) {
-        *pixel++ = color;
-      }
-    }
-  }
-  void SimpleWindow::DrawPixel(int x, int y, uint32_t color)
-  {
-    if (x >= 0 && x < m_width && y >= 0 && y < m_height) {
-      // メモリは左下が原点ではなく、左上が原点になるようにDIBを作成するが
-      // ここでは高さ方向を反転させて調整。
-      // *m_bufferMemory は (0,0) = 左上 とする。
-      auto* pixel = static_cast<uint32_t*>(m_bufferMemory);
-      pixel[y * m_width + x] = color;
-    }
-  }
-  void SimpleWindow::Present() {
-    HDC hdc = GetDC(m_hwnd);
-
-    StretchDIBits(
-      hdc,
-      0, 0, m_width, m_height,
-      0, 0, m_width, m_height,
-      m_bufferMemory, &m_bmi,
-      DIB_RGB_COLORS, SRCCOPY
-    );
-    ReleaseDC(m_hwnd, hdc);
-  }
+  SimpleWindow::~SimpleWindow() = default;
 
   bool SimpleWindow::ProcessMessages() {
     MSG msg = {};
@@ -109,18 +68,5 @@ namespace GLFD::Graphics {
       return 0;
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
-  }
-
-  void SimpleWindow::InitBuffer() {
-    m_bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    m_bmi.bmiHeader.biWidth = m_width;
-    m_bmi.bmiHeader.biHeight = -m_height;
-    m_bmi.bmiHeader.biPlanes = 1;
-    m_bmi.bmiHeader.biBitCount = 32; // 32bit color (XRGB)
-    m_bmi.bmiHeader.biCompression = BI_RGB;
-
-    // メモリ確保 (VirtualAllocでページ境界に確保すると効率が良い)
-    size_t size = m_width * m_height * sizeof(uint32_t);
-    m_bufferMemory = VirtualAlloc(0, size, MEM_COMMIT, PAGE_READWRITE);
   }
 }

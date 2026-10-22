@@ -489,6 +489,14 @@ namespace {
 //       読まれていなかった(2-11 の記録)。SetConsoleOutputCP の呼び出しは残す
 //     **残す知見**: 切り替えの失敗を知りたくなったら、記録するだけでなく読む場所(起動のログ 1 行など)も
 //       一緒に作る。リダイレクトされているときは失敗するのが普通
+//   [6] Graphics::SimpleWindow の GDI の描画バッファ: Clear / DrawPixel / Present / InitBuffer /
+//       m_bufferMemory / m_bmi                                          理由: 利用者 0
+//     - Clear / DrawPixel / Present の呼び出しは 0 件。それなのにコンストラクタが InitBuffer で
+//       幅 x 高さ x 4 バイト(1280x720 で約 3.7 MB)を VirtualAlloc し、デストラクタが解放していた。
+//       【推測】DX11 に替える前、GDI で描いていた頃の残り(最初のコミットからある)
+//     **残す知見**: BITMAPINFOHEADER(biHeight を負にして左上が原点、32bit BI_RGB)と
+//       VirtualAlloc の画素バッファを StretchDIBits で窓に転送する形だった。1-6 で消した Profiler の
+//       記録にも "GDI Present (StretchDIBits)" が残っていた(上の 1-6 の証拠)
 //
 // --- 直したもの(第1段)-------------------------------------------------------
 //
