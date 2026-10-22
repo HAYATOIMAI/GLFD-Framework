@@ -74,7 +74,6 @@ namespace {
       ctx.grid           = nullptr;
       ctx.window         = nullptr;
       ctx.input          = nullptr;
-      ctx.fileManager    = nullptr;
       ctx.dt             = GLFD::Core::kSimulationStep;
       ctx.renderer       = nullptr;
       ctx.sceneManager   = &scenes;

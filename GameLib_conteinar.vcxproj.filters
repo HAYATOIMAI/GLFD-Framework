@@ -28,9 +28,6 @@
     <ClCompile Include="Source\Core\Logger.cpp">
       <Filter>Core</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Core\FileManager.cpp">
-      <Filter>Core</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Threading\JobSystem.cpp">
       <Filter>Threading</Filter>
     </ClCompile>
@@ -185,9 +182,6 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="Source\Core\DoubleStackAllocator.h">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Core\FileManager.h">
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="Source\Core\DynamicArray.h">

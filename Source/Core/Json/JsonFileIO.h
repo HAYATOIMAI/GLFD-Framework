@@ -12,7 +12,7 @@
  *  設計すると形を誤るためである。2 つ目の消費者が現れた時点で、
  *  この関数のシグネチャを出発点に抽象化すればよい。
  *
- *  既存の `GLFD::Core::FileManager` は使わない。`std::string` / `std::vector` /
+ *  当時あった `GLFD::Core::FileManager` は使わなかった(ECS 2-15 で削除)。`std::string` / `std::vector` /
  *  `std::filesystem` / `std::fstream` に依存しており N-1 / N-2 に抵触するため。
  */
 

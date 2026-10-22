@@ -80,7 +80,7 @@ namespace {
     [[nodiscard]] GLFD::GameContext MakeContext() {
       return GLFD::GameContext{
           &m_global, &m_frame, g_jobs, &m_registry, &m_commands, &m_eventBus,
-          nullptr, nullptr, nullptr, nullptr,
+          nullptr, nullptr, nullptr,
           GLFD::Core::kSimulationStep,
           nullptr, nullptr };
     }

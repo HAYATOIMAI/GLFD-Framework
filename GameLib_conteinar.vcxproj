@@ -19,7 +19,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Source\Core\FileManager.cpp" />
     <ClCompile Include="Source\Core\Json\JsonArena.cpp" />
     <ClCompile Include="Source\Core\Json\JsonReader.cpp" />
     <ClCompile Include="Source\Core\Json\JsonValue.cpp" />
@@ -47,7 +46,6 @@
   <ItemGroup>
     <ClInclude Include="Source\Core\DoubleStackAllocator.h" />
     <ClInclude Include="Source\Core\DynamicArray.h" />
-    <ClInclude Include="Source\Core\FileManager.h" />
     <ClInclude Include="Source\Core\GameConfig.h" />
     <ClInclude Include="Source\Core\GameConfigLoad.h" />
     <ClInclude Include="Source\Core\GameConfigLog.h" />

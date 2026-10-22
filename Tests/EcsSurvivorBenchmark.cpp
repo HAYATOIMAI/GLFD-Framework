@@ -207,7 +207,7 @@ int main(int argc, char** argv) {
     GLFD::GameContext ctx{
         &globalResource, &frameResource, &jobSystem, &registry, &commands, &eventBus,
         nullptr,          // grid: GridBuild が差し込む
-        nullptr, nullptr, nullptr,
+        nullptr, nullptr,
         GLFD::Core::kSimulationStep,
         nullptr, nullptr };
 

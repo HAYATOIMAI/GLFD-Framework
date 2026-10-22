@@ -6,7 +6,7 @@ namespace GLFD::ECS { class Registry; class CommandBuffer; }
 namespace GLFD::Events { class EventBus; }
 namespace GLFD::Graphics { class SimpleWindow; class DX11Renderer; }
 namespace GLFD::Physics  { class SpatialHashGrid; }
-namespace GLFD::Core { class InputSystem; class FileManager; class CloseRequest; }
+namespace GLFD::Core { class InputSystem; class CloseRequest; }
 namespace GLFD::Scene { class SceneManager; }
 // ê›íËÇÕ JSON Ç©ÇÁì«ÇﬁÅBÉwÉbÉ_Ç… Document ÇéùÇøçûÇ‹Ç»Ç¢
 namespace GLFD::Json { class Document; }
@@ -58,7 +58,6 @@ namespace GLFD {
     std::unique_ptr<Graphics::DX11Renderer> m_renderer = nullptr;
 
     std::unique_ptr<Core::InputSystem> m_inputSystem = nullptr;
-    std::unique_ptr<Core::FileManager> m_fileManager = nullptr;
 
     std::unique_ptr<Scene::SceneManager> m_sceneManager = nullptr;
 

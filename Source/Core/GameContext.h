@@ -12,11 +12,6 @@
 #include "../Core/DoubleStackAllocator.h"
 
 namespace GLFD::Scene { class SceneManager; }
-// `FileManager` は **前方宣言だけ**にする (ECS 2-2)。`FileManager.h` を include すると
-// `<filesystem>` → `<chrono>` が付いてきて、**TU に 1 回しか出ない C4530 の枠を
-// 先に使い切る**。この構造体はポインタしか持たず、`ctx.fileManager` を
-// 参照しているコードも 0 件なので、使う側が include すればよい
-namespace GLFD::Core  { class FileManager; }
 
 namespace GLFD {
   struct GameContext {
@@ -33,8 +28,6 @@ namespace GLFD {
 
     Graphics::SimpleWindow*   window;
     Core::InputSystem*        input;
-
-    Core::FileManager* fileManager;
 
     float dt;
 

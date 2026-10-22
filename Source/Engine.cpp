@@ -13,7 +13,6 @@
 #include "Core/SimulationClockLog.h"
 #include "Core/ConsoleClose.h"
 #include "Core/Logger.h"
-#include "Core/FileManager.h"
 
 #include "Threading/JobSystem.h"
 
@@ -86,7 +85,6 @@ namespace GLFD {
     m_stackResource = std::make_unique<Memory::StackResource>(*m_mainStack);
     m_frameAllocator = std::make_unique<Memory::DoubleStackAllocator>(FRAME_MEMORY_SIZE);
 
-    m_fileManager = std::make_unique<Core::FileManager>(".");
     m_jobSystem = std::make_unique<Thread::JobSystem>();
     m_registry = std::make_unique<ECS::Registry>(m_stackResource.get());
     // **メインスレッドで作る。** 構築したスレッドが所有者になり、他スレッドからの
@@ -150,7 +148,6 @@ namespace GLFD {
         nullptr,
         m_window.get(),
         m_inputSystem.get(),
-        m_fileManager.get(),
         0.0f,
         m_renderer.get(),
         m_sceneManager.get()
@@ -291,7 +288,6 @@ namespace GLFD {
         nullptr,
         m_window.get(),
         m_inputSystem.get(),
-        m_fileManager.get(),
         dt,
         m_renderer.get(),
         m_sceneManager.get()
@@ -381,7 +377,6 @@ namespace GLFD {
         nullptr,
         m_window.get(),
         m_inputSystem.get(),
-        m_fileManager.get(),
         0.0f,
         m_renderer.get(),
         m_sceneManager.get()

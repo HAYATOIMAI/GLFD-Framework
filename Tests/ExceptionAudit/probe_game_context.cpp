@@ -5,7 +5,7 @@
  * @details
  *  Before 2-2 this row was C4530, from two entry points and nothing else:
  *   - `Threading/JobSystem.h` -> `<future>` -> `ppltasks.h(1580)`  (0 users in Source/)
- *   - `Core/FileManager.h`    -> `<filesystem>` -> `<chrono>`      (pointer only here)
+ *   - `Core/FileManager.h`    -> `<filesystem>` -> `<chrono>`      (pointer only here; deleted in ECS 2-15)
  *
  *  **Every other dirty header in `Source/` was a transcription of these two**
  *  (measured: 111 single-header TUs, 74 engine headers + 36 standard ones).
@@ -26,5 +26,4 @@ void TouchContext(GLFD::GameContext& ctx) {
   (void)ctx.commands;
   (void)ctx.eventBus;
   (void)ctx.grid;
-  (void)ctx.fileManager;   // pointer only. the forward declaration is enough
 }

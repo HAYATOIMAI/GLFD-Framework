@@ -1,0 +1,21 @@
+﻿{
+  "commit": "2-15 commit 1 (FileManager, GameContext::fileManager), 33b5362 -> working tree",
+  "edited": [
+    {"match": "??0GameEngine@GLFD@@", "why": "constructor: m_fileManager removed"},
+    {"match": "??1GameEngine@GLFD@@", "why": "destructor: m_fileManager (unique_ptr<FileManager>) no longer destroyed"},
+    {"match": "?Initialize@GameEngine@", "why": "make_unique<FileManager> and the GameContext field removed"},
+    {"match": "?Update@GameEngine@", "why": "GameContext field removed"},
+    {"match": "?Render@GameEngine@", "why": "GameContext field removed"},
+    {"match": "?Run@GameEngine@", "why": "inlines Update / Render"}
+  ],
+  "classes": [
+    {"name": "GameEngine", "removed": [{"offset": 80, "size": 8, "member": "m_fileManager (unique_ptr<FileManager>)"}]},
+    {"name": "GameContext", "removed": [{"offset": 72, "size": 8, "member": "fileManager (FileManager*)"}]}
+  ],
+  "sizes": [[2192, 2184, "sizeof GameEngine"], [104, 96, "sizeof GameContext"]],
+  "stack": {"functions": [], "deltas": []},
+  "stack_objects": [
+    {"function": "main", "class": "GameEngine", "register": "rbp", "base": -160,
+     "why": "main builds GameEngine at rsp+60h (lea rcx,[rsp+60h] before ??0GameEngine); rbp = rsp+100h, the frame did not change (2192 -> 2184 rounds to the same 16-byte frame)"}
+  ]
+}

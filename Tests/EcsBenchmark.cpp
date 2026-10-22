@@ -288,7 +288,6 @@ int main(int argc, char** argv) {
         nullptr,          // grid: GridBuildSystem が差し込む
         nullptr,          // window
         nullptr,          // input
-        nullptr,          // fileManager
         GLFD::Core::kSimulationStep,
         nullptr,          // renderer
         nullptr           // sceneManager

@@ -502,6 +502,27 @@ namespace {
 //     - GraphicsType.h は中身がすべてコメント(ConstantBufferData と SimpleVertex の古い定義)で、
 //       include も 0 件。vcxproj に載っていただけ。今の定義は DX11Renderer.h と SimpleVertex.h
 //
+// --- 削除済み(ECS 2-15)-----------------------------------------------------
+//
+// 2-14 と同じ手順(消した状態で建つことで証明し、機械語は Tests/disasm_compare.py の締めた判定で比べた)。
+// 関数の単位の洗い出しは、grep に加えて /Ob0 で建てた翻訳単位を /OPT:REF /VERBOSE でリンクし、
+// リンカが「どこからも参照されていない」として捨てた .cpp の関数で確かめた。
+// 線: 汎用の型の「口」(StackAllocator の印と量、DynamicArray の反復子、JSON の API)は残し、
+// ゲームの都合の型で使われていないものを消す
+//
+//   [1] Core::FileManager (FileManager.h / .cpp) / GameContext::fileManager  理由: その両方(利用者 0 かつ壊れていた)
+//     - 利用者 0: Engine が make_unique<FileManager>(".") で作り、GameContext に入れるだけ。関数の
+//       呼び出しは Source/ にもテストにも 0 件。/Ob0 でリンクすると Read* / Write* / Exists /
+//       ResolvePath は全部捨てられた。ctx.fileManager を読む所も 0 件(2-2 の記録どおり)
+//     - 壊れていた: WriteBinaryFile は書けても return false だった。ReadBinaryFile は tellg の
+//       失敗(-1)を見ていなかった。例外の監査の対象外だった
+//     - N-1(std::string / vector / filesystem / fstream)、N-2(投げる版の filesystem 関数)、
+//       N-4(既定のアロケータ)に抵触していた。JSON はこれを嫌って JsonFileIO を別に置いた
+//     **残す知見**: 根(m_rootPath)は渡された "." = 作業フォルダだった。作業フォルダに依らずに
+//       ファイルを見つける仕組みではなかったので、2-9 の「x64\Release から起動すると消える」は
+//       これを使っても直らない。直すなら exe の場所から根を決め(Tests/RepositoryPath.h と同じ形)、
+//       設定・シェーダー・ログの 3 つを通す(次の候補)
+//
 // --- 直したもの(第1段)-------------------------------------------------------
 //
 //   Source/Core/StackResource.h   Deallocate の C4100 x3。[[maybe_unused]] を付けた

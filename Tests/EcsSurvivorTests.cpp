@@ -102,7 +102,7 @@ namespace {
       return GLFD::GameContext{
           &m_global, &m_frame, g_jobs, &m_registry, &m_commands, &m_eventBus,
           nullptr,                 // grid: GridBuild が差し込む
-          nullptr, nullptr, nullptr,
+          nullptr, nullptr,
           GLFD::Core::kSimulationStep,
           nullptr, nullptr };
     }
