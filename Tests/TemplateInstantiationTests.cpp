@@ -460,6 +460,11 @@ namespace {
 //      - 2-3 で使うのをやめた理由: 種類を色で見分けるため、PS が頂点色の丸を描く形に替えた
 //      - デバイスの消失(2-9)の「作り直す資源は、すべて DX11Renderer の中」は、テクスチャを
 //        数えていなかった(読まれていなかったので実害は無し)。消したので記述どおりになった
+//   [2] Memory::HeapResource / Memory::GetDefaultResource              理由: 利用者 0(連鎖)
+//     - 唯一の利用者が ResourceManager だったので、[1] で利用者 0 になった
+//     - GetInstance は関数ローカルの static(N-3 と方向が逆)。中身は _aligned_malloc / _aligned_free を
+//       呼ぶだけの IMemoryResource。ヒープの資源が要るなら、持ち主を決めて値で持たせる(テストの
+//       MockMemoryResource と同じ形)
 //
 // --- 直したもの(第1段)-------------------------------------------------------
 //
