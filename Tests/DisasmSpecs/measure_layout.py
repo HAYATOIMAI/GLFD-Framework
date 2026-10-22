@@ -1,13 +1,13 @@
 ﻿# -*- coding: utf-8 -*-
 """Compile a layout TU (measure_layout.cpp by default) against a tree with the Release flags and print what it prints.
 For disasm_compare.py specs: offsets and sizes are measured, never worked out by hand.
-usage: python -I measure_layout.py <tree> <tag> [<file.cpp> [DEFINE ...]]   (output under this folder\\<tag>)"""
+usage: python -I measure_layout.py <tree> <tag> [<file.cpp> [DEFINE ...]]   (output under %TEMP%\glfd_measure_layout\<tag>)"""
 import os, subprocess, sys
 here = os.path.dirname(os.path.abspath(__file__))
 tree, tag = sys.argv[1], sys.argv[2]
 src = sys.argv[3] if len(sys.argv) > 3 else "measure_layout.cpp"
 defs = " ".join("/D" + d for d in sys.argv[4:])
-d = os.path.join(here, tag)
+d = os.path.join(os.environ.get("TEMP", here), "glfd_measure_layout", tag)   # outside the repository (2-15)
 os.makedirs(d, exist_ok=True)
 bat = os.path.join(d, "b.bat")
 open(bat, "w", encoding="ascii").write(

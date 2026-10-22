@@ -1,5 +1,14 @@
-﻿// 2-14: offsets of the members a removal touches, measured by the compiler (private made public in this TU only).
-// Build with /DFIELDS_BASE for the tree that still has the removed members.
+﻿// GLFD (since ECS 2-14): offsets and sizes measured by the compiler, for the specs of Tests/disasm_compare.py.
+//
+// Only the CURRENT types are measured here, so this file always builds: Tests\build_and_run.bat compiles it on
+// every run (since ECS 2-15). Before 2-15 it carried #ifdef branches for members that 2-14 removed, nothing built
+// it, and those branches no longer compiled.
+//
+// When a phase removes a member: add the member to a temporary #ifdef branch, measure the tree that still has it
+// (measure_layout.py <tree> <tag> measure_layout.cpp <DEFINE>) and the tree without it, write the spec, and take the
+// branch out again before the phase is committed.
+//
+// private / protected are made public in this TU only, so private members can be measured.
 #include <cstddef>
 #include <cstdio>
 #include <memory>
@@ -27,29 +36,11 @@
 int main() {
   using namespace GLFD;
   S(GameEngine); S(Graphics::DX11Renderer); S(GameContext); S(Core::Logger); S(Graphics::SimpleWindow);
-  P(GameEngine, m_fileManager); P(GameEngine, m_sceneManager); P(GameEngine, m_isRunning); P(GameEngine, m_jobDropsSeen); P(GameEngine, m_droppingJobs); P(GameEngine, m_exitReason); P(GameEngine, m_closeRequest); P(GameEngine, m_exitMessage);
+  P(GameEngine, m_inputSystem); P(GameEngine, m_sceneManager); P(GameEngine, m_isRunning); P(GameEngine, m_jobDropsSeen);
+  P(GameEngine, m_droppingJobs); P(GameEngine, m_exitReason); P(GameEngine, m_closeRequest); P(GameEngine, m_exitMessage);
   P(Graphics::DX11Renderer, m_vertexBuffer); P(Graphics::DX11Renderer, m_width); P(Graphics::DX11Renderer, m_height);
-  P(GameContext, renderer); P(GameContext, sceneManager);
-#ifdef FIELDS_C3
-  P(GameEngine, m_totalTime); P(GameContext, totalTime); P(GameContext, dt);
-  S(Graphics::ConstantBufferData);
-#endif
-#ifdef FIELDS_C4
-  S(Graphics::ConstantBufferData);
-#endif
-#ifdef FIELDS_C4L
-  P(Core::Logger, m_fileStream); P(Core::Logger, m_mutex); P(Core::Logger, m_consoleCodePageChanged);
-#endif
-#ifdef FIELDS_C5L
+  P(GameContext, input); P(GameContext, dt); P(GameContext, renderer); P(GameContext, sceneManager);
   P(Core::Logger, m_fileStream); P(Core::Logger, m_mutex);
-#endif
-#ifdef FIELDS_C5W
-  P(Graphics::SimpleWindow, m_height); P(Graphics::SimpleWindow, m_bufferMemory); P(Graphics::SimpleWindow, m_bmi);
-#endif
-#ifdef FIELDS_C0
-  P(GameEngine, m_resourceManager);
-  P(Graphics::DX11Renderer, m_samplerState); P(Graphics::DX11Renderer, m_currentTexture);
-  P(GameContext, resourceManager);
-#endif
+  P(Graphics::SimpleWindow, m_hwnd); P(Graphics::SimpleWindow, m_height);
   return 0;
 }

@@ -62,3 +62,6 @@ results.json
 
 # ツールの設定
 .claude/
+
+# Python の道具(Tests/*.py)を import したときにできる (ECS 2-15)
+__pycache__/

@@ -50,6 +50,12 @@ set "FAILED_NAMES="
 
 for %%f in ("%~dp0*Tests.cpp") do call :maybe_build "%%~ff" "%%~nf"
 
+rem  ECS 2-15: Tests\DisasmSpecs\measure_layout.cpp(Tests\disasm_compare.py の spec に使う、位置と大きさを
+rem  コンパイラに測らせる TU)が建つかだけを確かめる。走らせはしない。今の型だけを測るので、
+rem  メンバを消したらここで落ちる(2-14 まではどこからも建てられず、古い枝が腐っていた)。
+rem  スイートの数には入れない。スイートを 1 本に絞ったときは飛ばす
+if "%ONLY%"=="" call :build_measure_layout
+
 echo ===========================================================
 if not "%FAILED%"=="0" (
   echo [ERROR] %FAILED% of %SUITES% suite^(s^) failed:%FAILED_NAMES%
@@ -156,6 +162,18 @@ exit /b 0
 
 
 rem ---------------------------------------------------------------------------
+:build_measure_layout
+echo.
+echo ----- compiling DisasmSpecs\measure_layout.cpp (%CONFIG%, compile only) -----
+cl %COMMON_FLAGS% %CFG_FLAGS% /wd4324 /c ^
+   /I "%ROOT%\Source" /Fo"%OUTDIR%\measure_layout.obj" "%~dp0DisasmSpecs\measure_layout.cpp"
+if errorlevel 1 (
+  echo [ERROR] build failed: DisasmSpecs\measure_layout.cpp
+  set /a FAILED+=1
+  set "FAILED_NAMES=!FAILED_NAMES! measure_layout(build)"
+)
+exit /b 0
+
 :setup_msvc
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 if not exist "%VSWHERE%" (
