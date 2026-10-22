@@ -60,8 +60,6 @@ namespace GLFD::Graphics {
 
     void UpdateGlobalConstants(float aspectRatio);
 
-    // デバイスコンテキスト取得
-    ID3D11DeviceContext* GetDeviceContext() const { return m_deviceContext.Get(); }
   private:
     Microsoft::WRL::ComPtr<ID3D11Device>           m_device;
     Microsoft::WRL::ComPtr<ID3D11DeviceContext>    m_deviceContext;
