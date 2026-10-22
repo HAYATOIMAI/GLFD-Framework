@@ -12,14 +12,6 @@ namespace GLFD::Events {
     float velocityImpact; // 衝突の勢い（音量などに使用）
   };
 
-  // デバッグ用ログイベント
-  struct LogEvent {
-    int code;
-    // 文字列などはStackAllocatorとの相性が悪いため、
-    // 固定長配列にするか、IDを渡すのが定石
-    char message[64];
-  };
-
   /**
    * @brief 命中イベント (ECS 1-8)。弾が敵に重なった
    * @note  並列の `HitSystem` から発行され、`DispatchEvents` でメインスレッドへ届く。

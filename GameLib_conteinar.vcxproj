@@ -107,7 +107,6 @@
     <ClInclude Include="Source\Game\SceneCatalog.h" />
     <ClInclude Include="Source\Graphics\ConstantBuffer.h" />
     <ClInclude Include="Source\Graphics\DX11Renderer.h" />
-    <ClInclude Include="Source\Graphics\GraphicsType.h" />
     <ClInclude Include="Source\Graphics\RenderFaultProbe.h" />
     <ClInclude Include="Source\Graphics\RenderHealth.h" />
     <ClInclude Include="Source\Graphics\RenderHealthLog.h" />

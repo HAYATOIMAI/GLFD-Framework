@@ -497,6 +497,10 @@ namespace {
 //     **残す知見**: BITMAPINFOHEADER(biHeight を負にして左上が原点、32bit BI_RGB)と
 //       VirtualAlloc の画素バッファを StretchDIBits で窓に転送する形だった。1-6 で消した Profiler の
 //       記録にも "GDI Present (StretchDIBits)" が残っていた(上の 1-6 の証拠)
+//   [7] Events::LogEvent / Source/Graphics/GraphicsType.h               理由: 利用者 0
+//     - LogEvent は宣言だけ(code と char message[64])で、発行も購読も 0 件
+//     - GraphicsType.h は中身がすべてコメント(ConstantBufferData と SimpleVertex の古い定義)で、
+//       include も 0 件。vcxproj に載っていただけ。今の定義は DX11Renderer.h と SimpleVertex.h
 //
 // --- 直したもの(第1段)-------------------------------------------------------
 //

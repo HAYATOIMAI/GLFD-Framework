@@ -235,9 +235,6 @@
     <ClInclude Include="Source\Graphics\Shader.h">
       <Filter>Graphics</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Graphics\GraphicsType.h">
-      <Filter>Graphics</Filter>
-    </ClInclude>
     <ClInclude Include="Source\Graphics\RenderSystem.h">
       <Filter>Graphics</Filter>
     </ClInclude>
