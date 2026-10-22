@@ -31,9 +31,6 @@
     <ClCompile Include="Source\Core\FileManager.cpp">
       <Filter>Core</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Threading\ThreadPool.cpp">
-      <Filter>Threading</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Threading\JobSystem.cpp">
       <Filter>Threading</Filter>
     </ClCompile>
@@ -195,9 +192,6 @@
     </ClInclude>
     <ClInclude Include="Source\Core\DynamicArray.h">
       <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Threading\ThreadPool.h">
-      <Filter>Threading</Filter>
     </ClInclude>
     <ClInclude Include="Source\Threading\LockFreeQueue.h">
       <Filter>Threading</Filter>

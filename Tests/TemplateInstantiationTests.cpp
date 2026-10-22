@@ -24,10 +24,10 @@
  *        `ReloadGameConfig<OnIssues>`)も同じ理由で除外済み** —
  *        ディレクトリによる機械的な線引きでは拾えないので明記しておく。
  *
- *  @note `Thread::ThreadPool::Enqueue<F>` も未実体化だが**載せていない**。
+ *  @note `Thread::ThreadPool::Enqueue<F>` も未実体化だったが**載せなかった**。
  *        `ThreadPool` 自体の利用者が 0 件で `JobSystem` が別に存在するため、
- *        これは「未実体化テンプレート」ではなく未使用サブシステムの問題であり、
- *        性質が違う。§3 の報告側で扱う。
+ *        「未実体化テンプレート」ではなく未使用サブシステムの問題だった。
+ *        ECS 2-14 で型ごと消した(下の棚卸しの「削除済み(ECS 2-14)」の [3])。
  *
  *  @note このスイートは `/EHsc` でビルドされる。**`/EH` 無しの C4530 は別途
  *        同じ TU をゲーム本体のフラグでコンパイルして採取する** (E-1 §2.4)。
@@ -465,6 +465,16 @@ namespace {
 //     - GetInstance は関数ローカルの static(N-3 と方向が逆)。中身は _aligned_malloc / _aligned_free を
 //       呼ぶだけの IMemoryResource。ヒープの資源が要るなら、持ち主を決めて値で持たせる(テストの
 //       MockMemoryResource と同じ形)
+//   [3] Thread::ThreadPool (ThreadPool.h / .cpp)                      理由: その両方(利用者 0 かつ壊れていた)
+//     - 利用者 0: ThreadPool.h を include していたのは自分の .cpp だけ。テスト 6 本とベンチの bat 3 本が
+//       ThreadPool.cpp を**リンクしていただけ**で、呼ぶものは無かった
+//     - 壊れていた: 2-4 で JobSystem と同じ停止のハングの欠陥を持つと記録した(要件書 §24.9)。
+//       【推測】Stop() がフラグを立てて notify_all した後に「件数 0 を読んだワーカー」が wait(0) に
+//       入ると、起こす者がいない。jthread の request_stop は atomic の wait を起こさない
+//     - 例外の監査の対象外だった(ThreadPool.cpp の行が無かった)。WorkerLoop に try / catch(...) があった
+//     **残す知見**: LockFreeQueue<std::function<void()>, 4096> と std::jthread の「投げっぱなし」のプール。
+//       完了を待つ口が無い(JobSystem はカウンタで待てる)。満杯のとき Enqueue は yield しながら
+//       空きを待つ。LockFreeQueue は JobSystem と EventChannel が使っているので残した
 //
 // --- 直したもの(第1段)-------------------------------------------------------
 //

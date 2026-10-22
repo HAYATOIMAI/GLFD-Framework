@@ -151,7 +151,7 @@ namespace GLFD::Json {
    * @details
    *  **`.value()` を呼ばない。** `throw` するのは `.value()` だけであり、
    *  `has_value()` / `operator*` / `emplace()` / `reset()` は非投擲である
-   *  (エンジンの既存コードも `JobSystem` / `ThreadPool` / `HashMap` で
+   *  (エンジンの既存コードも `JobSystem` / `HashMap` で(当時は `ThreadPool` も。ECS 2-14 で削除)
    *  すべて `operator bool` + `operator*` を使っており、`.value()` は 1 箇所も無い)。
    *
    *  **書き: 値なしは `null` を出力する。** 省略しないのは 2 つの理由による:

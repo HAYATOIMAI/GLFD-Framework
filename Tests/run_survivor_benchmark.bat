@@ -38,7 +38,7 @@ if /i "%CONFIG%"=="debug" (
 rem  the game's flags, from CL.command.1.tlog
 set "COMMON_FLAGS=/nologo /std:c++20 /permissive- /W3 /sdl /EHsc /GR- /Zc:__cplusplus"
 
-set "ENGINE_SOURCES=%ROOT%\Source\Core\Json\JsonArena.cpp %ROOT%\Source\Core\Json\JsonReader.cpp %ROOT%\Source\Core\Json\JsonValue.cpp %ROOT%\Source\Core\Json\JsonFileIO.cpp %ROOT%\Source\Core\Json\JsonDocument.cpp %ROOT%\Source\Core\Json\JsonWriter.cpp %ROOT%\Source\Core\StackAllocator.cpp %ROOT%\Source\Core\Logger.cpp %ROOT%\Source\Physics\SpatialHashGrid.cpp %ROOT%\Source\Threading\JobSystem.cpp %ROOT%\Source\Threading\ThreadPool.cpp"
+set "ENGINE_SOURCES=%ROOT%\Source\Core\Json\JsonArena.cpp %ROOT%\Source\Core\Json\JsonReader.cpp %ROOT%\Source\Core\Json\JsonValue.cpp %ROOT%\Source\Core\Json\JsonFileIO.cpp %ROOT%\Source\Core\Json\JsonDocument.cpp %ROOT%\Source\Core\Json\JsonWriter.cpp %ROOT%\Source\Core\StackAllocator.cpp %ROOT%\Source\Core\Logger.cpp %ROOT%\Source\Physics\SpatialHashGrid.cpp %ROOT%\Source\Threading\JobSystem.cpp"
 
 if not defined VSINSTALLDIR call :setup_msvc
 if errorlevel 1 exit /b 1

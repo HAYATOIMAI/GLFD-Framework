@@ -36,7 +36,6 @@
     <ClCompile Include="Source\main.cpp" />
     <ClCompile Include="Source\Physics\SpatialHashGrid.cpp" />
     <ClCompile Include="Source\Threading\JobSystem.cpp" />
-    <ClCompile Include="Source\Threading\ThreadPool.cpp" />
     <ClCompile Include="Source\Scene\SceneManager.cpp" />
     <ClCompile Include="Source\Game\BoidDemoScene.cpp" />
     <ClCompile Include="Source\Game\SurvivorScene.cpp" />
@@ -126,7 +125,6 @@
     <ClInclude Include="Source\Threading\JobSystemProbe.h" />
     <ClInclude Include="Source\Threading\LockFreeQueue.h" />
     <ClInclude Include="Source\Threading\ParallelFor.h" />
-    <ClInclude Include="Source\Threading\ThreadPool.h" />
     <ClInclude Include="Source\Scene\IScene.h" />
     <ClInclude Include="Source\Scene\SceneManager.h" />
     <ClInclude Include="Source\Game\BoidDemoScene.h" />
