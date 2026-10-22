@@ -3,8 +3,7 @@
 cbuffer GlobalConstants : register(b0)
 {
     float AspectRatio;
-    float Time;
-    float2 Padding;
+    float3 Padding;   // 16 バイトに揃えるための詰め物。Time は ECS 2-14 で消した(読むのは使われない timeFactor だけだった)
 };
 
 // テクスチャは使わない (ECS 2-3)。PS が四角の中に丸を描く
@@ -42,8 +41,6 @@ void GS(point GS_INPUT input[1], inout TriangleStream<PS_INPUT> outputStream)
 {
     PS_INPUT outVert;
     
-    // 時間変化
-    float timeFactor = (sin(Time * 3.0) + 1.0) * 0.5;
     outVert.Color = input[0].Color;
 
     // 大きさは頂点が持つ (Pos.z)。ここに既定値を置かない

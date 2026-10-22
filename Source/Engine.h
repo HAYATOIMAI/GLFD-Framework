@@ -73,7 +73,6 @@ namespace GLFD {
     std::unique_ptr<GameConfig>     m_config    = nullptr;
 
     bool m_isRunning = false;
-    float m_totalTime = 0.0f;
 
     // ECS 2-4: JobSystem がキュー満杯で捨てた件数。**JobSystem は出力しない**ので
     // ここで読み、捨て始めと止んだときだけ出す(毎フレーム出さない。開発手法 6.2)

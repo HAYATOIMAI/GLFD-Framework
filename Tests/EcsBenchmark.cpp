@@ -291,7 +291,6 @@ int main(int argc, char** argv) {
         nullptr,          // fileManager
         GLFD::Core::kSimulationStep,
         nullptr,          // renderer
-        static_cast<float>(f) * GLFD::Core::kSimulationStep,
         nullptr           // sceneManager
     };
 

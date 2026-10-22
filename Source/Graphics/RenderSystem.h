@@ -28,14 +28,14 @@ namespace GLFD::Systems {
     ///        **スレッド安全でもなかった** (ECS-0 の 2)
     [[nodiscard]] static RenderStatus Update(ECS::Registry& registry,
                        Graphics::DX11Renderer& renderer,
-                       Memory::IMemoryResource* frameResource, float time,
+                       Memory::IMemoryResource* frameResource,
                        const Graphics::ScreenMapping& screen) {
 
       // 画面クリア (黒)
      renderer.BeginFrame();
 
      // 定数バッファ更新。縦横比は対応が持つ(幅・高さ 0 の守りもそちら。ECS 2-13)
-     renderer.UpdateGlobalConstants(screen.aspect, time);
+     renderer.UpdateGlobalConstants(screen.aspect);
 
       // 全ての位置を取得。**単一型なので飛ばされる要素が無く、
       // dense 配列をそのまま舐められる** (1-5)

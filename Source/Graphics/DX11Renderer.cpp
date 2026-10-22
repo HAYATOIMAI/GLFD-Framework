@@ -211,8 +211,8 @@ namespace GLFD::Graphics {
     m_deviceContext->GSSetShader(nullptr, nullptr, 0);
   }
 
-  void DX11Renderer::UpdateGlobalConstants(float aspectRatio, float time) {
-    ConstantBufferData data = { aspectRatio, time, {0, 0} };
+  void DX11Renderer::UpdateGlobalConstants(float aspectRatio) {
+    ConstantBufferData data = { aspectRatio, {0, 0, 0} };
     m_cbGlobal.Update(m_deviceContext.Get(), data);
   }
 

@@ -25,8 +25,7 @@ namespace GLFD::Graphics {
   // 定数バッファのデータ構造
   struct ConstantBufferData {
     float AspectRatio;  // 画面のアスペクト比 (Width / Height)
-    float Time;         // ゲーム経過時間 (秒)
-    float Padding[2];   // 16バイトに揃えるための詰め物
+    float Padding[3];   // 16バイトに揃えるための詰め物 (Time は ECS 2-14 で消した)
   };
 
   class DX11Renderer {
@@ -59,7 +58,7 @@ namespace GLFD::Graphics {
     ///       `DynamicArray` + `IMemoryResource` へ移ったため (N-1 / N-3)
     void DrawPoints(const SimpleVertex* points, size_t count);
 
-    void UpdateGlobalConstants(float aspectRatio, float time);
+    void UpdateGlobalConstants(float aspectRatio);
 
     // デバイスコンテキスト取得
     ID3D11DeviceContext* GetDeviceContext() const { return m_deviceContext.Get(); }

@@ -475,6 +475,15 @@ namespace {
 //     **残す知見**: LockFreeQueue<std::function<void()>, 4096> と std::jthread の「投げっぱなし」のプール。
 //       完了を待つ口が無い(JobSystem はカウンタで待てる)。満杯のとき Enqueue は yield しながら
 //       空きを待つ。LockFreeQueue は JobSystem と EventChannel が使っているので残した
+//   [4] 時刻: GS の timeFactor / 定数バッファの Time / ConstantBufferData::Time /
+//       UpdateGlobalConstants と RenderSystem::Update / DrawSurvivor の time /
+//       GameContext::totalTime / GameEngine::m_totalTime                 理由: 利用者 0
+//     - Particle.hlsl の GS が timeFactor = (sin(Time * 3) + 1) / 2 を計算していたが、どこにも使って
+//       いなかった。Time を読むのはそれだけで、書く側(Engine の m_totalTime → GameContext →
+//       描画 → 定数バッファ)は「書かれるだけで読まれない値」の連鎖だった
+//     - 定数バッファは 16 バイトのまま(AspectRatio + 詰め物 float3)。描画は変わらない(撮って比べた)
+//     **残す知見**: 時間で動かす見た目が要るなら、定数バッファに Time を戻し、詰め物を float2 にする。
+//       時刻の出どころは固定刻み(kSimulationStep × 刻みの数)か、実時間かを決めてから(2-8 の刻み)
 //
 // --- 直したもの(第1段)-------------------------------------------------------
 //

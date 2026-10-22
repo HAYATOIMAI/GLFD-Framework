@@ -77,7 +77,6 @@ namespace {
       ctx.fileManager    = nullptr;
       ctx.dt             = GLFD::Core::kSimulationStep;
       ctx.renderer       = nullptr;
-      ctx.totalTime      = 0.0f;
       ctx.sceneManager   = &scenes;
       return ctx;
     }

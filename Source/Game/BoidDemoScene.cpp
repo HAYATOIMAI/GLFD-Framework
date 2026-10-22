@@ -294,7 +294,7 @@ namespace GLFD {
     // ¸”s‚µ‚Ä‚à–Ù‚Á‚Ä 1 ƒtƒŒ[ƒ€•`‚©‚¸‚É–ß‚Á‚Ä‚¢‚½
     const Systems::RenderStatus status =
         Systems::RenderSystem::Update(*ctx.registry, *ctx.renderer, ctx.frameResource,
-                                      ctx.totalTime, ScreenMappingFor(ctx));
+                                      ScreenMappingFor(ctx));
     Game::ReportRenderStatus(status, m_renderGate);
   }
 

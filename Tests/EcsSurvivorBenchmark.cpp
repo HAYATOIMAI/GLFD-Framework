@@ -209,7 +209,7 @@ int main(int argc, char** argv) {
         nullptr,          // grid: GridBuild が差し込む
         nullptr, nullptr, nullptr,
         GLFD::Core::kSimulationStep,
-        nullptr, static_cast<float>(f) * GLFD::Core::kSimulationStep, nullptr };
+        nullptr, nullptr };
 
     const bool measuring = (f >= warmup);
     const int  m         = f - warmup;

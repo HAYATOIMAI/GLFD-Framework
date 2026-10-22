@@ -39,7 +39,6 @@ namespace GLFD {
     float dt;
 
     Graphics::DX11Renderer*   renderer;
-    float                     totalTime;
     Scene::SceneManager*      sceneManager;
   };
 }

@@ -153,7 +153,6 @@ namespace GLFD {
         m_fileManager.get(),
         0.0f,
         m_renderer.get(),
-        0.0f,
         m_sceneManager.get()
     };
 
@@ -282,8 +281,6 @@ namespace GLFD {
 
     Memory::StackResource frameResource(m_frameAllocator->GetCurrent());
 
-    m_totalTime += dt;
-
     GameContext ctx{
         m_stackResource.get(),
         &frameResource,
@@ -297,7 +294,6 @@ namespace GLFD {
         m_fileManager.get(),
         dt,
         m_renderer.get(),
-        m_totalTime,
         m_sceneManager.get()
     };
 
@@ -388,7 +384,6 @@ namespace GLFD {
         m_fileManager.get(),
         0.0f,
         m_renderer.get(),
-        m_totalTime,
         m_sceneManager.get()
     };
 

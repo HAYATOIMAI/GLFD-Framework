@@ -104,7 +104,7 @@ namespace {
           nullptr,                 // grid: GridBuild が差し込む
           nullptr, nullptr, nullptr,
           GLFD::Core::kSimulationStep,
-          nullptr, 0.0f, nullptr };
+          nullptr, nullptr };
     }
 
     GLFD::ECS::Registry&      Registry() { return m_registry; }

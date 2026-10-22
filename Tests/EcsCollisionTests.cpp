@@ -94,7 +94,7 @@ namespace {
           nullptr,                 // grid: GridBuildSystem が差し込む
           nullptr, nullptr, nullptr,
           GLFD::Core::kSimulationStep,
-          nullptr, 0.0f, nullptr };
+          nullptr, nullptr };
     }
 
     [[nodiscard]] Entity Spawn(float x, float y, float radius) {

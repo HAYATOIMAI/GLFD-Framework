@@ -36,7 +36,7 @@ namespace {
                                            const GLFD::Game::SurvivorParams& params,
                                            GLFD::Graphics::DX11Renderer& renderer,
                                            GLFD::Memory::IMemoryResource* frameResource,
-                                           float time, int windowWidth, int windowHeight) {
+                                           int windowWidth, int windowHeight) {
     using namespace GLFD;
 
     renderer.BeginFrame();
@@ -45,7 +45,7 @@ namespace {
     // (2-12 までは `RenderSystem` と同じ計算の写しがここにあった)
     const Graphics::ScreenMapping screen =
         Graphics::ScreenMappingOf(Game::kSurvivorVisibleHalfY, windowWidth, windowHeight);
-    renderer.UpdateGlobalConstants(screen.aspect, time);
+    renderer.UpdateGlobalConstants(screen.aspect);
 
     // 頂点を組むのは `Game/SurvivorRender.h`。**テストとベンチも同じ関数を呼ぶ** (2-3)
     DynamicArray<Graphics::SimpleVertex> vertices(frameResource);
@@ -112,7 +112,7 @@ namespace GLFD {
 
   void SurvivorScene::OnRender(GameContext& ctx) {
     const Systems::RenderStatus status =
-        DrawSurvivor(*ctx.registry, m_state.params, *ctx.renderer, ctx.frameResource, ctx.totalTime,
+        DrawSurvivor(*ctx.registry, m_state.params, *ctx.renderer, ctx.frameResource,
                      ctx.window->GetWidth(), ctx.window->GetHeight());
     Game::ReportRenderStatus(status, m_renderGate);
   }
