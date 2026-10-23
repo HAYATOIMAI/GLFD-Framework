@@ -30,7 +30,12 @@ spec.json:
                  {"name": "GameEngine", "removed": [ {"offset": 124, "size": 4, "until": 136, "member": "m_totalTime"} ]} ],
                (offsets and shifts are measured with the compiler: offsetof in both trees, never worked out by hand)
     "sizes":   [ [160, 144, "sizeof DX11Renderer"] ],
-    "stack":   {"functions": ["main"], "deltas": [16, 8], "why": "GameEngine lives on main's stack"} }
+    "stack":   {"functions": ["main"], "deltas": [16, 8], "why": "GameEngine lives on main's stack"},
+    "new_library": {"tus": ["Logger"], "crt": ["wmemset"], "why": "the wide open instantiates std::wstring"} }
+  "new_library" (ECS 2-16) is for an ADDITION: edited code starts using a library overload (ofstream::open(const
+  wchar_t*)), and the compiler emits its template instantiations into that TU. A function only in the new tree, in a
+  named TU, whose decorated name has @std@@ (or is listed in "crt") is ONLYNEW-LIB. A library function that exists on
+  both sides and differs stays UNEXPLAINED, and so does a new non-library function that is not in "edited".
 How to use it for a removal (ECS 2-14):
   1. a worktree OUTSIDE the repo at the commit before the change:  git worktree add --detach ..\_base <commit>
   2. measure the layout of every class that lost a member, in both trees, with the compiler (never by hand):
@@ -141,6 +146,30 @@ def shape(i):
 def parent_of(label):
     m = re.match(r"\?dtor\$\d+@\?0\?\?(.*)", label)
     return "?" + m.group(1) if m else None
+
+
+def new_library_ok(tu, label, spec):
+    """A function only in the new tree, in a TU the spec names under "new_library", that belongs to the standard
+    library or is one of the listed CRT names. Only ADDED functions qualify: a library function that exists on both
+    sides and differs is still UNEXPLAINED, and so is anything in a TU not named.
+    "Belongs to std" is read from the undecorated name: the qualified name after "__cdecl " starts with "std::" (for a
+    lambda or an unwind funclet, the enclosing function's). The decorated name is not enough: a GLFD function that
+    returns std::string has @std@@ in it (ToUtf8, 2-16; the first version of this rule let it through)."""
+    lib = spec.get("new_library")
+    if not lib or tu not in lib.get("tus", []):
+        return False
+    decorated, _, rest = label.partition(" ")
+    if decorated in lib.get("crt", []):
+        return True
+    text = rest.strip("()")
+    for _ in range(4):   # a local entity: `<enclosing signature>'::... -> look inside the enclosing function
+        at = text.find("__cdecl ")
+        if at < 0:
+            return False
+        text = text[at + len("__cdecl "):]
+        if not text.startswith("`"):
+            return text.startswith("std::")
+    return False
 
 
 def classify(label, a, b, spec):
@@ -254,6 +283,8 @@ def main():
                     verdict = "ONLYNEW-OK"   # an unwind funclet of an edited function, renumbered
                 elif any(e["match"] in k for e in spec.get("edited", [])):
                     verdict = "ONLYNEW-OK"   # an edited function whose signature (so its decorated name) changed
+                elif new_library_ok(name, k, spec):
+                    verdict = "ONLYNEW-LIB"  # a library instantiation that edited code now uses, in a named TU
                 else:
                     verdict = "UNEXPLAINED"; bad += 1
             report.append("    %-11s %s" % (verdict, k[:200]))
