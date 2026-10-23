@@ -1,0 +1,31 @@
+﻿{
+  "commit": "2-16 commit 2 (the shader and the log are opened with the wide APIs; paths still relative)",
+  "edited": [
+    {
+      "match": "?Initialize@Logger@Core@GLFD@@",
+      "why": "both overloads: the narrow one now converts UTF-8 and calls the wide one; the wide one opens with ofstream(const wchar_t*) and writes the failure line without a fixed buffer"
+    },
+    {
+      "match": "ToUtf8",
+      "why": "new helper in Logger.cpp (anonymous namespace)"
+    },
+    {
+      "match": "LoadFileToString",
+      "why": "takes const wchar_t*, opens with ifstream(const wchar_t*), checks tellg"
+    },
+    {
+      "match": "?Initialize@ParticleShader@Graphics@GLFD@@",
+      "why": "passes a wide literal to LoadFileToString (and may inline it)"
+    }
+  ],
+  "new_library": {
+    "tus": [
+      "Logger",
+      "Shader"
+    ],
+    "crt": [
+      "wmemset"
+    ],
+    "why": "ofstream::open(const wchar_t*) / ifstream(const wchar_t*) and the std::wstring of the UTF-8 overload are new instantiations in these two TUs"
+  }
+}

@@ -7,14 +7,19 @@
 
 namespace GLFD::Graphics {
 
-  static bool LoadFileToString(const std::string& filepath, std::string& outString)
+  // パスはワイドで開く (ECS 2-16)。狭い文字の open は、UTF-8 の日本語を含む絶対パスを開けない
+  static bool LoadFileToString(const wchar_t* filepath, std::string& outString)
   {
     std::ifstream file(filepath, std::ios::ate | std::ios::binary); // 末尾にシークして開く
     if (!file.is_open()) {
       return false;
     }
 
-    size_t fileSize = (size_t)file.tellg();
+    const std::streamoff end = file.tellg();
+    if (end < 0) {
+      return false;   // 大きさが取れない (以前は -1 をそのまま大きさにしていた)
+    }
+    size_t fileSize = (size_t)end;
     outString.resize(fileSize);
 
     file.seekg(0, std::ios::beg); // 先頭に戻る
@@ -27,7 +32,7 @@ namespace GLFD::Graphics {
     // 1. HLSLファイルを読み込む
     std::string shaderCode;
     // ECS 2-11: the reasons below go to Game.log (they used to go to std::cerr only)
-    if (!LoadFileToString("Source/Shaders/particle.hlsl", shaderCode)) {
+    if (!LoadFileToString(L"Source/Shaders/particle.hlsl", shaderCode)) {
       LOG_ERROR("shader: could not read Source/Shaders/particle.hlsl (relative to the working folder)");
       return false;
     }

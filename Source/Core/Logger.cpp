@@ -23,7 +23,31 @@ namespace GLFD::Core {
     Shutdown();
   }
 
+  namespace {
+    /// ワイドのパスを、ログの行に書く UTF-8 にする。直せなければ空
+    std::string ToUtf8(const wchar_t* wide) {
+      const int needed = ::WideCharToMultiByte(CP_UTF8, 0, wide, -1, nullptr, 0, nullptr, nullptr);
+      if (needed <= 1) { return std::string(); }
+      std::string utf8(static_cast<size_t>(needed), '\0');
+      if (::WideCharToMultiByte(CP_UTF8, 0, wide, -1, utf8.data(), needed, nullptr, nullptr) <= 0) { return std::string(); }
+      utf8.resize(static_cast<size_t>(needed) - 1);
+      return utf8;
+    }
+  }
+
   bool Logger::Initialize(const std::string& filePath) {
+    // UTF-8 として直す。直せなければ空のパスで開こうとして、開けなかった理由の行を書く
+    std::wstring wide;
+    const int needed = ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, filePath.c_str(), -1, nullptr, 0);
+    if (needed > 0) {
+      wide.assign(static_cast<size_t>(needed), L'\0');
+      if (::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, filePath.c_str(), -1, wide.data(), needed) <= 0) { wide.clear(); }
+      else { wide.resize(static_cast<size_t>(needed) - 1); }
+    }
+    return Initialize(wide.c_str());
+  }
+
+  bool Logger::Initialize(const wchar_t* filePath) {
     std::lock_guard<std::mutex> lock(m_mutex);
 
     // ログの中身は UTF-8 である(JSON の値をそのまま流すため)。ファイル側は
@@ -44,15 +68,17 @@ namespace GLFD::Core {
     const unsigned long winErr = _doserrno;
     char errText[128] = {};
     if (strerror_s(errText, sizeof errText, err) != 0) { errText[0] = '\0'; }
-    char fullPath[512] = {};
-    const DWORD n = ::GetFullPathNameA(filePath.c_str(), static_cast<DWORD>(sizeof fullPath), fullPath, nullptr);
-    const char* shownPath = (n > 0 && n < sizeof fullPath) ? fullPath : filePath.c_str();
-    char line[1024];
-    std::snprintf(line, sizeof line,
-                  "log: could not open %s for writing: errno %d (%s), Windows error %lu. "
+    // パスは切らない (ECS 2-16。以前は char[512] と char[1024] の行で、長いパスは黙って切れた)。
+    // フルパスが配列に入らなければ、渡されたパスをそのまま書く
+    wchar_t fullPath[1024] = {};
+    const DWORD n = ::GetFullPathNameW(filePath, static_cast<DWORD>(sizeof fullPath / sizeof fullPath[0]), fullPath, nullptr);
+    const wchar_t* shownPath = (n > 0 && n < sizeof fullPath / sizeof fullPath[0]) ? fullPath : filePath;
+    char tail[256];
+    std::snprintf(tail, sizeof tail,
+                  " for writing: errno %d (%s), Windows error %lu. "
                   "this run writes no log file; lines go to the console only",
-                  shownPath, err, errText, winErr);
-    const std::string finalMsg = FormatLine(LogLevel::Error, line);
+                  err, errText, winErr);
+    const std::string finalMsg = FormatLine(LogLevel::Error, "log: could not open " + ToUtf8(shownPath) + tail);
     // Log と同じ順番: 待たされ得るコンソールを最後に (ECS 2-11 の決定)
     ::OutputDebugStringA(finalMsg.c_str());
     if (gLogToConsole.load(std::memory_order_relaxed)) { std::cout << finalMsg; }

@@ -26,6 +26,9 @@ namespace GLFD::Core {
 
     /// ファイルを開けなければ false。そのときは理由 (パスとエラーのコード) をコンソールと
     /// OutputDebugString に 1 行書き、ファイルに書けていないことを覚える (ECS 2-11)。ゲームは止めない
+    /// パスはワイドで開く。日本語を含む絶対パスも開ける (ECS 2-16。狭い文字の open は UTF-8 のパスを開けない)
+    bool Initialize(const wchar_t* filePath);
+    /// パスは UTF-8 (JsonFileIO と同じ決まり)。ワイドに直して上を呼ぶ
     bool Initialize(const std::string& filePath = "engine.log");
     void Shutdown();
 
