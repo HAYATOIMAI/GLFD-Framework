@@ -121,6 +121,9 @@ rem  RenderHealthTests (2-9) ÇÕñ{ï®ÇÃ ReportRenderFailure / ReportSkippedDraws Ç
 if /i "%NAME%"=="RenderHealthTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
 rem  StartupLogTests (2-11) writes the real startup failure lines through the Logger and reads them back
 if /i "%NAME%"=="StartupLogTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
+
+rem  ECS 2-16: ê›íËÇÃî≈ÇÃçsÇñ{ï®ÇÃ Logger Ç≈ì«Ç›ñﬂÇ∑
+if /i "%NAME%"=="ConfigLogTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
 rem  LogExitOrderTests (2-11) blocks the console exit of the real Logger and reads the file meanwhile
 if /i "%NAME%"=="LogExitOrderTests" set "EXTRA_SOURCES=%ROOT%\Source\Core\Logger.cpp"
 rem  CollisionObservationTests (2-12) runs the real grid + collision + EventBus and writes the observation lines

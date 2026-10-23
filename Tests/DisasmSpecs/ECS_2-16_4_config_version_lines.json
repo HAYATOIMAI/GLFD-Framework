@@ -1,0 +1,17 @@
+﻿{
+  "commit": "2-16 commit 4 (ConfigDiagnosticsLogger writes the version lines only for a base file that was read)",
+  "edited": [
+    {
+      "match": "??R?$ConfigDiagnosticsLogger",
+      "why": "operator(): LogBaseVersion only when the document has no error"
+    },
+    {
+      "match": "??RConfigDiagnosticsLogger@GLFD@@",
+      "why": "operator(): LogBaseVersion only when the document has no error"
+    },
+    {
+      "match": "??$ReloadGameConfig@AEAVConfigDiagnosticsLogger@GLFD@@",
+      "why": "inlines operator()"
+    }
+  ]
+}

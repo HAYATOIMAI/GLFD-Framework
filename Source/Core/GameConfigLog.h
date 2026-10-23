@@ -84,7 +84,12 @@ namespace GLFD {
 
       if (layer == ConfigLayer::Base) {
         m_baseVersion = ctx.Version();
-        LogBaseVersion(path);
+        // **読めたファイルについてだけ版を書く** (ECS 2-16)。見つからない・パースに失敗したファイルでは
+        // 版は読まれておらず 0 のまま。2-15 までは、それを「$version が無い」「0 -> 3 へ移行した」と書いていた
+        // ("$version": 1 と書いてあるファイルでも)。理由はすぐ上の LogConfigDiagnostics が書いている
+        if (!doc.HasError()) {
+          LogBaseVersion(path);
+        }
         return;
       }
 
