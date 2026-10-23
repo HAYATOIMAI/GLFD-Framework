@@ -19,12 +19,21 @@
 #   H3 Map lost                    -> the same, "at Map"
 #   H4 Map fails, device not lost  -> keeps running; ONE pair of skipped-draw lines; closing ends with 0
 #   H5 OCCLUDED, then TEST lost    -> the TDR order: stops at "Present(TEST)", no "resumed", exit != 0
-#   H6 startup failure             -> the GAME build started from x64\Release (the wrong folder):
-#                                     box with the working folder, exit != 0; the REASON is in Game.log
-#                                     ("shader: could not read ...", ECS 2-11 T-ECS-47; it used to go to std::cerr only)
-#   H7 startup failure, no log     -> as H6, with a DIRECTORY named Game.log in the working folder, so the log file
-#                                     cannot be opened (ECS 2-11): the box says "Game.log could not be written
-#                                     (path)" and does not point to the log. The directory exists only during H7
+#   Startup failures (ECS 2-16). Until 2-15 they were caused by starting the GAME build from x64\Release (the wrong
+#   working folder). Since 2-16 the game finds its folder from the exe's location, so that start SUCCEEDS; each
+#   failure is now caused in a folder of its own under the output folder, with a copy of the game exe. Every one is
+#   started with the REPOSITORY ROOT as the working folder: a game that fell back to the working folder would find
+#   the repository's files there and start, so these cases also show that it does not fall back.
+#   H6 shader cannot be read      -> <out>\noshader\ has Resource\GameConfig.jsonc next to the exe, no shader:
+#                                     the root is that folder, Game.log says "shader: could not read <root>\Source\...",
+#                                     the box names the game folder, exit != 0
+#   H7 startup failure, no log     -> as H6 in <out>\nolog\, with a DIRECTORY named Game.log in the root, so the log
+#                                     file cannot be opened (ECS 2-11): the box says "Game.log could not be written
+#                                     (path)" and does not point to the log
+#   H8 the root is not found       -> <out>\nomarker\a\b\ holds only the exe: no Resource\GameConfig.jsonc next to it
+#                                     or up to 2 folders above. The box lists the searched folders, Game.log (next to
+#                                     the exe) says so, exit != 0. It stops before the job system exists, so the log
+#                                     ends with "Engine Shutdown" without "every worker joined"
 #  The box is found by the script (a #32770 window of the game process), its text is
 #  recorded, and it is closed with IDOK. The game has no switch to hide the box.
 #
@@ -113,8 +122,10 @@ function Wait-Until([scriptblock]$cond, [double]$seconds) {
 
 function Run-Case([string]$caseName, [string]$exePath, [string]$workDir, [string]$fault,
                   [bool]$expectBox, [string[]]$mustLog, [string[]]$mustNotLog, [int]$runSeconds,
-                  [string[]]$boxMust = @(), [string[]]$boxMustNot = @(), [switch]$noLogFile) {
-  $logPath = Join-Path $workDir "Game.log"
+                  [string[]]$boxMust = @(), [string[]]$boxMustNot = @(), [switch]$noLogFile,
+                  [string]$logDir = "", [switch]$beforeJobs) {
+  # ECS 2-16: Game.log is under the game's root (or next to the exe when there is no root), not in the working folder
+  $logPath = Join-Path $(if ($logDir) { $logDir } else { $workDir }) "Game.log"
   $caseStart = Get-Date
   Remove-Item $logPath -ErrorAction SilentlyContinue
   if ($noLogFile) { New-Item -ItemType Directory -Path $logPath | Out-Null }   # the Logger cannot open a directory
@@ -178,6 +189,9 @@ function Run-Case([string]$caseName, [string]$exePath, [string]$workDir, [string
   if ($noLogFile) {
     if ($log.Count -ne 0) { $ok = $false; $notes += "EXPECTED no log file, found $($log.Count) line(s)" }
   }
+  elseif ($beforeJobs) {
+    if (@($log | Where-Object { $_ -like "*=== Engine Shutdown ===*" }).Count -ne 1) { $ok = $false; $notes += "no 'Engine Shutdown' line" }
+  }
   elseif (@($log | Where-Object { $_ -like "*every worker joined*" }).Count -ne 1) { $ok = $false; $notes += "no 'every worker joined' line" }
   $idleAfter = [GlfdFaultWin]::IdleMs()
   if ($idleAfter -lt ((Get-Date) - $caseStart).TotalMilliseconds) { $ok = $false; $notes += ("USER INPUT during the case ({0:N0} ms ago): not judged" -f $idleAfter) }
@@ -205,10 +219,32 @@ $results += Run-Case "H2" $probeExe $repoRoot "present=0x887A0005@432,reason=0x8
 $results += Run-Case "H3" $probeExe $repoRoot "map=0x8007000E@432,reason=0x887A0005@0" $true @("$lost at Map: E_OUTOFMEMORY") @("not drawing this frame") 20
 $results += Run-Case "H4" $probeExe $repoRoot "map=0x8007000E@432+3" $false @("not drawing this frame", "drawing again after 3 frame(s)") @("stopping the game") 8
 $results += Run-Case "H5" $probeExe $repoRoot "present=0x087A0001@432+1,test=0x887A0005@0,reason=0x887A0006@0" $true @("$lost at Present(TEST): DXGI_ERROR_DEVICE_REMOVED") @("resumed after") 20
-$results += Run-Case "H6" $gameExe (Split-Path -Parent $gameExe) "" $true @("shader: could not read Source/Shaders/particle.hlsl", "DX11 Init Failed!") @() 20
-$gameDir = Split-Path -Parent $gameExe
-$results += Run-Case "H7" $gameExe $gameDir "" $true @() @() 20 -noLogFile `
-              -boxMust @("Game.log を書けませんでした ($gameDir\Game.log)") -boxMustNot @("ログ: ")
+# --- startup failures, each in a folder of its own (ECS 2-16) ---------------------------------------------------
+function New-GameFolder([string]$dir, [bool]$withConfig) {
+  New-Item -ItemType Directory -Force -Path $dir | Out-Null
+  if ($withConfig) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $dir "Resource") | Out-Null
+    Copy-Item (Join-Path $repoRoot "Resource\GameConfig.jsonc") (Join-Path $dir "Resource")
+  }
+  Copy-Item $gameExe $dir
+  return (Join-Path $dir (Split-Path -Leaf $gameExe))
+}
+$noShader = Join-Path $outDir "noshader"
+$noShaderExe = New-GameFolder $noShader $true
+$results += Run-Case "H6" $noShaderExe $repoRoot "" $true `
+              @("shader: could not read $noShader\Source\Shaders\particle.hlsl", "DX11 Init Failed!", "paths: root $noShader ") @() 20 `
+              -logDir $noShader -boxMust @("ゲームのフォルダ: $noShader", "ログ: $noShader\Game.log") -boxMustNot @("作業フォルダ")
+$noLog = Join-Path $outDir "nolog"
+$noLogExe = New-GameFolder $noLog $true
+$results += Run-Case "H7" $noLogExe $repoRoot "" $true @() @() 20 -noLogFile -logDir $noLog `
+              -boxMust @("Game.log を書けませんでした ($noLog\Game.log)") -boxMustNot @("ログ: ")
+$noMarker = Join-Path $outDir "nomarker\a\b"
+$noMarkerExe = New-GameFolder $noMarker $false
+$results += Run-Case "H8" $noMarkerExe $repoRoot "" $true `
+              @("Resource\GameConfig.jsonc was not found next to the exe or up to 2 folders above") @("paths: root", "config loaded") 20 `
+              -logDir $noMarker -beforeJobs `
+              -boxMust @("Resource\GameConfig.jsonc を次の場所で探しましたが", $noMarker, (Split-Path -Parent $noMarker), "ログ: $noMarker\Game.log") `
+              -boxMustNot @("作業フォルダ", "ゲームのフォルダ")
 
 $failed = @($results | Where-Object { -not $_ }).Count
 Write-Host ("{0} of {1} cases as expected. details: {2}" -f ($results.Count - $failed), $results.Count, (Join-Path $outDir "result.txt"))
