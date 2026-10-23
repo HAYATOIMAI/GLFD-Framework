@@ -25,7 +25,7 @@ int Frame(GLFD::Graphics::PresentState& state, HRESULT present, HRESULT test, HR
   const bool stopped = GLFD::Graphics::AfterPresentTest(state, test, Reason{});
   const GLFD::Graphics::MapOutcome mapped = GLFD::Graphics::AfterMap(state.failure, map, Reason{});
   const int written = GLFD::Graphics::FormatExitMessage(text, GLFD::Graphics::ExitReason::RenderFailed, state.failure,
-                                                        nullptr, L"C:\\work");
+                                                        nullptr, GLFD::Graphics::ExitPlaces{ L"C:\\work", nullptr, L"C:\\work\\Game.log" });
   return (stopped ? 1 : 0) + static_cast<int>(mapped) + written + GLFD::Graphics::ExitCodeFor(GLFD::Graphics::ExitReason::Normal)
          + (GLFD::Graphics::HResultName(present) != nullptr ? 1 : 0);
 }

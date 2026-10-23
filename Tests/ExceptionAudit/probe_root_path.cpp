@@ -8,9 +8,9 @@
  *  calls only (no std::wstring, no std::filesystem).
  */
 // EXPECT: CLEAN
-// WHY: 2-16 - FindRoot / FindRootFrom / JoinPath run before the Logger exists; fixed arrays and Win32 only.
+// WHY: 2-16 - FindRoot / FindRootFrom / JoinPath / BuildGamePaths run before the Logger exists; fixed arrays and Win32 only.
 
-#include "Core/RootPath.h"
+#include "Core/GamePaths.h"
 
 namespace {
   bool NoFile(const wchar_t*, void*) { return false; }
@@ -23,5 +23,7 @@ int FindBoth(const wchar_t* exe) {
   GLFD::Core::FindRootFrom(exe, &NoFile, nullptr, fake);
   wchar_t joined[64];
   const bool fits = GLFD::Core::JoinPath(joined, 64, L"C:\\a", L"b");
-  return static_cast<int>(real.status) + static_cast<int>(fake.status) + (fits ? 1 : 0);
+  static GLFD::Core::GamePaths paths;
+  const bool built = GLFD::Core::BuildGamePaths(real, paths);
+  return static_cast<int>(real.status) + static_cast<int>(fake.status) + (fits ? 1 : 0) + (built ? 1 : 0);
 }

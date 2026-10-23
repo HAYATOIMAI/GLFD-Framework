@@ -196,8 +196,16 @@ namespace GLFD::Graphics {
     return 3;
   }
 
-  /// 知らせの文の長さ(`wchar_t`、終端を含む)
-  inline constexpr std::size_t kExitMessageLength = 1024;
+  /// 知らせの文の長さ(`wchar_t`、終端を含む)。ECS 2-16 で 1024 から広げた: 探した 3 か所とログのパスを
+  /// 書くので、深いフォルダでは 1024 に入らない。それでも入らなければ、パスを省いた文にする (空にしない)
+  inline constexpr std::size_t kExitMessageLength = 4096;
+
+  /// 知らせに書く場所 (ECS 2-16)。2-15 までは作業フォルダを 1 つ渡していた
+  struct ExitPlaces {
+    const wchar_t* root;       ///< ゲームのフォルダ (根)。見つからなければ nullptr
+    const wchar_t* searched;   ///< 根を探した場所 (1 行に 1 つ)。根が見つからなかったときに書く
+    const wchar_t* logPath;    ///< Game.log のパス。分からなければ nullptr
+  };
 
   /**
    * @brief 知らせの 1 行目: 何が起きたかを、理由(`GetDeviceRemovedReason`)ごとに平易に書く
@@ -247,34 +255,51 @@ namespace GLFD::Graphics {
    * @details 何が起きたか → どうすればよいか → 値の名前(最後の行)→ ログの場所、の順。
    *          日本語の文はこのヘッダ(UTF-8 BOM)のワイド文字列だけに置く。テストは \\u で照らす
    * @param what      起動の失敗なら何ができなかったか(ASCII)。描画の失敗なら使わない
-   * @param workDir   作業フォルダ(起動の失敗の多くは、ここを取り違えて起きる)
+   * @param places    ゲームのフォルダ、探した場所、ログのパス (ECS 2-16。以前は作業フォルダを書いていた)
    * @param logWritten Game.log に書けているか。false なら「送ってください」の代わりに「書けませんでした」(ECS 2-11)
-   * @return 書いた文字数。`Normal` なら空文字列を書いて 0
+   * @return 書いた文字数。`Normal` なら空文字列を書いて 0。
+   *         パスが長くて入りきらなければ、パスを省いた短い文を書く (空のボックスにしない。切ったパスも書かない)
    */
   inline int FormatExitMessage(wchar_t (&out)[kExitMessageLength], ExitReason reason, const RenderFailure& failure,
-                               const char* what, const wchar_t* workDir, bool logWritten = true) noexcept {
+                               const char* what, const ExitPlaces& places, bool logWritten = true) noexcept {
     out[0] = L'\0';
-    const wchar_t* folder = (workDir != nullptr) ? workDir : L"(unknown)";
+    const wchar_t* const logPath = (places.logPath != nullptr) ? places.logPath : L"(unknown)";
+    const char*    const cause   = (what != nullptr) ? what : "unknown";
     if (reason == ExitReason::StartupFailed) {
-      return std::swprintf(out, kExitMessageLength,
-                           L"ゲームを起動できませんでした。\n原因: %hs\n\n作業フォルダ: %ls\nゲームはこのフォルダから Resource\\ と Source\\Shaders\\ を読みます。リポジトリの直下 (または Visual Studio) から起動してください。\n\n%ls%ls\\Game.log%ls",
-                           (what != nullptr) ? what : "unknown", folder,
-                           ExitLogLabel(logWritten), folder, ExitLogTail(logWritten));
+      int written = (places.root != nullptr)
+          ? std::swprintf(out, kExitMessageLength,
+                          L"ゲームを起動できませんでした。\n原因: %hs\n\nゲームのフォルダ: %ls\n(exe の隣から 2 つ上までで、Resource\\GameConfig.jsonc があったフォルダ。設定とシェーダーはここから読みます)\n\n%ls%ls%ls",
+                          cause, places.root, ExitLogLabel(logWritten), logPath, ExitLogTail(logWritten))
+          : std::swprintf(out, kExitMessageLength,
+                          L"ゲームを起動できませんでした。\n原因: %hs\n\nResource\\GameConfig.jsonc を次の場所で探しましたが、見つかりませんでした:\n%ls\n\nexe は、Resource\\ のあるフォルダか、その 1 つ下・2 つ下のフォルダに置いてください。\n\n%ls%ls%ls",
+                          cause, (places.searched != nullptr) ? places.searched : L"(unknown)",
+                          ExitLogLabel(logWritten), logPath, ExitLogTail(logWritten));
+      if (written < 0) {
+        written = std::swprintf(out, kExitMessageLength,
+                                L"ゲームを起動できませんでした。\n原因: %hs\n\nフォルダのパスが長すぎて、この知らせには書けません。%ls",
+                                cause, logWritten ? L"Game.log に書いてあります。" : L"Game.log も書けませんでした。");
+      }
+      return written;
     }
     if (reason == ExitReason::RenderFailed) {
       const char* returned = HResultName(failure.returned);
       const char* reasonName = HResultName(failure.removedReason);
-      return std::swprintf(out, kExitMessageLength,
-                           L"%ls\n\n%ls\n\n"
-                           L"%hs: %hs (0x%08lX) / removed reason: %hs (0x%08lX)\n"
-                           L"%ls%ls\\Game.log%ls",
-                           ExitHeadline(failure), ExitAdvice(failure, logWritten),
-                           (failure.where != nullptr) ? failure.where : "?",
-                           (returned != nullptr) ? returned : "unknown",
-                           static_cast<unsigned long>(failure.returned),
-                           (reasonName != nullptr) ? reasonName : "unknown",
-                           static_cast<unsigned long>(failure.removedReason),
-                           ExitLogLabel(logWritten), folder, ExitLogTail(logWritten));
+      int written = std::swprintf(out, kExitMessageLength,
+                                  L"%ls\n\n%ls\n\n"
+                                  L"%hs: %hs (0x%08lX) / removed reason: %hs (0x%08lX)\n"
+                                  L"%ls%ls%ls",
+                                  ExitHeadline(failure), ExitAdvice(failure, logWritten),
+                                  (failure.where != nullptr) ? failure.where : "?",
+                                  (returned != nullptr) ? returned : "unknown",
+                                  static_cast<unsigned long>(failure.returned),
+                                  (reasonName != nullptr) ? reasonName : "unknown",
+                                  static_cast<unsigned long>(failure.removedReason),
+                                  ExitLogLabel(logWritten), logPath, ExitLogTail(logWritten));
+      if (written < 0) {
+        written = std::swprintf(out, kExitMessageLength, L"%ls\n\n%ls\n\n(Game.log のパスが長すぎて、この知らせには書けません)",
+                                ExitHeadline(failure), ExitAdvice(failure, logWritten));
+      }
+      return written;
     }
     return 0;
   }

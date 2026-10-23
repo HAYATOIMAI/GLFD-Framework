@@ -10,7 +10,8 @@ namespace GLFD {
 namespace GLFD::Graphics {
   class ParticleShader {
   public:
-    bool Initialize(ID3D11Device* device);
+    // path はワイドの絶対パス (ECS 2-16)。shownPath は読めなかったときにログへ書く UTF-8
+    bool Initialize(ID3D11Device* device, const wchar_t* path, const char* shownPath);
 
     // 描画設定（Contextにシェーダーをセット）
     void Bind(ID3D11DeviceContext* context);

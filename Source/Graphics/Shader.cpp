@@ -28,12 +28,13 @@ namespace GLFD::Graphics {
     return true;
   }
 
-  bool ParticleShader::Initialize(ID3D11Device* device) {
+  bool ParticleShader::Initialize(ID3D11Device* device, const wchar_t* path, const char* shownPath) {
     // 1. HLSLファイルを読み込む
     std::string shaderCode;
     // ECS 2-11: the reasons below go to Game.log (they used to go to std::cerr only)
-    if (!LoadFileToString(L"Source/Shaders/particle.hlsl", shaderCode)) {
-      LOG_ERROR("shader: could not read Source/Shaders/particle.hlsl (relative to the working folder)");
+    if (!LoadFileToString(path, shaderCode)) {
+      // 根から組み立てた絶対パスを書く (ECS 2-16)。LogFmt の 1024 バイトを通さないので、長くても切れない
+      Core::Logger::Get().Log(Core::LogLevel::Error, std::string("shader: could not read ") + shownPath);
       return false;
     }
 

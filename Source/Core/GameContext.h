@@ -12,6 +12,7 @@
 #include "../Core/DoubleStackAllocator.h"
 
 namespace GLFD::Scene { class SceneManager; }
+namespace GLFD::Core { struct GamePaths; }
 
 namespace GLFD {
   struct GameContext {
@@ -33,5 +34,9 @@ namespace GLFD {
 
     Graphics::DX11Renderer*   renderer;
     Scene::SceneManager*      sceneManager;
+
+    /// 根と、設定・シェーダー・ログのパス (ECS 2-16)。`GameEngine::Initialize` の頭で 1 回だけ決める。
+    /// F5 の読み直しもここを読むので、起動時と同じファイルを読む。描画の ctx には入れない (nullptr)
+    const Core::GamePaths*    paths = nullptr;
   };
 }

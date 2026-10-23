@@ -112,7 +112,8 @@ namespace {
       CHECK(state.failure.failed);
       CHECK(!GLFD::Graphics::IsDeviceRemoved(state.failure));
       wchar_t text[GLFD::Graphics::kExitMessageLength];
-      GLFD::Graphics::FormatExitMessage(text, GLFD::Graphics::ExitReason::RenderFailed, state.failure, nullptr, L"C:\\work");
+      GLFD::Graphics::FormatExitMessage(text, GLFD::Graphics::ExitReason::RenderFailed, state.failure, nullptr,
+                                        GLFD::Graphics::ExitPlaces{ L"C:\\work", nullptr, L"C:\\work\\Game.log" });
       CHECK(std::wcsstr(text, L"\u5931\u308f\u308c\u3066\u3044\u307e\u305b\u3093") != nullptr);   // "(デバイスは失われていません)"
       CHECK(std::wcsstr(text, L"\u30b2\u30fc\u30e0\u306e\u4e0d\u5177\u5408") != nullptr);   // "ゲームの不具合"
       CHECK(std::wcsstr(text, L"\u30ea\u30bb\u30c3\u30c8") == nullptr);   // "リセット" と書かない
@@ -318,19 +319,23 @@ namespace {
 
     wchar_t text[GLFD::Graphics::kExitMessageLength];
     const RenderFailure none{};
-    CHECK(GLFD::Graphics::FormatExitMessage(text, ExitReason::Normal, none, nullptr, L"C:\\work") == 0);
+    // ECS 2-16: 作業フォルダではなく、ゲームのフォルダ (根) とログのパスを渡す
+    const GLFD::Graphics::ExitPlaces work{ L"C:\\work", nullptr, L"C:\\work\\Game.log" };
+    const GLFD::Graphics::ExitPlaces games{ L"C:\\games", nullptr, L"C:\\games\\Game.log" };
+    const GLFD::Graphics::ExitPlaces repo{ L"D:\\repo", nullptr, L"D:\\repo\\Game.log" };
+    CHECK(GLFD::Graphics::FormatExitMessage(text, ExitReason::Normal, none, nullptr, work) == 0);
     CHECK(text[0] == L'\0');
 
     CHECK(GLFD::Graphics::FormatExitMessage(text, ExitReason::StartupFailed, none,
-                                            "the graphics (DX11) could not be initialized", L"C:\\games\\x64\\Release") > 0);
+                                            "the graphics (DX11) could not be initialized", games) > 0);
     CHECK(std::wcsstr(text, L"\u8d77\u52d5\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f") != nullptr);   // "起動できませんでした"
     CHECK(std::wcsstr(text, L"the graphics (DX11) could not be initialized") != nullptr);
-    CHECK(std::wcsstr(text, L"\u4f5c\u696d\u30d5\u30a9\u30eb\u30c0: C:\\games\\x64\\Release") != nullptr);   // "作業フォルダ: "
-    CHECK(std::wcsstr(text, L"\u30ed\u30b0: C:\\games\\x64\\Release\\Game.log") != nullptr);   // "ログ: "
+    CHECK(std::wcsstr(text, L"\u30b2\u30fc\u30e0\u306e\u30d5\u30a9\u30eb\u30c0: C:\\games") != nullptr);   // "ゲームのフォルダ: "
+    CHECK(std::wcsstr(text, L"\u30ed\u30b0: C:\\games\\Game.log") != nullptr);   // "ログ: "
 
     RenderFailure lost;
     (void)GLFD::Graphics::RecordFailure(lost, "Map", E_OUTOFMEMORY, DXGI_ERROR_DEVICE_REMOVED);
-    CHECK(GLFD::Graphics::FormatExitMessage(text, ExitReason::RenderFailed, lost, nullptr, L"D:\\repo") > 0);
+    CHECK(GLFD::Graphics::FormatExitMessage(text, ExitReason::RenderFailed, lost, nullptr, repo) > 0);
     CHECK(std::wcsstr(text, L"\u53d6\u308a\u5916") != nullptr);   // REMOVED: "取り外"
     CHECK(std::wcsstr(text, L"Map: E_OUTOFMEMORY (0x8007000E) / removed reason: DXGI_ERROR_DEVICE_REMOVED (0x887A0005)") != nullptr);
     CHECK(std::wcsstr(text, L"\u30ed\u30b0: D:\\repo\\Game.log") != nullptr);   // "ログ: "
@@ -347,17 +352,17 @@ namespace {
     for (const Case& c : cases) {
       RenderFailure f;
       (void)GLFD::Graphics::RecordFailure(f, "Present", DXGI_ERROR_DEVICE_REMOVED, c.reason);
-      CHECK(GLFD::Graphics::FormatExitMessage(text, ExitReason::RenderFailed, f, nullptr, L"D:\\repo") > 0);
+      CHECK(GLFD::Graphics::FormatExitMessage(text, ExitReason::RenderFailed, f, nullptr, repo) > 0);
       CHECK(std::wcsstr(text, c.must) != nullptr);
       CHECK(std::wcsstr(text, c.mustNot) == nullptr);
     }
     // RESET / HUNG / 内部エラーでは「GPU が無くなったわけではない」と書く。取り外し(REMOVED)では書かない
     RenderFailure reset;
     (void)GLFD::Graphics::RecordFailure(reset, "Present", DXGI_ERROR_DEVICE_REMOVED, DXGI_ERROR_DEVICE_RESET);
-    CHECK(GLFD::Graphics::FormatExitMessage(text, ExitReason::RenderFailed, reset, nullptr, L"D:\\repo") > 0);
+    CHECK(GLFD::Graphics::FormatExitMessage(text, ExitReason::RenderFailed, reset, nullptr, repo) > 0);
     CHECK(std::wcsstr(text, L"\u7121\u304f\u306a\u3063\u305f\u308f\u3051\u3067\u306f\u3042\u308a\u307e\u305b\u3093") != nullptr);
     CHECK(std::wcsstr(text, L"Present: DXGI_ERROR_DEVICE_REMOVED (0x887A0005) / removed reason: DXGI_ERROR_DEVICE_RESET (0x887A0007)") != nullptr);
-    CHECK(GLFD::Graphics::FormatExitMessage(text, ExitReason::RenderFailed, lost, nullptr, L"D:\\repo") > 0);
+    CHECK(GLFD::Graphics::FormatExitMessage(text, ExitReason::RenderFailed, lost, nullptr, repo) > 0);
     CHECK(std::wcsstr(text, L"\u7121\u304f\u306a\u3063\u305f\u308f\u3051\u3067\u306f\u3042\u308a\u307e\u305b\u3093") == nullptr);
   }
 

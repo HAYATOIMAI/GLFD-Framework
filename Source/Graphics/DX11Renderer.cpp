@@ -6,7 +6,8 @@ namespace GLFD::Graphics {
   DX11Renderer::DX11Renderer() = default;
   DX11Renderer::~DX11Renderer() = default;
 
-  bool DX11Renderer::Initialize(void* hwnd, int width, int height) {
+  bool DX11Renderer::Initialize(void* hwnd, int width, int height, const wchar_t* shaderPath,
+                                const char* shaderPathShown) {
     m_width = width;
     m_height = height;
 
@@ -78,7 +79,7 @@ namespace GLFD::Graphics {
     // ステートをセット
     m_deviceContext->RSSetState(m_rasterizerState.Get());
 
-    if (!m_shader.Initialize(m_device.Get())) return false;
+    if (!m_shader.Initialize(m_device.Get(), shaderPath, shaderPathShown)) return false;
 
     // 定数バッファ初期化
     hr = m_cbGlobal.Initialize(m_device.Get());

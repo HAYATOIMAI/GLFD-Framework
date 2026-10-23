@@ -7,6 +7,7 @@
 #include "Core/GameConfig.h"
 #include "Core/GameConfigLoad.h"
 #include "Core/GameConfigLog.h"
+#include "Core/GamePaths.h"
 #include "Core/Json/Json.h"
 #include "Core/InputSystem.h"
 #include "Core/SimulationClock.h"
@@ -32,6 +33,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <cwchar>
 #include <string>
 #include <thread>
 
@@ -49,6 +51,68 @@ namespace {
     ::MultiByteToWideChar(CP_UTF8, 0, utf8.Data(), static_cast<int>(utf8.Size()),
                           wide.data(), needed);
     return wide;
+  }
+
+  /// ワイドのパスを、ログの行に入れる UTF-8 にする
+  std::string PathUtf8(const wchar_t* wide) {
+    char utf8[GLFD::Core::kUtf8PathCapacity];
+    return GLFD::Core::ToUtf8Path(utf8, sizeof utf8, wide) ? std::string(utf8) : std::string("(could not convert)");
+  }
+
+  /**
+   * @brief 根と 4 つのパスを Game.log に 1 回書く (ECS 2-16)
+   * @details 読み違えたときに利用者がすぐ気づけるように、絶対パスで書く。`LogFmt` の 1024 バイトの配列を
+   *          通さないので、長いパスも切れない。目印が 2 か所以上にあれば警告する (exe の隣へ写した写しが、
+   *          リポジトリの GameConfig.jsonc を隠す。書き換えても F5 で変わらない)
+   */
+  void LogGamePaths(const GLFD::Core::GamePaths& paths) {
+    using GLFD::Core::LogLevel;
+    using GLFD::Core::RootStatus;
+    GLFD::Core::Logger& log = GLFD::Core::Logger::Get();
+    const GLFD::Core::RootSearch& search = paths.search;
+    switch (search.status) {
+    case RootStatus::Found: {
+      static const char* const kWhere[GLFD::Core::kRootCandidateCount] = {
+          "next to the exe", "1 folder up from the exe", "2 folders up from the exe" };
+      log.Log(LogLevel::Info, "paths: root " + PathUtf8(search.Root()) + " (Resource\\GameConfig.jsonc found "
+                                  + kWhere[search.chosen] + ")");
+      if (search.markerCount >= 2) {
+        std::string others;
+        for (int i = 0; i < search.candidateCount; ++i) {
+          if (i == search.chosen || !search.candidates[i].hasMarker) { continue; }
+          others += (others.empty() ? "" : ", ") + PathUtf8(search.candidates[i].folder);
+        }
+        log.Log(LogLevel::Warning, "paths: Resource\\GameConfig.jsonc is also in " + others
+                                       + ". the one nearest the exe is used. if that is a copy, edits to the other one "
+                                         "(and F5) are not seen");
+      }
+      log.Log(LogLevel::Info, std::string("paths: config ") + paths.config);
+      log.Log(LogLevel::Info, std::string("paths: local config ") + paths.configLocal + " (optional)");
+      log.Log(LogLevel::Info, std::string("paths: shader ") + paths.shaderUtf8);
+      log.Log(LogLevel::Info, std::string("paths: log ") + paths.logUtf8);
+      if (!paths.filesFit) {
+        log.Log(LogLevel::Error, "paths: a file path under the root is longer than 1023 characters. it is left empty, not cut");
+      }
+      break;
+    }
+    case RootStatus::NotFound: {
+      std::string where;
+      for (int i = 0; i < search.candidateCount; ++i) {
+        where += (i == 0 ? "" : " ; ") + PathUtf8(search.candidates[i].folder);
+      }
+      log.Log(LogLevel::Error, "paths: Resource\\GameConfig.jsonc was not found next to the exe or up to 2 folders above. "
+                               "searched: " + where + ". the game does not fall back to the working folder");
+      log.Log(LogLevel::Info, std::string("paths: log ") + paths.logUtf8 + " (next to the exe, because there is no root)");
+      break;
+    }
+    case RootStatus::ExePathTooLong:
+      log.Log(LogLevel::Error, "paths: the exe's own path could not be read, or is longer than 1023 characters");
+      break;
+    case RootStatus::CandidateTooLong:
+      log.Log(LogLevel::Error, "paths: " + PathUtf8(search.candidates[search.candidateCount - 1].folder)
+                                   + "\\Resource\\GameConfig.jsonc is longer than 1023 characters");
+      break;
+    }
   }
 }
 
@@ -78,8 +142,25 @@ namespace GLFD {
 
   void GameEngine::Initialize() {
 
-    Core::Logger::Get().Initialize("Game.log");
+    // --- 根を決める (ECS 2-16) ------------------------------------------------
+    // **ログを開く前に。** ログも根の下に置く。作業フォルダには依らない (Core/RootPath.h)。
+    // 2-15 までは 3 つとも作業フォルダからの相対で、x64\Release から起動すると設定は既定値に落ち、
+    // シェーダーが見つからずに起動できなかった
+    m_paths = std::make_unique<Core::GamePaths>();
+    const bool pathsReady = Core::ResolveGamePaths(*m_paths);
+    if (m_paths->log[0] != L'\0') {
+      Core::Logger::Get().Initialize(m_paths->log);
+    }
     LOG_INFO("=== Engine Startup ===");
+    LogGamePaths(*m_paths);
+    if (!pathsReady) {
+      // 作業フォルダへ戻らない。どのファイルを読んだかが起動の仕方で変わるのを避ける
+      SetExit(Graphics::ExitReason::StartupFailed,
+              m_paths->search.Root() == nullptr ? "the game folder (with Resource\\GameConfig.jsonc) was not found"
+                                                : "a file path under the game folder is too long");
+      m_isRunning = false;
+      return;
+    }
 
     m_mainStack = std::make_unique<Memory::StackAllocator>(USE_MEMORY_SIZE);
     m_stackResource = std::make_unique<Memory::StackResource>(*m_mainStack);
@@ -98,17 +179,20 @@ namespace GLFD {
       // 2 段レイヤ (2-3)。.local.json は無いのが普通で、あれば上書きされる
       ConfigDiagnosticsLogger diagnostics;
       const bool loaded = ReloadGameConfig(m_configDoc, m_configLocalDoc, m_config,
-                                           kGameConfigPath, kGameConfigLocalPath,
+                                           m_paths->config, m_paths->configLocal,
                                            m_stackResource.get(), diagnostics);
       if (loaded) {
-        LOG_INFO("config loaded: %s (version %u)%s", kGameConfigPath, diagnostics.Version(),
+        // const char* にしてから渡す: char[] のまま渡すと LogFmt<char*> の呼び出しが増え、コンパイラが
+        // ReportSkippedDraws (毎フレームの Run が展開する) の中の LogFmt を展開しなくなった (ECS 2-16 の機械語の比較)
+        const char* const configPath = m_paths->config;
+        LOG_INFO("config loaded: %s (version %u)%s", configPath, diagnostics.Version(),
                  diagnostics.SawLocal() ? " + GameConfig.local.json" : "");
       }
       else {
         // **起動不能にしない。** 既定値のまま続行する。
         // 失敗の位置は診断が file(line,col) 形式で出している
         LOG_WARN("config could not be loaded (%s). falling back to built-in defaults",
-                 kGameConfigPath);
+                 static_cast<const char*>(m_paths->config));
         m_configDoc      = std::make_unique<Json::Document>(m_stackResource.get());
         m_configLocalDoc = std::make_unique<Json::Document>(m_stackResource.get());
         m_config         = std::make_unique<GameConfig>(m_stackResource.get());
@@ -128,7 +212,8 @@ namespace GLFD {
 
     m_renderer = std::make_unique<Graphics::DX11Renderer>();
     if (!m_renderer->Initialize(m_window->GetHWND(),
-                                m_config->window.width, m_config->window.height)) {
+                                m_config->window.width, m_config->window.height,
+                                m_paths->shader, m_paths->shaderUtf8)) {
       LOG_ERROR("DX11 Init Failed!");   // the reason is the line above it (ECS 2-11)
       SetExit(Graphics::ExitReason::StartupFailed, "the graphics (DX11) could not be initialized");
       m_isRunning = false;
@@ -150,7 +235,8 @@ namespace GLFD {
         m_inputSystem.get(),
         0.0f,
         m_renderer.get(),
-        m_sceneManager.get()
+        m_sceneManager.get(),
+        m_paths.get()
     };
 
     // The start scene comes from the config (ECS 1-8); 2-1 added the runtime
@@ -290,7 +376,8 @@ namespace GLFD {
         m_inputSystem.get(),
         dt,
         m_renderer.get(),
-        m_sceneManager.get()
+        m_sceneManager.get(),
+        m_paths.get()   // F5 の読み直しが、起動時と同じファイルを読む (ECS 2-16)
     };
 
     // 入力は Run がフレームに 1 回読み、この刻みの頭で BeginStep を済ませてある (ECS 2-8)
@@ -343,12 +430,23 @@ namespace GLFD {
 
   void GameEngine::SetExit(Graphics::ExitReason reason, const char* what) {
     m_exitReason = reason;
-    wchar_t workDir[512] = {};
-    const DWORD n = ::GetCurrentDirectoryW(static_cast<DWORD>(sizeof workDir / sizeof workDir[0]), workDir);
+    // 作業フォルダではなく、根 (見つかったとき) か探した場所 (見つからなかったとき) を書く (ECS 2-16)。
+    // 探した場所は 1 行に 1 つ。どの候補も配列に入っているので、ここで切れることは無い
+    wchar_t searched[Core::kRootCandidateCount * (Core::kRootPathCapacity + 1)] = {};
+    const wchar_t* root    = nullptr;
+    const wchar_t* logPath = nullptr;
+    if (m_paths) {
+      root    = m_paths->search.Root();
+      logPath = (m_paths->log[0] != L'\0') ? m_paths->log : nullptr;
+      for (int i = 0; i < m_paths->search.candidateCount; ++i) {
+        if (i > 0) { wcscat_s(searched, L"\n"); }
+        wcscat_s(searched, m_paths->search.candidates[i].folder);
+      }
+    }
     const Graphics::RenderFailure none{};
     // Game.log could not be opened: the box must not ask for it (ECS 2-11)
     Graphics::FormatExitMessage(m_exitMessage, reason, m_renderer ? m_renderer->Failure() : none, what,
-                                (n > 0 && n < sizeof workDir / sizeof workDir[0]) ? workDir : nullptr,
+                                Graphics::ExitPlaces{ root, (searched[0] != L'\0') ? searched : nullptr, logPath },
                                 Core::Logger::Get().FileOpen());
   }
 

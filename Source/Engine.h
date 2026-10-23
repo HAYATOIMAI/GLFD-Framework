@@ -6,7 +6,7 @@ namespace GLFD::ECS { class Registry; class CommandBuffer; }
 namespace GLFD::Events { class EventBus; }
 namespace GLFD::Graphics { class SimpleWindow; class DX11Renderer; }
 namespace GLFD::Physics  { class SpatialHashGrid; }
-namespace GLFD::Core { class InputSystem; class CloseRequest; }
+namespace GLFD::Core { class InputSystem; class CloseRequest; struct GamePaths; }
 namespace GLFD::Scene { class SceneManager; }
 // 設定は JSON から読む。ヘッダに Document を持ち込まない
 namespace GLFD::Json { class Document; }
@@ -82,6 +82,8 @@ namespace GLFD {
     Graphics::ExitReason m_exitReason = Graphics::ExitReason::Normal;
     const Core::CloseRequest* m_closeRequest = nullptr;   // ECS 2-10。持ち主は main
     wchar_t              m_exitMessage[Graphics::kExitMessageLength] = {};
+    // ECS 2-16: 根と 4 つのパス。Initialize の頭 (ログを開く前) で決め、GameContext::paths で配る
+    std::unique_ptr<Core::GamePaths> m_paths = nullptr;
 
     void Update(float dt);
     void Render();

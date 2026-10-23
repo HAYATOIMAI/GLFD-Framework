@@ -5,6 +5,8 @@
 #include "../Core/SystemSchedule.h"
 #include "../Core/GameConfigLoad.h"
 #include "../Core/GameConfigLog.h"
+#include "../Core/GamePaths.h"
+#include <cassert>
 #include "../Core/Json/Json.h"
 #include "../Core/Logger.h"
 
@@ -68,9 +70,14 @@ namespace GLFD {
     const Json::Value* const beforeBase  = previousBase  ? &previousBase->Root()  : nullptr;
     const Json::Value* const beforeLocal = previousLocal ? &previousLocal->Root() : nullptr;
 
+    // 起動時と同じパス (ECS 2-16)。Engine が必ず渡す。無ければ空のパスで読みに行って失敗し、
+    // 作業フォルダの相対へは戻らない
+    assert(ctx.paths != nullptr && "BoidDemoScene::ReloadConfig: GameContext::paths must be set");
+    const char* const basePath  = (ctx.paths != nullptr) ? ctx.paths->config : "";
+    const char* const localPath = (ctx.paths != nullptr) ? ctx.paths->configLocal : "";
     ConfigDiagnosticsLogger diagnostics;
     const bool ok = ReloadGameConfig(m_configDoc, m_configLocalDoc, m_config,
-                                     kGameConfigPath, kGameConfigLocalPath,
+                                     basePath, localPath,
                                      ctx.globalResource, diagnostics);
     const std::uint32_t version = diagnostics.Version();
 
@@ -81,8 +88,8 @@ namespace GLFD {
     }
     else if (beforeBase != nullptr && beforeLocal != nullptr) {
       // previous* はまだ生きているので、新旧の DOM を並べて比較できる
-      LogConfigDiff(*beforeBase, m_configDoc->Root(), kGameConfigPath,
-                    *beforeLocal, m_configLocalDoc->Root(), kGameConfigLocalPath);
+      LogConfigDiff(*beforeBase, m_configDoc->Root(), basePath,
+                    *beforeLocal, m_configLocalDoc->Root(), localPath);
     }
 
     if (ok) {
@@ -180,7 +187,7 @@ namespace GLFD {
     // (maxSpeed / bounds / interaction)だけで、entityCount と boidProfiles、
     // spawnRange は次に OnEnter を通ったときに効く。窓の大きさは起動時のみ
     if (ctx.input->IsTriggered(Core::KeyCode::F5)) {
-      LOG_INFO("BoidDemoScene: F5 pressed. reloading %s", kGameConfigPath);
+      LOG_INFO("BoidDemoScene: F5 pressed. reloading %s", (ctx.paths != nullptr) ? ctx.paths->config : "(no path)");
       ReloadConfig(ctx);
     }
 

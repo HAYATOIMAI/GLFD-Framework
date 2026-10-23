@@ -17,6 +17,11 @@
  *          `GetModuleFileNameW` で切れたことを戻り値で見分ける
  *   - 57f: ドライブの直下の exe では、候補は 1 つだけ
  *   - 57g: 本物のディスクで、このテストの exe から根が見つかり、そこに目印がある
+ *   - 57h: 4 つのパス(設定・ローカル設定・シェーダー・ログ)は根から組み立てる。根が無ければログだけを
+ *          exe の隣に置き、ほかは空(作業フォルダの相対で代わりにしない)。日本語は UTF-8 になる。
+ *          根の下のパスが入りきらなければ、そのパスは空にして filesFit を false にする(切らない)
+ *   - 57i: 起動の失敗の知らせは、根か探した場所を書き、「作業フォルダ」を書かない。長すぎるときは
+ *          パスを省いた短い文にする(空のボックスにも、切ったパスにもしない)
  *
  *  ## 押さえないもの
  *   - 260 を超えるパスに置いた exe の本物の起動(このマシンは `LongPathsEnabled` = 0、マニフェストに
@@ -31,7 +36,9 @@
 #include <cwchar>
 #include <string>
 
+#include "Core/GamePaths.h"
 #include "Core/RootPath.h"
+#include "Graphics/RenderHealth.h"
 
 #include "TestHarness.h"
 
@@ -65,6 +72,7 @@ namespace {
   }
 
   RootSearch g_search;   // 大きい (約 6 KB) ので static に置く
+  GLFD::Core::GamePaths g_paths;
 
   void TestLevels() {
     GLFD::Test::BeginCase("T-ECS-57a: the marker next to the exe, one up, two up is found; three up is not");
@@ -231,6 +239,95 @@ namespace {
     CHECK(g_search.Root() != nullptr && !GLFD::Core::FileExistsOnDisk(g_search.Root(), nullptr));
   }
 
+  void TestGamePaths() {
+    GLFD::Test::BeginCase("T-ECS-57h: the four paths come from the root; without a root only the log, next to the exe");
+    using GLFD::Core::BuildGamePaths;
+    {
+      FakeDisk disk;
+      disk.files[disk.count++] = L"C:\\r\\Resource\\GameConfig.jsonc";
+      Search(L"C:\\r\\x64\\Release\\game.exe", disk, g_search);
+      CHECK(BuildGamePaths(g_search, g_paths));
+      CHECK(std::strcmp(g_paths.config, "C:\\r\\Resource\\GameConfig.jsonc") == 0);
+      CHECK(std::strcmp(g_paths.configLocal, "C:\\r\\Resource\\GameConfig.local.json") == 0);
+      CHECK(std::wcscmp(g_paths.shader, L"C:\\r\\Source\\Shaders\\particle.hlsl") == 0);
+      CHECK(std::strcmp(g_paths.shaderUtf8, "C:\\r\\Source\\Shaders\\particle.hlsl") == 0);
+      CHECK(std::wcscmp(g_paths.log, L"C:\\r\\Game.log") == 0);
+      CHECK(std::strcmp(g_paths.logUtf8, "C:\\r\\Game.log") == 0);
+      CHECK(g_paths.filesFit);
+    }
+    {
+      // 根が無い: ログだけ exe の隣。ほかは空で、作業フォルダの相対 ("Resource/...") にもならない
+      FakeDisk disk;
+      Search(L"D:\\copy\\game.exe", disk, g_search);
+      CHECK(!BuildGamePaths(g_search, g_paths));
+      CHECK(std::wcscmp(g_paths.log, L"D:\\copy\\Game.log") == 0);
+      CHECK(g_paths.config[0] == '\0' && g_paths.configLocal[0] == '\0' && g_paths.shader[0] == L'\0');
+    }
+    {
+      // 日本語: JsonFileIO へ渡す設定のパスは UTF-8
+      FakeDisk disk;
+      disk.files[disk.count++] = L"C:\\\u65E5\u672C\\Resource\\GameConfig.jsonc";
+      Search(L"C:\\\u65E5\u672C\\x64\\Release\\g.exe", disk, g_search);
+      CHECK(BuildGamePaths(g_search, g_paths));
+      CHECK(std::strcmp(g_paths.config, "C:\\\xE6\x97\xA5\xE6\x9C\xAC\\Resource\\GameConfig.jsonc") == 0);
+      CHECK(std::wcscmp(g_paths.shader, L"C:\\\u65E5\u672C\\Source\\Shaders\\particle.hlsl") == 0);
+    }
+    {
+      // 根 + 目印 (26 文字) は入るが、根 + シェーダー (30 文字) は入らない長さ: そのパスだけ空、切らない
+      std::wstring root = L"C:\\";
+      while (root.size() < 996) { root += L"z"; }
+      const std::wstring exe    = root + L"\\g.exe";
+      const std::wstring marker = root + L"\\Resource\\GameConfig.jsonc";
+      FakeDisk disk;
+      disk.files[disk.count++] = marker.c_str();
+      Search(exe.c_str(), disk, g_search);
+      CHECK(g_search.status == RootStatus::Found);
+      CHECK(!BuildGamePaths(g_search, g_paths));
+      CHECK(!g_paths.filesFit);
+      CHECK(g_paths.config[0] != '\0');
+      CHECK(g_paths.shader[0] == L'\0' && g_paths.shaderUtf8[0] == '\0');
+      CHECK(g_paths.configLocal[0] == '\0');
+      CHECK(g_paths.log[0] != L'\0');
+    }
+  }
+
+  void TestExitMessage() {
+    GLFD::Test::BeginCase("T-ECS-57i: the startup box names the root or the searched folders; too long is shortened, not cut");
+    using GLFD::Graphics::ExitPlaces;
+    using GLFD::Graphics::ExitReason;
+    using GLFD::Graphics::FormatExitMessage;
+    static wchar_t text[GLFD::Graphics::kExitMessageLength];
+    const GLFD::Graphics::RenderFailure none{};
+
+    // 見つからない: 探した場所を 1 行ずつ。「作業フォルダ」は書かない
+    CHECK(FormatExitMessage(text, ExitReason::StartupFailed, none, "x",
+                            ExitPlaces{ nullptr, L"D:\\a\\b\nD:\\a\nD:\\", L"D:\\a\\b\\Game.log" }) > 0);
+    CHECK(std::wcsstr(text, L"D:\\a\\b\nD:\\a\nD:\\") != nullptr);
+    CHECK(std::wcsstr(text, L"\u4f5c\u696d\u30d5\u30a9\u30eb\u30c0") == nullptr);        // 作業フォルダ
+    CHECK(std::wcsstr(text, L"\u30ed\u30b0: D:\\a\\b\\Game.log") != nullptr);             // ログ: <path>
+    // 見つかった (シェーダーが無いなど): ゲームのフォルダを書く
+    CHECK(FormatExitMessage(text, ExitReason::StartupFailed, none, "x",
+                            ExitPlaces{ L"C:\\r", nullptr, L"C:\\r\\Game.log" }) > 0);
+    CHECK(std::wcsstr(text, L"\u30b2\u30fc\u30e0\u306e\u30d5\u30a9\u30eb\u30c0: C:\\r") != nullptr);   // ゲームのフォルダ:
+    CHECK(std::wcsstr(text, L"\u4f5c\u696d\u30d5\u30a9\u30eb\u30c0") == nullptr);
+
+    // 入りきらない: 1023 文字のフォルダ 3 つと 1023 文字のログ (配列に入る最長)
+    std::wstring searched;
+    for (int i = 0; i < 3; ++i) { searched += (i == 0 ? L"" : L"\n") + std::wstring(1023, L'x'); }
+    const std::wstring longLog(1023, L'y');
+    CHECK(FormatExitMessage(text, ExitReason::StartupFailed, none, "x",
+                            ExitPlaces{ nullptr, searched.c_str(), longLog.c_str() }) > 0);
+    CHECK(std::wcsstr(text, L"\u9577\u3059\u304e") != nullptr);   // 長すぎ
+    CHECK(std::wcsstr(text, L"xxxxxxxxxx") == nullptr);          // 切ったパスを書かない
+    GLFD::Graphics::RenderFailure lost;
+    (void)GLFD::Graphics::RecordFailure(lost, "Map", E_OUTOFMEMORY, DXGI_ERROR_DEVICE_REMOVED);
+    const std::wstring tooLongLog(GLFD::Graphics::kExitMessageLength, L'y');
+    CHECK(FormatExitMessage(text, ExitReason::RenderFailed, lost, nullptr,
+                            ExitPlaces{ nullptr, nullptr, tooLongLog.c_str() }) > 0);
+    CHECK(std::wcsstr(text, L"yyyyyyyyyy") == nullptr);
+    CHECK(std::wcsstr(text, L"\u9577\u3059\u304e") != nullptr);
+  }
+
 }
 
 int main() {
@@ -242,5 +339,7 @@ int main() {
   TestTooLong();
   TestDriveRoot();
   TestRealDisk();
+  TestGamePaths();
+  TestExitMessage();
   return GLFD::Test::Summarize();
 }

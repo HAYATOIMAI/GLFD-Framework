@@ -38,8 +38,9 @@ int main() {
   S(GameEngine); S(Graphics::DX11Renderer); S(GameContext); S(Core::Logger); S(Graphics::SimpleWindow);
   P(GameEngine, m_inputSystem); P(GameEngine, m_sceneManager); P(GameEngine, m_isRunning); P(GameEngine, m_jobDropsSeen);
   P(GameEngine, m_droppingJobs); P(GameEngine, m_exitReason); P(GameEngine, m_closeRequest); P(GameEngine, m_exitMessage);
+  P(GameEngine, m_paths);
   P(Graphics::DX11Renderer, m_vertexBuffer); P(Graphics::DX11Renderer, m_width); P(Graphics::DX11Renderer, m_height);
-  P(GameContext, input); P(GameContext, dt); P(GameContext, renderer); P(GameContext, sceneManager);
+  P(GameContext, input); P(GameContext, dt); P(GameContext, renderer); P(GameContext, sceneManager); P(GameContext, paths);
   P(Core::Logger, m_fileStream); P(Core::Logger, m_mutex);
   P(Graphics::SimpleWindow, m_hwnd); P(Graphics::SimpleWindow, m_height);
   return 0;

@@ -284,19 +284,20 @@ namespace {
     notLost.returned = E_OUTOFMEMORY;
 
     wchar_t out[GLFD::Graphics::kExitMessageLength]{};
+    const GLFD::Graphics::ExitPlaces work{ L"C:\\work", nullptr, L"C:\\work\\Game.log" };   // ECS 2-16
     // 起動の失敗
-    CHECK(GLFD::Graphics::FormatExitMessage(out, ExitReason::StartupFailed, none, "x", L"C:\\work", false) > 0);
+    CHECK(GLFD::Graphics::FormatExitMessage(out, ExitReason::StartupFailed, none, "x", work, false) > 0);
     CHECK(std::wcsstr(out, kNotWritten) != nullptr);
     CHECK(std::wcsstr(out, kLogLine) == nullptr);
-    CHECK(GLFD::Graphics::FormatExitMessage(out, ExitReason::StartupFailed, none, "x", L"C:\\work", true) > 0);
+    CHECK(GLFD::Graphics::FormatExitMessage(out, ExitReason::StartupFailed, none, "x", work, true) > 0);
     CHECK(std::wcsstr(out, kLogLine) != nullptr);
     CHECK(std::wcsstr(out, kNotWritten) == nullptr);
     // 描画の失敗(リセット / 失われていない): 送ってと言わない
     for (const GLFD::Graphics::RenderFailure* f : { &reset, &notLost }) {
-      CHECK(GLFD::Graphics::FormatExitMessage(out, ExitReason::RenderFailed, *f, nullptr, L"C:\\work", false) > 0);
+      CHECK(GLFD::Graphics::FormatExitMessage(out, ExitReason::RenderFailed, *f, nullptr, work, false) > 0);
       CHECK(std::wcsstr(out, kNotWritten) != nullptr);
       CHECK(std::wcsstr(out, kSend) == nullptr);
-      CHECK(GLFD::Graphics::FormatExitMessage(out, ExitReason::RenderFailed, *f, nullptr, L"C:\\work", true) > 0);
+      CHECK(GLFD::Graphics::FormatExitMessage(out, ExitReason::RenderFailed, *f, nullptr, work, true) > 0);
       CHECK(std::wcsstr(out, kSend) != nullptr);
       CHECK(std::wcsstr(out, kLogLine) != nullptr);
     }

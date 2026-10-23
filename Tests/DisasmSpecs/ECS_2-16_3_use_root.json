@@ -1,0 +1,138 @@
+﻿{
+  "commit": "2-16 commit 3 (the game decides the root before the log, reads config / shader / log from it, and the box names the root or the searched folders)",
+  "edited": [
+    {
+      "match": "?Initialize@GameEngine@GLFD@@",
+      "why": "decides the root before the Logger; config, shader and log paths come from it"
+    },
+    {
+      "match": "?SetExit@GameEngine@GLFD@@",
+      "why": "passes the root / the searched folders / the log path instead of the working folder; inlines FormatExitMessage (new text)"
+    },
+    {
+      "match": "?Update@GameEngine@GLFD@@",
+      "why": "the GameContext it builds carries paths (F5 reads the same files)"
+    },
+    {
+      "match": "?Render@GameEngine@GLFD@@",
+      "why": "the GameContext it builds grew by the paths member (left nullptr)"
+    },
+    {
+      "match": "LogGamePaths",
+      "why": "new: writes the root and the four paths once"
+    },
+    {
+      "match": "PathUtf8",
+      "why": "new helper"
+    },
+    {
+      "match": "??0GameEngine@GLFD@@",
+      "why": "constructor: new member m_paths, m_exitMessage 1024 -> 4096"
+    },
+    {
+      "match": "??1GameEngine@GLFD@@",
+      "why": "destructor: destroys m_paths"
+    },
+    {
+      "match": "?ReloadConfig@BoidDemoScene@",
+      "why": "reads ctx.paths instead of the relative constants"
+    },
+    {
+      "match": "?OnUpdate@BoidDemoScene@",
+      "why": "the F5 line names ctx.paths->config"
+    },
+    {
+      "match": "?Initialize@DX11Renderer@",
+      "why": "takes the shader path"
+    },
+    {
+      "match": "?Initialize@ParticleShader@",
+      "why": "takes the shader path; the failure line names it"
+    },
+    {
+      "match": "main",
+      "why": "GameEngine and the message array on main's stack grew (kExitMessageLength 1024 -> 4096, m_paths)"
+    },
+    {
+      "match": "?FormatExitMessage@Graphics@GLFD@@",
+      "why": "new signature (ExitPlaces) and text; kExitMessageLength 1024 -> 4096"
+    },
+    {
+      "match": "?FindRoot@Core@GLFD@@",
+      "why": "new (ECS 2-16): an inline function of RootPath.h / GamePaths.h, now compiled into Engine"
+    },
+    {
+      "match": "?FindRootFrom@Core@GLFD@@",
+      "why": "new (ECS 2-16): an inline function of RootPath.h / GamePaths.h, now compiled into Engine"
+    },
+    {
+      "match": "?ExePath@Core@GLFD@@",
+      "why": "new (ECS 2-16): an inline function of RootPath.h / GamePaths.h, now compiled into Engine"
+    },
+    {
+      "match": "?FileExistsOnDisk@Core@GLFD@@",
+      "why": "new (ECS 2-16): an inline function of RootPath.h / GamePaths.h, now compiled into Engine"
+    },
+    {
+      "match": "?JoinPath@Core@GLFD@@",
+      "why": "new (ECS 2-16): an inline function of RootPath.h / GamePaths.h, now compiled into Engine"
+    },
+    {
+      "match": "?JoinBoth@Detail@Core@GLFD@@",
+      "why": "new (ECS 2-16): an inline function of RootPath.h / GamePaths.h, now compiled into Engine"
+    },
+    {
+      "match": "?ToUtf8Path@Core@GLFD@@",
+      "why": "new (ECS 2-16): an inline function of RootPath.h / GamePaths.h, now compiled into Engine"
+    },
+    {
+      "match": "?BuildGamePaths@Core@GLFD@@",
+      "why": "new (ECS 2-16): an inline function of RootPath.h / GamePaths.h, now compiled into Engine"
+    },
+    {
+      "match": "?ResolveGamePaths@Core@GLFD@@",
+      "why": "new (ECS 2-16): an inline function of RootPath.h / GamePaths.h, now compiled into Engine"
+    },
+    {
+      "match": "??0RootSearch@Core@GLFD@@",
+      "why": "new (ECS 2-16): an inline function of RootPath.h / GamePaths.h, now compiled into Engine"
+    },
+    {
+      "match": "??0GamePaths@Core@GLFD@@",
+      "why": "new (ECS 2-16): an inline function of RootPath.h / GamePaths.h, now compiled into Engine"
+    },
+    {
+      "match": "?Root@RootSearch@Core@GLFD@@",
+      "why": "new (ECS 2-16): an inline function of RootPath.h / GamePaths.h, now compiled into Engine"
+    },
+    {
+      "match": "?Run@GameEngine@GLFD@@QEAAXXZ",
+      "why": "inlines Render: its GameContext grew 96 -> 104 (measured; paths at offset 96, stored as 0 once per frame: mov qword ptr [rbp+70h],r13). the frame grows by 16 (8 rounded up to 16) and the locals after the context move +10h; two alignment nops change length. a per-frame change of one 8-byte store"
+    }
+  ],
+  "new_library": {
+    "tus": [
+      "Engine",
+      "Shader",
+      "main"
+    ],
+    "crt": [
+      "??$wcscat_s@$0MAD@@@YAHAEAY0MAD@_WPEB_W@Z",
+      "?wcsrchr@@YAPEA_WPEA_W_W@Z",
+      "??$wcsncpy_s@$0BAAA@@@YAHAEAY0BAAA@_WPEB_W_K@Z"
+    ],
+    "why": "std::string operator+ used by LogGamePaths / the shader line; CRT templates wcscat_s<3075> (SetExit) and wcsncpy_s<4096> (main: the message array grew), and the non-const wcsrchr overload (FindRootFrom)"
+  },
+  "sizes": [
+    [
+      96,
+      104,
+      "sizeof GameContext (measured)"
+    ],
+    [
+      2184,
+      8336,
+      "sizeof GameEngine (measured: m_exitMessage 1024 -> 4096 wchar_t, + m_paths)"
+    ]
+  ]
+}

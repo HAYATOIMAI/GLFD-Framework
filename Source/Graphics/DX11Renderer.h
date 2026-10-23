@@ -37,7 +37,8 @@ namespace GLFD::Graphics {
     DX11Renderer(const DX11Renderer&) = delete;
     DX11Renderer& operator=(const DX11Renderer&) = delete;
     // 初期化
-    bool Initialize(void* hwnd, int width, int height);
+    // shaderPath: 根から組み立てた絶対パス (ECS 2-16)。shaderPathShown はログに書く UTF-8
+    bool Initialize(void* hwnd, int width, int height, const wchar_t* shaderPath, const char* shaderPathShown);
     // 描画開始
     void BeginFrame();
     // 描画終了
