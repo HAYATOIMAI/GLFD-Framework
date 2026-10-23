@@ -163,6 +163,9 @@
     <ClInclude Include="Source\Core\GameConfigLoad.h">
       <Filter>Core</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Core\RootPath.h">
+      <Filter>Core</Filter>
+    </ClInclude>
     <ClInclude Include="Source\Core\GameConfig.h">
       <Filter>Core</Filter>
     </ClInclude>

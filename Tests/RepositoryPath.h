@@ -12,10 +12,17 @@
  *  (リポジトリ直下から呼べば `<root>`、`Tests\` から呼べば `<root>\Tests`)。
  *  したがって相対パスや `current_path()` を起点にすると、**呼び出し方によって
  *  解決先が変わる**。実行ファイルの位置は常に `<root>\Tests\build` なので、
- *  そこから 3 段たどる形だけが安定する。
+ *  そこから辿る形だけが安定する。
  *
  *  「`current_path()` の方が簡単では」と思ったらここを読むこと。簡単だが、
  *  **どこから実行しても同じ結果になる**という性質を失う。
+ *
+ *  ## ゲームと同じ関数で探す (ECS 2-16)
+ *  2-15 までは、ここだけが「exe のパスから 3 段たどる」を持っていた(目印は見ず、
+ *  `GetModuleFileNameW` で切れても気づかなかった)。2-16 でゲームも作業フォルダに依らずに
+ *  根を決めるようになったので、探す処理は `Source/Core/RootPath.h` の 1 本にまとめ、
+ *  ここはそれを呼ぶだけにした。テストの exe も `<root>\Tests\build` で、2 つ上の目印
+ *  (`Resource\GameConfig.jsonc`)で根が見つかる。
  *
  *  ## 共有 static を返さない
  *  `RepositoryFile` は**呼び出し側のバッファ**へ書く。共有の static を返す形は
@@ -31,35 +38,26 @@
 #include <cstddef>
 #include <cstdio>
 
-#ifndef WIN32_LEAN_AND_MEAN
-#  define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#  define NOMINMAX
-#endif
-#include <windows.h>
+#include "Core/RootPath.h"
 
 namespace GLFD::Test {
 
   /**
-   * @brief リポジトリのルート(`<root>`)。末尾に区切りは付かない
-   * @note  `<root>\Tests\build\X.exe` から 3 段たどる
-   *        (1 段目で実行ファイル名、2 段目で `build`、3 段目で `Tests` を落とす)。
-   *        解決できなければ空文字列を返す
+   * @brief リポジトリのルート(`<root>`)を UTF-8 で。末尾に区切りは付かない
+   * @note  探し方は `Core::FindRoot`(ゲームと同じ)。見つからなければ空文字列を返す
    */
   inline const char* RepositoryRoot() {
-    static char root[1024];
+    static char root[GLFD::Core::kRootPathCapacity * 3];
     static bool initialized = false;
     if (!initialized) {
-      wchar_t modulePath[1024] = {};
-      ::GetModuleFileNameW(nullptr, modulePath, 1024);
-      for (int i = 0; i < 3; ++i) {
-        wchar_t* const slash = ::wcsrchr(modulePath, L'\\');
-        if (slash != nullptr) { *slash = 0; }
+      root[0] = 0;
+      static GLFD::Core::RootSearch search;   // 大きいので static に置く
+      GLFD::Core::FindRoot(search);
+      if (search.Root() != nullptr) {
+        const int converted = ::WideCharToMultiByte(CP_UTF8, 0, search.Root(), -1,
+                                                    root, sizeof(root), nullptr, nullptr);
+        if (converted <= 0) { root[0] = 0; }
       }
-      const int converted = ::WideCharToMultiByte(CP_UTF8, 0, modulePath, -1,
-                                                  root, sizeof(root), nullptr, nullptr);
-      if (converted <= 0) { root[0] = 0; }
       initialized = true;
     }
     return root;

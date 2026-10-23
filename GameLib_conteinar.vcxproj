@@ -48,6 +48,7 @@
     <ClInclude Include="Source\Core\DynamicArray.h" />
     <ClInclude Include="Source\Core\GameConfig.h" />
     <ClInclude Include="Source\Core\GameConfigLoad.h" />
+    <ClInclude Include="Source\Core\RootPath.h" />
     <ClInclude Include="Source\Core\GameConfigLog.h" />
     <ClInclude Include="Source\Core\GameContext.h" />
     <ClInclude Include="Source\Core\HashMap.h" />
